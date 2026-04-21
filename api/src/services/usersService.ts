@@ -4,7 +4,6 @@ import { KevbotDb } from "../db/connection";
 import { TracksService } from "./tracksService";
 import { PlaylistsService } from "./playlistsService";
 import { Config } from "../config/config";
-import { sql } from "kysely";
 
 const PUBLIC_USER_FIELDS = [
   "users.id",
@@ -19,12 +18,6 @@ interface UserOptions {
   discord_id?: string;
   discord_username?: string;
 }
-
-// TODO: should services support injection of execution context? That was it would be easy to do complex transactions.
-type UserSearchResult = {
-  data: PublicUser[];
-  total: number;
-};
 
 export function usersServiceFactory(
   db: KevbotDb,
@@ -171,116 +164,6 @@ export function usersServiceFactory(
     return farewell ?? { farewell_track_id: null, farewell_playlist_id: null };
   };
 
-  const searchUsers = async ({
-    q,
-    limit,
-    offset = 0,
-    hybridRatio = config.hybridRelevanceRatio,
-  }: {
-    q: string | null;
-    limit: number;
-    offset?: number;
-    hybridRatio?: number;
-  }): Promise<UserSearchResult> => {
-    const trimmed = q?.trim() ?? "";
-
-    if (!trimmed) {
-    const rows = await db
-      .selectFrom("users as u")
-      .select([
-        "u.id",
-        "u.discord_id",
-        "u.discord_username",
-        "u.discord_avatar_hash",
-        "u.created_at",
-        "u.updated_at",
-        sql<number>`COUNT(*) OVER ()`.as("total_rows"),
-        sql<number>`0`.as("relevance"),
-        sql<number>`0`.as("is_prefix"),
-        sql<number>`0`.as("is_id_prefix"),
-      ])
-        .orderBy(sql`u.discord_username IS NULL`, "asc")
-        .orderBy("u.discord_username", "asc")
-        .orderBy("u.discord_id", "asc")
-        .limit(limit)
-        .offset(offset)
-        .execute();
-      const total = rows.length ? rows[0].total_rows : 0;
-      return {
-        data: rows.map(({ total_rows, ...rest }) => rest as PublicUser),
-        total,
-      };
-    }
-
-    const rows = await db
-      .with("scored", (db) =>
-        db
-          .selectFrom("users as u")
-          .select([
-            "u.id",
-            "u.discord_id",
-            "u.discord_username",
-            "u.discord_avatar_hash",
-            "u.created_at",
-            "u.updated_at",
-            sql<number>`MATCH(u.discord_username) AGAINST (${trimmed} IN NATURAL LANGUAGE MODE)`.as("rel"),
-            sql<boolean>`u.discord_username LIKE CONCAT(${trimmed}, '%')`.as("is_prefix"),
-            sql<boolean>`u.discord_id LIKE CONCAT(${trimmed}, '%')`.as("is_id_prefix"),
-          ])
-          .where((eb) =>
-            eb.or([
-              sql<boolean>`u.discord_username LIKE CONCAT(${trimmed}, '%')`,
-              sql<boolean>`u.discord_id LIKE CONCAT(${trimmed}, '%')`,
-              sql<boolean>`MATCH(u.discord_username) AGAINST (${trimmed} IN NATURAL LANGUAGE MODE)`,
-            ])
-          )
-      )
-      .with("aug", (db) =>
-        db.selectFrom("scored as s").selectAll().select(sql<number>`MAX(s.rel) OVER ()`.as("max_rel"))
-      )
-      .with("kept", (db) =>
-        db
-          .selectFrom("aug as s")
-          .selectAll()
-          .where((eb) =>
-            eb.or([
-              sql<boolean>`s.is_prefix = 1`,
-              sql<boolean>`s.is_id_prefix = 1`,
-              eb.and([sql<boolean>`s.rel > 0`, sql<boolean>`s.rel >= ${hybridRatio} * s.max_rel`]),
-            ])
-          )
-      )
-      .selectFrom("kept as s")
-      .select([
-        "s.id",
-        "s.discord_id",
-        "s.discord_username",
-        "s.discord_avatar_hash",
-        "s.created_at",
-        "s.updated_at",
-        sql<number>`COUNT(*) OVER ()`.as("total_rows"),
-        sql<number>`s.rel`.as("relevance"),
-        sql<number>`s.is_prefix`.as("is_prefix"),
-        sql<number>`s.is_id_prefix`.as("is_id_prefix"),
-      ])
-      .orderBy(sql`CASE WHEN s.is_prefix = 1 THEN 0 ELSE 1 END`, "asc")
-      .orderBy(sql`CASE WHEN s.is_prefix = 1 THEN s.discord_username ELSE NULL END`, "asc")
-      .orderBy(sql`CASE WHEN s.is_id_prefix = 1 THEN 0 ELSE 1 END`, "asc")
-      .orderBy(sql`CASE WHEN s.is_id_prefix = 1 THEN s.discord_id ELSE NULL END`, "asc")
-      .orderBy("s.rel", "desc")
-      .orderBy("s.discord_username", "asc")
-      .orderBy("s.discord_id", "asc")
-      .limit(limit)
-      .offset(offset)
-      .execute();
-
-    const total = rows.length ? rows[0].total_rows : 0;
-    return {
-      data: rows.map(({ total_rows, ...rest }) => rest as PublicUser),
-      total,
-    };
-  };
-
   return {
     postUser,
     patchUser,
@@ -291,7 +174,6 @@ export function usersServiceFactory(
     getGreetingByUserId,
     getFarewellByUserId,
     getUserByDiscordId,
-    searchUsers,
   };
 }
 

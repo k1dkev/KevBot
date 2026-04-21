@@ -3,12 +3,6 @@ import * as Boom from "@hapi/boom";
 import { Playlist } from "../db/schema";
 import { KevbotDb } from "../db/connection";
 import { Config } from "../config/config";
-import { sql } from "kysely";
-
-type PlaylistSearchResult = {
-  data: Playlist[];
-  total: number;
-};
 
 export function playlistsServiceFactory(db: KevbotDb, config: Config) {
   interface PlaylistOptions {
@@ -186,109 +180,6 @@ export function playlistsServiceFactory(db: KevbotDb, config: Config) {
     });
   };
 
-  const searchPlaylists = async ({
-    q,
-    limit,
-    offset = 0,
-    include_deleted = false,
-    hybridRatio = config.hybridRelevanceRatio,
-  }: {
-    q: string | null;
-    limit: number;
-    offset?: number;
-    include_deleted?: boolean;
-    hybridRatio?: number;
-  }): Promise<PlaylistSearchResult> => {
-    const trimmed = q?.trim() ?? "";
-
-    if (!trimmed) {
-      const rows = await db
-        .selectFrom("playlists as p")
-        .select([
-          "p.id",
-          "p.name",
-          "p.user_id",
-          "p.created_at",
-          "p.updated_at",
-          "p.deleted_at",
-          sql<number>`COUNT(*) OVER ()`.as("total_rows"),
-          sql<number>`0`.as("relevance"),
-          sql<number>`0`.as("is_prefix"),
-        ])
-        .$if(!include_deleted, (qb) => qb.where("p.deleted_at", "is", null))
-        .orderBy("p.name", "asc")
-        .limit(limit)
-        .offset(offset)
-        .execute();
-      const total = rows.length ? rows[0].total_rows : 0;
-      return {
-        data: rows.map(({ total_rows, ...rest }) => rest),
-        total,
-      };
-    }
-
-    const rows = await db
-      .with("scored", (db) =>
-        db
-          .selectFrom("playlists as p")
-          .selectAll()
-          .select([
-            sql<number>`MATCH(p.name) AGAINST (${trimmed} IN NATURAL LANGUAGE MODE)`.as("rel"),
-            sql<boolean>`p.name LIKE CONCAT(${trimmed}, '%')`.as("is_prefix"),
-          ])
-          .$if(!include_deleted, (qb) => qb.where("p.deleted_at", "is", null))
-          .where((eb) =>
-            eb.or([
-              sql<boolean>`p.name LIKE CONCAT(${trimmed}, '%')`,
-              sql<boolean>`MATCH(p.name) AGAINST (${trimmed} IN NATURAL LANGUAGE MODE)`,
-            ])
-          )
-      )
-      .with("aug", (db) =>
-        db
-          .selectFrom("scored as s")
-          .selectAll()
-          .select(sql<number>`MAX(s.rel) OVER ()`.as("max_rel"))
-      )
-      .with("kept", (db) =>
-        db
-          .selectFrom("aug as s")
-          .selectAll()
-          .where((eb) =>
-            eb.or([
-              sql<boolean>`s.is_prefix = 1`,
-              eb.and([sql<boolean>`s.rel > 0`, sql<boolean>`s.rel >= ${hybridRatio} * s.max_rel`]),
-            ])
-          )
-      )
-      .selectFrom("kept as s")
-      // .selectAll()
-      .select([
-        "s.id",
-        "s.name",
-        "s.user_id",
-        "s.created_at",
-        "s.updated_at",
-        "s.deleted_at",
-        sql<number>`COUNT(*) OVER ()`.as("total_rows"),
-        sql<number>`s.rel`.as("relevance"),
-        sql<number>`s.is_prefix`.as("is_prefix"),
-      ])
-      .orderBy(sql`CASE WHEN s.is_prefix = 1 THEN 0 ELSE 1 END`, "asc")
-      .orderBy(sql`CASE WHEN s.is_prefix = 1 THEN s.name ELSE NULL END`, "asc")
-      .orderBy("s.rel", "desc")
-      .orderBy("s.name", "asc")
-      .limit(limit)
-      .offset(offset)
-      .execute();
-
-    const total = rows.length ? rows[0].total_rows : 0;
-    return {
-      data: rows.map(({ total_rows, ...rest }) => rest),
-      total,
-    };
-  };
-
   return {
     getPlaylists,
     getPlaylistById,
@@ -299,7 +190,6 @@ export function playlistsServiceFactory(db: KevbotDb, config: Config) {
     getPlaylistTracks,
     postPlaylistTracks,
     deletePlaylistTracks,
-    searchPlaylists,
   };
 }
 

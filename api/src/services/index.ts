@@ -23,7 +23,7 @@ export function serviceFactory(config: Config, secrets: Secrets, db: KevbotDb, t
   const usersService = usersServiceFactory(db, config, tracksService, playlistsService);
   const playsService = playsServiceFactory(db, tracksService, playlistsService);
   const authService = authServiceFactory(config, secrets, db, usersService);
-  const searchService = searchServiceFactory(config, tracksService, playlistsService, usersService);
+  const searchService = searchServiceFactory(db, config);
 
   return {
     authService,

@@ -437,59 +437,29 @@ paths:
 
   /tracks:
     get:
-      summary: Retrieve a paginated list of tracks with advanced search capabilities.
+      summary: Retrieve a paginated list of tracks.
       description: |
-        Supports multiple search modes:
-        - **Browse mode** (no `q` parameter): List all tracks with optional sorting
-        - **Exact mode**: Find tracks with exact name match
-        - **Contains mode**: Find tracks where name contains the query string (supports sorting)
-        - **Fulltext mode**: MySQL full-text search (relevance-based)
-        - **Hybrid mode**: Combines prefix matching with full-text search (relevance-based)
+        Returns tracks sorted by `created_at` descending. For search/relevance
+        ranking across tracks, playlists, and users, use `GET /search`.
       parameters:
-        - in: query
-          name: q
-          schema:
-            type: string
-            minLength: 1
-          description: |
-            Search query string. When provided, `search_mode` is required.
-            Omit this parameter to browse all tracks.
-        - in: query
-          name: search_mode
-          schema:
-            type: string
-            enum: [exact, contains, fulltext, hybrid]
-          description: |
-            Search mode (required when `q` is provided, must be omitted in browse mode):
-            - `exact`: Exact name match
-            - `contains`: Partial name match (supports `sort` and `order`)
-            - `fulltext`: MySQL full-text search (no `sort`/`order` allowed)
-            - `hybrid`: Prefix + full-text hybrid search (no `sort`/`order` allowed)
-        - in: query
-          name: sort
-          schema:
-            type: string
-            enum: [name, created_at, relevance]
-          description: |
-            Sort field. Allowed values depend on mode:
-            - **Browse mode** (no `q`): `name` or `created_at` (default: `created_at`)
-            - **Contains mode**: `name` or `created_at` (default: `created_at`)
-            - **Exact/Fulltext/Hybrid modes**: Not allowed (omit this parameter)
-        - in: query
-          name: order
-          schema:
-            type: string
-            enum: [asc, desc]
-            default: desc
-          description: |
-            Sort order (ascending or descending). 
-            Only applicable when `sort` is allowed.
         - in: query
           name: include_deleted
           schema:
             type: boolean
             default: false
           description: Whether to include soft-deleted tracks in results.
+        - in: query
+          name: user_id
+          schema:
+            type: integer
+            minimum: 1
+          description: Narrow results to tracks owned by this user.
+        - in: query
+          name: playlist_id
+          schema:
+            type: integer
+            minimum: 1
+          description: Narrow results to tracks belonging to this playlist.
         - in: query
           name: limit
           schema:
@@ -1044,6 +1014,88 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+  /search:
+    get:
+      summary: Unified search across tracks, playlists, and users.
+      description: |
+        A single endpoint that supports both **search mode** (when `q` is
+        provided) and **browse mode** (when `q` is omitted) across the three
+        entity types. Results are returned as a discriminated-union list with
+        unified pagination. See `specs/search.md` for the full v1 spec.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: q
+          schema:
+            type: string
+            minLength: 1
+          description: Search query. Must be non-empty after trim if provided.
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: [all, tracks, playlists, users]
+            default: all
+          description: Entity types to search.
+        - in: query
+          name: sort
+          schema:
+            type: string
+            enum: [relevance, name, created_at, play_count]
+          description: |
+            Sort field. Defaults to `relevance` when `q` is provided, `name`
+            otherwise. `relevance` requires `q`. `play_count` requires
+            `type=tracks`.
+        - in: query
+          name: order
+          schema:
+            type: string
+            enum: [asc, desc]
+          description: |
+            Sort direction. Defaults to `asc` for `name`, `desc` for other
+            sorts.
+        - in: query
+          name: include_deleted
+          schema:
+            type: boolean
+            default: false
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - in: query
+          name: playlist_id
+          schema:
+            type: integer
+            minimum: 1
+          description: Narrow to a playlist. Valid only with `type=tracks`.
+        - in: query
+          name: user_id
+          schema:
+            type: integer
+            minimum: 1
+          description: Narrow to an owner. Valid only with `type=tracks` or `type=playlists`.
+      responses:
+        "200":
+          description: Unified search results.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnifiedSearchResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /docs:
     get:
       summary: API documentation page.
@@ -1107,6 +1159,127 @@ components:
           type: integer
         total_play_count:
           type: integer
+    UnifiedSearchUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        display_name:
+          type: string
+          nullable: true
+      required:
+        - id
+        - display_name
+    UnifiedSearchItemBase:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [track, playlist, user]
+        id:
+          type: integer
+        name:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+        relevance:
+          type: number
+          nullable: true
+      required:
+        - type
+        - id
+        - name
+        - created_at
+        - deleted_at
+        - relevance
+    UnifiedSearchTrack:
+      allOf:
+        - $ref: "#/components/schemas/UnifiedSearchItemBase"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [track]
+            duration:
+              type: number
+            total_play_count:
+              type: integer
+            raw_total_play_count:
+              type: integer
+            user:
+              $ref: "#/components/schemas/UnifiedSearchUser"
+          required:
+            - duration
+            - total_play_count
+            - raw_total_play_count
+            - user
+    UnifiedSearchPlaylist:
+      allOf:
+        - $ref: "#/components/schemas/UnifiedSearchItemBase"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [playlist]
+            track_count:
+              type: integer
+            user:
+              $ref: "#/components/schemas/UnifiedSearchUser"
+          required:
+            - track_count
+            - user
+    UnifiedSearchUserResult:
+      allOf:
+        - $ref: "#/components/schemas/UnifiedSearchItemBase"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [user]
+    UnifiedSearchResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            oneOf:
+              - $ref: "#/components/schemas/UnifiedSearchTrack"
+              - $ref: "#/components/schemas/UnifiedSearchPlaylist"
+              - $ref: "#/components/schemas/UnifiedSearchUserResult"
+            discriminator:
+              propertyName: type
+              mapping:
+                track: "#/components/schemas/UnifiedSearchTrack"
+                playlist: "#/components/schemas/UnifiedSearchPlaylist"
+                user: "#/components/schemas/UnifiedSearchUserResult"
+        pagination:
+          type: object
+          properties:
+            total:
+              type: integer
+            limit:
+              type: integer
+            offset:
+              type: integer
+            has_next:
+              type: boolean
+            has_prev:
+              type: boolean
+          required:
+            - total
+            - limit
+            - offset
+            - has_next
+            - has_prev
+      required:
+        - data
+        - pagination
     PaginatedTracksResponse:
       type: object
       properties:

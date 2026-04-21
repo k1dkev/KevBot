@@ -15,7 +15,7 @@ const secretsSchema = z.object({
       },
       {
         message: "DB_CONNECTION_STRING must be a valid URL.",
-      }
+      },
     ),
   GCP_API_ENDPOINT: z.string().min(1),
   GCP_TRACKS_BUCKET_NAME: z.string().min(1),
@@ -41,7 +41,7 @@ const secretsSchema = z.object({
       },
       {
         message: "DISCORD_OAUTH2_REDIRECT_URI must be a valid URL.",
-      }
+      },
     ),
 });
 
@@ -64,12 +64,10 @@ const configSchema = z.object({
     .string()
     .regex(
       /^\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/,
-      "expectedDbVersion must be a valid semantic version (e.g., 2.10.0, 1.0.0-beta, etc.)"
+      "expectedDbVersion must be a valid semantic version (e.g., 2.10.0, 1.0.0-beta, etc.)",
     ),
-  maxTracksPerPage: z.number().int().positive(),
+  maxResultsPerPage: z.number().int().positive(),
   maxSearchQueryLength: z.number().int().positive(),
-  minContainsQueryLength: z.number().int().positive(),
-  maxSuggestLimit: z.number().int().positive(),
   hybridRelevanceRatio: z.number().positive(),
   authAccessTokenTtlMinutes: z.number().int().positive(),
   authRefreshTokenTtlDays: z.number().int().positive(),
@@ -95,7 +93,7 @@ const configSchema = z.object({
       },
       {
         message: "discordOAuth2AuthUrl must be a valid URL.",
-      }
+      },
     ),
 });
 
@@ -143,10 +141,8 @@ export function configFactory(): AppConfig {
       expectedDbVersion: "2.14.0",
       acceptableIntegratedLoudnessBand: 2.5,
       acceptableDurationChangeInSeconds: 0.01,
-      maxTracksPerPage: 100,
+      maxResultsPerPage: 100,
       maxSearchQueryLength: 200,
-      minContainsQueryLength: 2,
-      maxSuggestLimit: 10,
       hybridRelevanceRatio: 0.5,
       authAccessTokenTtlMinutes: accessTokenTtlMinutes,
       authRefreshTokenTtlDays: refreshSessionTtlDays,

@@ -74,7 +74,7 @@ afterAll(async () => {
 });
 
 describe("GET /v1/tracks", () => {
-  it("should return a list of tracks", async () => {
+  it("should return a list of tracks sorted by created_at desc", async () => {
     const res = await request(app).get("/v1/tracks");
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
@@ -112,73 +112,26 @@ describe("GET /v1/tracks", () => {
     });
   });
 
-  it("should return a filtered list of tracks based on exact search", async () => {
-    const res = await request(app).get("/v1/tracks?q=happynewyear&search_mode=exact");
+  it("excludes soft-deleted tracks by default", async () => {
+    const res = await request(app).get("/v1/tracks");
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({
-      data: [
-        {
-          id: 23,
-          name: "happynewyear",
-          created_at: "2024-12-11T07:21:03.000Z",
-          user_id: 1337,
-          duration: 5.328,
-          updated_at: "2024-12-11T07:21:03.000Z",
-          deleted_at: null,
-          raw_total_play_count: 0,
-          total_play_count: 0,
-        },
-      ],
-      pagination: {
-        total: 1,
-        limit: 20,
-        offset: 0,
-        hasNext: false,
-        hasPrev: false,
-      },
-    });
+    expect(res.body.data.find((t: any) => t.name === "deletedtrack")).toBeUndefined();
   });
 
-  it("should return empty list because include deleted is false", async () => {
-    const res = await request(app).get("/v1/tracks?q=deletedtrack&search_mode=exact");
+  it("includes soft-deleted tracks when include_deleted=true", async () => {
+    const res = await request(app).get("/v1/tracks?include_deleted=true");
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({
-      data: [],
-      pagination: {
-        total: 0,
-        limit: 20,
-        offset: 0,
-        hasNext: false,
-        hasPrev: false,
-      },
-    });
+    expect(res.body.data).toHaveLength(3);
+    const deleted = res.body.data.find((t: any) => t.name === "deletedtrack");
+    expect(deleted).toBeDefined();
+    expect(deleted.deleted_at).toEqual(expect.any(String));
   });
 
-  it("should return a filtered list of tracks based on exact search and include deleted", async () => {
-    const res = await request(app).get("/v1/tracks?q=deletedtrack&search_mode=exact&include_deleted=true");
+  it("filters by user_id", async () => {
+    const res = await request(app).get("/v1/tracks?user_id=1");
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({
-      data: [
-        {
-          id: 50,
-          name: "deletedtrack",
-          created_at: "2024-12-11T08:21:03.000Z",
-          user_id: 1,
-          duration: 4.713,
-          updated_at: expect.any(String),
-          deleted_at: expect.any(String),
-          raw_total_play_count: 0,
-          total_play_count: 0,
-        },
-      ],
-      pagination: {
-        total: 1,
-        limit: 20,
-        offset: 0,
-        hasNext: false,
-        hasPrev: false,
-      },
-    });
+    expect(res.body.data).toHaveLength(1);
+    expect(res.body.data[0].name).toBe("yes");
   });
 
   it("returns error if invalid query parameter is provided", async () => {
@@ -186,148 +139,6 @@ describe("GET /v1/tracks", () => {
     expect(res.status).toBe(400);
     expect(res.body).toEqual({ statusCode: 400, error: "Bad Request", message: expect.any(String) });
     expect(res.body?.message).toMatch(/validation error.*dne/i);
-  });
-
-  // Tests for new search modes
-  describe("hybrid search mode", () => {
-    it("should support hybrid search combining prefix and fulltext", async () => {
-      const res = await request(app).get("/v1/tracks?q=happy&search_mode=hybrid");
-      expect(res.status).toBe(200);
-      expect(res.body.data).toBeInstanceOf(Array);
-      expect(res.body.data.length).toBeGreaterThan(0);
-      expect(res.body.data.some((track: any) => track.name === "happynewyear")).toBe(true);
-    });
-
-    it("should reject sort parameter in hybrid mode", async () => {
-      const res = await request(app).get("/v1/tracks?q=happy&search_mode=hybrid&sort=name");
-      expect(res.status).toBe(400);
-      expect(res.body.message).toMatch(/sort must be omitted for hybrid search/i);
-    });
-
-    it("should reject order parameter in hybrid mode", async () => {
-      const res = await request(app).get("/v1/tracks?q=happy&search_mode=hybrid&order=asc");
-      expect(res.status).toBe(400);
-      expect(res.body.message).toMatch(/order must be omitted for hybrid search/i);
-    });
-  });
-
-  describe("fulltext search mode", () => {
-    it("should support fulltext search", async () => {
-      const res = await request(app).get("/v1/tracks?q=happynewyear&search_mode=fulltext");
-      expect(res.status).toBe(200);
-      expect(res.body.data).toBeInstanceOf(Array);
-    });
-
-    it("should reject sort parameter in fulltext mode", async () => {
-      const res = await request(app).get("/v1/tracks?q=happy&search_mode=fulltext&sort=name");
-      expect(res.status).toBe(400);
-      expect(res.body.message).toMatch(/sort must be omitted for fulltext search/i);
-    });
-
-    it("should reject order parameter in fulltext mode", async () => {
-      const res = await request(app).get("/v1/tracks?q=happy&search_mode=fulltext&order=asc");
-      expect(res.status).toBe(400);
-      expect(res.body.message).toMatch(/order must be omitted for fulltext search/i);
-    });
-  });
-
-  describe("contains search mode", () => {
-    it("should support contains search with default sort", async () => {
-      const res = await request(app).get("/v1/tracks?q=happy&search_mode=contains");
-      expect(res.status).toBe(200);
-      expect(res.body.data).toBeInstanceOf(Array);
-      expect(res.body.data.some((track: any) => track.name.includes("happy"))).toBe(true);
-    });
-
-    it("should support contains search with name sort ascending", async () => {
-      const res = await request(app).get("/v1/tracks?q=yes&search_mode=contains&sort=name&order=asc");
-      expect(res.status).toBe(200);
-      expect(res.body.data).toBeInstanceOf(Array);
-      if (res.body.data.length > 1) {
-        expect(res.body.data[0].name <= res.body.data[1].name).toBe(true);
-      }
-    });
-
-    it("should support contains search with created_at sort descending", async () => {
-      const res = await request(app).get("/v1/tracks?q=yes&search_mode=contains&sort=created_at&order=desc");
-      expect(res.status).toBe(200);
-      expect(res.body.data).toBeInstanceOf(Array);
-    });
-
-    it("should reject relevance sort in contains mode", async () => {
-      const res = await request(app).get("/v1/tracks?q=happy&search_mode=contains&sort=relevance");
-      expect(res.status).toBe(400);
-      expect(res.body.message).toMatch(/sort must be 'name' or 'created_at' for contains search/i);
-    });
-  });
-
-  describe("exact search mode", () => {
-    it("should find exact match", async () => {
-      const res = await request(app).get("/v1/tracks?q=yes&search_mode=exact");
-      expect(res.status).toBe(200);
-      expect(res.body.data).toBeInstanceOf(Array);
-      expect(res.body.data.length).toBe(1);
-      expect(res.body.data[0].name).toBe("yes");
-    });
-
-    it("should return empty for non-existent exact match", async () => {
-      const res = await request(app).get("/v1/tracks?q=nonexistent&search_mode=exact");
-      expect(res.status).toBe(200);
-      expect(res.body.data).toEqual([]);
-      expect(res.body.pagination.total).toBe(0);
-    });
-
-    it("should reject sort parameter in exact mode", async () => {
-      const res = await request(app).get("/v1/tracks?q=yes&search_mode=exact&sort=name");
-      expect(res.status).toBe(400);
-      expect(res.body.message).toMatch(/sort must be omitted for exact search/i);
-    });
-
-    it("should reject order parameter in exact mode", async () => {
-      const res = await request(app).get("/v1/tracks?q=yes&search_mode=exact&order=asc");
-      expect(res.status).toBe(400);
-      expect(res.body.message).toMatch(/order must be omitted for exact search/i);
-    });
-  });
-
-  describe("browse mode (no query)", () => {
-    it("should support browse mode with default sort (created_at desc)", async () => {
-      const res = await request(app).get("/v1/tracks");
-      expect(res.status).toBe(200);
-      expect(res.body.data).toBeInstanceOf(Array);
-      expect(res.body.data.length).toBe(2);
-      expect(res.body.pagination.total).toBe(2);
-    });
-
-    it("should support browse mode with name sort ascending", async () => {
-      const res = await request(app).get("/v1/tracks?sort=name&order=asc");
-      expect(res.status).toBe(200);
-      expect(res.body.data).toBeInstanceOf(Array);
-      expect(res.body.data.length).toBe(2);
-      expect(res.body.data[0].name).toBe("happynewyear");
-      expect(res.body.data[1].name).toBe("yes");
-    });
-
-    it("should support browse mode with created_at sort descending", async () => {
-      const res = await request(app).get("/v1/tracks?sort=created_at&order=desc");
-      expect(res.status).toBe(200);
-      expect(res.body.data).toBeInstanceOf(Array);
-      expect(res.body.data.length).toBe(2);
-      expect(res.body.data[0].id).toBe(40); // yes, more recent
-      expect(res.body.data[1].id).toBe(23); // happynewyear, older
-    });
-
-    it("should reject relevance sort in browse mode", async () => {
-      const res = await request(app).get("/v1/tracks?sort=relevance");
-      expect(res.status).toBe(400);
-      expect(res.body.message).toMatch(/sort must be 'name' or 'created_at' for browse mode/i);
-    });
-
-    it("should reject search_mode in browse mode", async () => {
-      const res = await request(app).get("/v1/tracks?search_mode=hybrid");
-      expect(res.status).toBe(400);
-      expect(res.body.message).toMatch(/search mode must be omitted for browse mode/i);
-    });
   });
 
   describe("pagination", () => {
@@ -346,14 +157,6 @@ describe("GET /v1/tracks", () => {
       expect(res.body.pagination.offset).toBe(1);
       expect(res.body.pagination.hasPrev).toBe(true);
       expect(res.body.pagination.hasNext).toBe(false);
-    });
-  });
-
-  describe("query validation", () => {
-    it("should require search_mode when q is provided", async () => {
-      const res = await request(app).get("/v1/tracks?q=test");
-      expect(res.status).toBe(400);
-      expect(res.body.message).toMatch(/search mode is required when q is provided/i);
     });
   });
 });
