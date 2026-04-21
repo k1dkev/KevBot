@@ -6,6 +6,7 @@ import { Disc3, ListMusic, Loader2, Pause, Play, User as UserIcon } from "lucide
 import { api } from "@/lib/api-browser-client";
 import { LibrarySearchBar } from "@/components/track-search-bar";
 import {
+  ApiTrack,
   SearchFilter,
   UnifiedSearchResult,
   UnifiedSearchResultPlaylist,
@@ -32,14 +33,8 @@ interface PaginationState {
   total: number;
   limit: number;
   offset: number;
-  hasNext: boolean;
-  hasPrev: boolean;
-}
-
-interface TotalsState {
-  tracks: number;
-  playlists: number;
-  users: number;
+  has_next: boolean;
+  has_prev: boolean;
 }
 
 interface LibrarySearchPanelProps {
@@ -70,10 +65,9 @@ export function LibrarySearchPanel({
     total: 0,
     limit: PAGE_SIZE,
     offset: 0,
-    hasNext: false,
-    hasPrev: false,
+    has_next: false,
+    has_prev: false,
   });
-  const [totals, setTotals] = useState<TotalsState>({ tracks: 0, playlists: 0, users: 0 });
   const [isInitialLoading, setIsInitialLoading] = useState(false);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -157,7 +151,7 @@ export function LibrarySearchPanel({
     async (offset: number) => {
       const response = await api.search.unified({
         q: query.trim() || undefined,
-        filter,
+        type: filter,
         playlistId: selectedPlaylist?.id ?? undefined,
         userId: selectedUser?.id ?? undefined,
         limit: PAGE_SIZE,
@@ -176,9 +170,8 @@ export function LibrarySearchPanel({
       try {
         const response = await fetchPage(0);
         if (cancelled) return;
-        setResults(response.results);
+        setResults(response.data);
         setPagination(response.pagination);
-        setTotals(response.totals);
       } catch (err) {
         console.error("Search failed", err);
         if (!cancelled) {
@@ -188,10 +181,9 @@ export function LibrarySearchPanel({
             total: 0,
             limit: PAGE_SIZE,
             offset: 0,
-            hasNext: false,
-            hasPrev: false,
+            has_next: false,
+            has_prev: false,
           });
-          setTotals({ tracks: 0, playlists: 0, users: 0 });
         }
       } finally {
         if (!cancelled) {
@@ -210,9 +202,8 @@ export function LibrarySearchPanel({
     setError(null);
     try {
       const response = await fetchPage(0);
-      setResults(response.results);
+      setResults(response.data);
       setPagination(response.pagination);
-      setTotals(response.totals);
       const trimmed = query.trim();
       onSearchStateChange?.({ query: trimmed, filter });
     } catch (err) {
@@ -223,10 +214,9 @@ export function LibrarySearchPanel({
         total: 0,
         limit: PAGE_SIZE,
         offset: 0,
-        hasNext: false,
-        hasPrev: false,
+        has_next: false,
+        has_prev: false,
       });
-      setTotals({ tracks: 0, playlists: 0, users: 0 });
     } finally {
       setIsInitialLoading(false);
     }
@@ -238,9 +228,8 @@ export function LibrarySearchPanel({
     try {
       const nextOffset = results.length;
       const response = await fetchPage(nextOffset);
-      setResults((prev) => [...prev, ...response.results]);
+      setResults((prev) => [...prev, ...response.data]);
       setPagination(response.pagination);
-      setTotals(response.totals);
     } catch (err) {
       console.error("Failed to load additional results", err);
       setError("Unable to load more results. Try again.");
@@ -269,13 +258,13 @@ export function LibrarySearchPanel({
 
   const handlePlaylistRowClick = useCallback(
     (result: UnifiedSearchResultPlaylist) => {
-      const payload = { id: result.playlist.id, name: result.playlist.name };
+      const payload = { id: result.id, name: result.name };
       if (onNavigateToPlaylist) {
         onNavigateToPlaylist(payload);
         return;
       }
 
-      if (selectedPlaylist?.id === result.playlist.id) {
+      if (selectedPlaylist?.id === result.id) {
         clearSelectedPlaylist();
         return;
       }
@@ -289,9 +278,9 @@ export function LibrarySearchPanel({
   const handleUserRowClick = useCallback(
     (result: UnifiedSearchResultUser) => {
       const payload = {
-        id: result.user.id,
-        displayName: result.user.discord_username ?? null,
-        discordId: result.user.discord_id,
+        id: result.id,
+        displayName: result.name ?? null,
+        discordId: "",
       };
 
       if (onNavigateToUser) {
@@ -299,7 +288,7 @@ export function LibrarySearchPanel({
         return;
       }
 
-      if (selectedUser?.id === result.user.id) {
+      if (selectedUser?.id === result.id) {
         clearSelectedUser();
         return;
       }
@@ -311,12 +300,24 @@ export function LibrarySearchPanel({
   );
 
   const handleTrackPlay = useCallback(
-    (track: UnifiedSearchResultTrack["track"]) => {
-      if (currentTrack?.id === track.id) {
+    (result: UnifiedSearchResultTrack) => {
+      if (currentTrack?.id === result.id) {
         togglePlayPause();
-      } else {
-        playTrack(track);
+        return;
       }
+      const track: ApiTrack = {
+        id: result.id,
+        name: result.name,
+        duration: result.duration,
+        user_id: result.user.id,
+        deleted_at: result.deleted_at,
+        created_at: result.created_at,
+        updated_at: result.created_at,
+        total_play_count: result.total_play_count,
+        raw_total_play_count: result.raw_total_play_count,
+        user_display_name: result.user.display_name,
+      };
+      playTrack(track);
     },
     [currentTrack?.id, playTrack, togglePlayPause]
   );
@@ -347,9 +348,9 @@ export function LibrarySearchPanel({
       const displayIndex = pagination.offset + index + 1;
 
       if (result.type === "track") {
-        const trackResult = result as UnifiedSearchResultTrack;
-        const isCurrent = currentTrack?.id === trackResult.track.id;
-        const isHovered = hoveredTrackId === trackResult.track.id;
+        const trackResult: UnifiedSearchResultTrack = result;
+        const isCurrent = currentTrack?.id === trackResult.id;
+        const isHovered = hoveredTrackId === trackResult.id;
         const showControl = isCurrent || isHovered;
         const playIcon = isCurrent ? (
           isLoading ? (
@@ -365,27 +366,25 @@ export function LibrarySearchPanel({
 
         const resolvedOwnerName =
           selectedUser &&
-          selectedUser.id === trackResult.track.user_id &&
+          selectedUser.id === trackResult.user.id &&
           (selectedUser.displayName || selectedUser.discordId)
             ? selectedUser.displayName ?? selectedUser.discordId ?? `User #${selectedUser.id}`
-            : trackResult.track.user_display_name ??
-              trackResult.track.user_discord_id ??
-              `User #${trackResult.track.user_id}`;
+            : trackResult.user.display_name ?? `User #${trackResult.user.id}`;
 
         return (
           <TableRow
-            key={`track-${trackResult.track.id}`}
+            key={`track-${trackResult.id}`}
             className="group cursor-pointer transition-colors hover:bg-muted/60"
-            onMouseEnter={() => setHoveredTrackId(trackResult.track.id)}
-            onMouseLeave={() => setHoveredTrackId((prev) => (prev === trackResult.track.id ? null : prev))}
-            onClick={() => handleTrackPlay(trackResult.track)}
+            onMouseEnter={() => setHoveredTrackId(trackResult.id)}
+            onMouseLeave={() => setHoveredTrackId((prev) => (prev === trackResult.id ? null : prev))}
+            onClick={() => handleTrackPlay(trackResult)}
           >
             <TableCell className="w-14">
               <button
                 type="button"
                 onClick={(event) => {
                   event.stopPropagation();
-                  handleTrackPlay(trackResult.track);
+                  handleTrackPlay(trackResult);
                 }}
                 className="relative flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium text-muted-foreground transition-colors hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
@@ -409,11 +408,11 @@ export function LibrarySearchPanel({
             </TableCell>
             <TableCell>
               <div className="flex flex-col">
-                <span className={cn("font-medium", { "text-primary": isCurrent })}>{trackResult.track.name}</span>
+                <span className={cn("font-medium", { "text-primary": isCurrent })}>{trackResult.name}</span>
                 <span className="text-xs text-muted-foreground">
                   Track •{" "}
                   <Link
-                    href={`/user/${trackResult.track.user_id}`}
+                    href={`/user/${trackResult.user.id}`}
                     className="hover:text-primary hover:underline"
                     onClick={(event) => event.stopPropagation()}
                   >
@@ -424,7 +423,7 @@ export function LibrarySearchPanel({
             </TableCell>
             {isTrackFilter && (
               <TableCell className="text-sm text-muted-foreground">
-                {Math.round(trackResult.track.duration * 1000).toLocaleString()} ms
+                {Math.round(trackResult.duration * 1000).toLocaleString()} ms
               </TableCell>
             )}
             {isPlaylistFilter && <TableCell />}
@@ -437,11 +436,11 @@ export function LibrarySearchPanel({
       }
 
       if (result.type === "playlist") {
-        const playlistResult = result as UnifiedSearchResultPlaylist;
-        const isSelected = selectedPlaylist?.id === playlistResult.playlist.id;
+        const playlistResult: UnifiedSearchResultPlaylist = result;
+        const isSelected = selectedPlaylist?.id === playlistResult.id;
         return (
           <TableRow
-            key={`playlist-${playlistResult.playlist.id}`}
+            key={`playlist-${playlistResult.id}`}
             className="cursor-pointer transition-colors hover:bg-muted/60"
             onClick={() => handlePlaylistRowClick(playlistResult)}
             data-state={isSelected ? "selected" : undefined}
@@ -454,15 +453,15 @@ export function LibrarySearchPanel({
             </TableCell>
             <TableCell>
               <div className="flex flex-col">
-                <span className={cn("font-medium", { "text-primary": isSelected })}>
-                  {playlistResult.playlist.name}
+                <span className={cn("font-medium", { "text-primary": isSelected })}>{playlistResult.name}</span>
+                <span className="text-xs text-muted-foreground">
+                  Playlist • {playlistResult.track_count} track{playlistResult.track_count === 1 ? "" : "s"}
                 </span>
-                <span className="text-xs text-muted-foreground">Playlist</span>
               </div>
             </TableCell>
             {isPlaylistFilter && (
               <TableCell className="text-sm text-muted-foreground">
-                Updated {formatDate(playlistResult.playlist.updated_at)}
+                Created {formatDate(playlistResult.created_at)}
               </TableCell>
             )}
             {isUserFilter && <TableCell />}
@@ -474,11 +473,11 @@ export function LibrarySearchPanel({
       }
 
       if (result.type === "user") {
-        const userResult = result as UnifiedSearchResultUser;
-        const isSelected = selectedUser?.id === userResult.user.id;
+        const userResult: UnifiedSearchResultUser = result;
+        const isSelected = selectedUser?.id === userResult.id;
         return (
           <TableRow
-            key={`user-${userResult.user.id}`}
+            key={`user-${userResult.id}`}
             className="cursor-pointer transition-colors hover:bg-muted/60"
             onClick={() => handleUserRowClick(userResult)}
             data-state={isSelected ? "selected" : undefined}
@@ -492,7 +491,7 @@ export function LibrarySearchPanel({
             <TableCell>
               <div className="flex flex-col">
                 <span className={cn("font-medium", { "text-primary": isSelected })}>
-                  {userResult.user.discord_username ?? `User #${userResult.user.id}`}
+                  {userResult.name ?? `User #${userResult.id}`}
                 </span>
                 <span className="text-xs text-muted-foreground">User</span>
               </div>
@@ -501,7 +500,7 @@ export function LibrarySearchPanel({
             {isPlaylistFilter && <TableCell />}
             {isUserFilter && (
               <TableCell className="text-sm text-muted-foreground">
-                Joined {formatDate(userResult.user.created_at)}
+                Joined {formatDate(userResult.created_at)}
               </TableCell>
             )}
             <TableCell className="text-right text-sm text-muted-foreground">
@@ -559,11 +558,6 @@ export function LibrarySearchPanel({
         <div className="flex items-center justify-between border-b px-4 py-3 text-sm text-muted-foreground">
           <span>
             Showing {results.length} of {pagination.total} result{pagination.total === 1 ? "" : "s"}
-          </span>
-          <span className="flex gap-3">
-            <span>Tracks: {totals.tracks}</span>
-            <span>Playlists: {totals.playlists}</span>
-            <span>Users: {totals.users}</span>
           </span>
         </div>
         <Table>

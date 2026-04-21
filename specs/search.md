@@ -119,13 +119,20 @@ Return `400` for any of:
 
 ## Relevance model
 
-Per-entity hybrid scoring already used by `tracksService`, `playlistsService`, and `usersService`:
+Unified score applied uniformly across tracks, playlists, and users:
 
-1. `MATCH(name) AGAINST (q IN NATURAL LANGUAGE MODE)` — MySQL fulltext score (NGRAM parser, token size 2).
-2. `name LIKE CONCAT(q, '%')` — prefix boost; prefix matches always rank first.
-3. Relative cutoff: `rel >= config.hybridRelevanceRatio * MAX(rel) OVER ()` — drops low-quality tail when any strong match exists.
+```
+score = exact_match   * 100   -- name = q
+      + prefix_match  * 12    -- name LIKE CONCAT(q, '%')
+      + contains_match * 10   -- name LIKE CONCAT('%', q, '%')
+      + fulltext_score        -- MATCH(name) AGAINST (q IN NATURAL LANGUAGE MODE)
+```
 
-**Cross-type relevance is not normalized in v1.** When `type=all`, each entity's `relevance` is its own unscaled fulltext score. Items are sorted by `relevance desc` within the merged list; prefix matches still appear first within each type but cross-type ordering may mix types non-intuitively when scores differ in magnitude. This is a known v1 limitation and is acceptable because prefix-dominant UX is the common case.
+Booleans evaluate to 0/1, so an exact match accumulates all three LIKE boosts (exact implies prefix implies contains) plus any fulltext score. A row is included in search mode only if `score > 0` (equivalently: at least one of contains or fulltext matches).
+
+The fulltext score uses the MySQL NGRAM parser (token size 2) via fulltext indexes on `tracks.name`, `playlists.name`, and `users.discord_username`.
+
+**Cross-type relevance is not normalized in v1.** When `type=all`, items from all three branches are combined via `UNION ALL` and ordered by the same `score`. Because fulltext scores vary in magnitude across tables, cross-type ordering may mix types non-intuitively when scores are close; the LIKE-based boosts dominate for the common prefix/contains cases, which is the intended UX.
 
 ## Examples
 

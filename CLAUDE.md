@@ -62,13 +62,15 @@ Google Cloud Storage (audio files)
 - `utils/` — FFmpeg audio normalization (EBU R128 standard)
 - `tasks/` + `schedulers/` — node-cron scheduled jobs
 - `config/config.ts` — Zod-validated env config (validates all vars at startup)
-- `docs/kevbot-api.yml` — OpenAPI spec, served at `/v1/docs`
+- `docs/openapi.yml` — OpenAPI spec, served at `/v1/docs`
 
 **Track upload constraints:** `.mp3` only, ≤ 3 MB, ≤ 15 s, name lowercase alphanumeric ≤ 15 chars. FFmpeg normalizes to -16 LUFS (EBU R128), then both the normalized and original MP3s are stored in GCS as `{trackId}.mp3` and `{trackId}.original.mp3`.
 
 **Tests** use Testcontainers to spin up an isolated MySQL 8.0.30 container per test run. No mocking of the database.
 
-**Search** uses MySQL fulltext with the NGRAM parser (token size = 2) on tracks, playlists, and users.
+**Search** uses MySQL fulltext with the NGRAM parser (token size = 2) on tracks, playlists, and users. All search logic (hybrid ranking, browse vs. search modes, cross-entity merging) lives in `searchService`; `tracksService`, `playlistsService`, and `usersService` are CRUD-only by design — do not add search helpers back to them. The `/v1/search` contract is locked in `specs/search.md`.
+
+**`specs/`** (repo root) holds authoritative cross-component specs. Treat these as source of truth when changing behavior that spans multiple components.
 
 ## Database Migrations
 

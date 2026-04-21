@@ -26,16 +26,6 @@ export interface PaginatedResponse<T> {
   };
 }
 
-export interface TrackSuggestion {
-  id: number;
-  name: string;
-}
-
-export interface TrackSuggestionResponse {
-  suggestions: TrackSuggestion[];
-  took_ms: number;
-}
-
 export interface ApiPlaylist {
   id: number;
   name: string;
@@ -55,55 +45,67 @@ export interface ApiUser {
 }
 
 export type SearchEntity = "tracks" | "playlists" | "users";
-
 export type SearchFilter = "all" | SearchEntity;
+export type SearchSort = "relevance" | "name" | "created_at" | "play_count";
+export type SearchOrder = "asc" | "desc";
+
+export interface UnifiedSearchUser {
+  id: number;
+  display_name: string | null;
+}
 
 export interface UnifiedSearchResultTrack {
   type: "track";
-  track: ApiTrack;
+  id: number;
+  name: string;
+  created_at: string;
+  deleted_at: string | null;
   relevance: number | null;
+  duration: number;
+  total_play_count: number;
+  raw_total_play_count: number;
+  user: UnifiedSearchUser;
 }
 
 export interface UnifiedSearchResultPlaylist {
   type: "playlist";
-  playlist: ApiPlaylist;
+  id: number;
+  name: string;
+  created_at: string;
+  deleted_at: string | null;
   relevance: number | null;
+  track_count: number;
+  user: UnifiedSearchUser;
 }
 
 export interface UnifiedSearchResultUser {
   type: "user";
-  user: ApiUser;
+  id: number;
+  name: string | null;
+  created_at: string;
+  deleted_at: null;
   relevance: number | null;
 }
 
 export type UnifiedSearchResult = UnifiedSearchResultTrack | UnifiedSearchResultPlaylist | UnifiedSearchResultUser;
 
 export interface UnifiedSearchResponse {
-  query: string | null;
-  filter: SearchFilter;
-  filters: {
-    playlist_id: number | null;
-    user_id: number | null;
-  };
-  took_ms: number;
+  data: UnifiedSearchResult[];
   pagination: {
     total: number;
     limit: number;
     offset: number;
-    hasNext: boolean;
-    hasPrev: boolean;
-  };
-  results: UnifiedSearchResult[];
-  totals: {
-    tracks: number;
-    playlists: number;
-    users: number;
+    has_next: boolean;
+    has_prev: boolean;
   };
 }
 
 export interface UnifiedSearchRequest {
   q?: string;
-  filter?: SearchFilter;
+  type?: SearchFilter;
+  sort?: SearchSort;
+  order?: SearchOrder;
+  include_deleted?: boolean;
   playlistId?: number | null;
   userId?: number | null;
   limit?: number;
