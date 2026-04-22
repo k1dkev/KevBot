@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Disc3, ListMusic, Loader2, Pause, Play, User as UserIcon } from "lucide-react";
 import { api } from "@/lib/api-browser-client";
 import { LibrarySearchBar } from "@/components/track-search-bar";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   ApiTrack,
   SearchFilter,
@@ -345,81 +346,95 @@ export function LibrarySearchPanel({
                   Tracks
                 </div>
               )}
-              <div className="kb-track-header">
-                <div className="kb-th-num">#</div>
-                <div />
-                <div className="kb-th-col">Name</div>
-                <div className="kb-th-col">Duration (ms)</div>
-                <div className="kb-th-col">Relevance</div>
-                <div />
-              </div>
-              {trackResults.map((track, index) => {
-                const isCurrent = currentTrack?.id === track.id;
-                const isHovered = hoveredTrackId === track.id;
-                const showCtrl = isCurrent || isHovered;
-                const ownerName =
-                  selectedUser &&
-                  selectedUser.id === track.user.id &&
-                  (selectedUser.displayName || selectedUser.discordId)
-                    ? selectedUser.displayName ?? selectedUser.discordId ?? `User #${selectedUser.id}`
-                    : track.user.display_name ?? `User #${track.user.id}`;
+              <div className="kb-table">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="kb-cell-num">#</TableHead>
+                      <TableHead className="kb-cell-art" />
+                      <TableHead>Name</TableHead>
+                      <TableHead className="kb-cell-meta">Duration (ms)</TableHead>
+                      <TableHead className="kb-cell-rel">Relevance</TableHead>
+                      <TableHead className="kb-cell-action" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {trackResults.map((track, index) => {
+                      const isCurrent = currentTrack?.id === track.id;
+                      const isHovered = hoveredTrackId === track.id;
+                      const showCtrl = isCurrent || isHovered;
+                      const ownerName =
+                        selectedUser &&
+                        selectedUser.id === track.user.id &&
+                        (selectedUser.displayName || selectedUser.discordId)
+                          ? selectedUser.displayName ?? selectedUser.discordId ?? `User #${selectedUser.id}`
+                          : track.user.display_name ?? `User #${track.user.id}`;
 
-                return (
-                  <div
-                    key={`track-${track.id}`}
-                    className={`kb-track-row${isCurrent ? " kb-track-current" : ""}`}
-                    onMouseEnter={() => setHoveredTrackId(track.id)}
-                    onMouseLeave={() =>
-                      setHoveredTrackId((prev) => (prev === track.id ? null : prev))
-                    }
-                    onDoubleClick={() => handleTrackPlay(track)}
-                  >
-                    <div className="kb-tr-num">{pagination.offset + index + 1}</div>
-                    <div className="kb-tr-art">
-                      <Disc3 className="h-3 w-3" />
-                    </div>
-                    <div className="kb-tr-info">
-                      <div className={`kb-tr-name${isCurrent ? " kb-tr-current-name" : ""}`}>
-                        {track.name}
-                      </div>
-                      <div className="kb-tr-sub">
-                        Track ·{" "}
-                        <Link
-                          href={`/user/${track.user.id}`}
-                          className="kb-tr-uploader"
-                          onClick={(e) => e.stopPropagation()}
+                      return (
+                        <TableRow
+                          key={`track-${track.id}`}
+                          className={isCurrent ? "kb-row-current" : undefined}
+                          onMouseEnter={() => setHoveredTrackId(track.id)}
+                          onMouseLeave={() =>
+                            setHoveredTrackId((prev) => (prev === track.id ? null : prev))
+                          }
+                          onDoubleClick={() => handleTrackPlay(track)}
                         >
-                          {ownerName}
-                        </Link>
-                      </div>
-                    </div>
-                    <div className="kb-tr-dur">
-                      {Math.round(track.duration * 1000).toLocaleString()} ms
-                    </div>
-                    <div className="kb-tr-rel">
-                      {track.relevance !== null ? track.relevance.toFixed(2) : "—"}
-                    </div>
-                    <button
-                      type="button"
-                      className="kb-tr-play"
-                      style={showCtrl ? { opacity: 1 } : undefined}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleTrackPlay(track);
-                      }}
-                      title={isCurrent && isPlaying ? "Pause" : "Play"}
-                    >
-                      {isCurrent && isLoading ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : isCurrent && isPlaying ? (
-                        <Pause className="h-3 w-3" />
-                      ) : (
-                        <Play className="h-3 w-3" />
-                      )}
-                    </button>
-                  </div>
-                );
-              })}
+                          <TableCell className="kb-cell-num">{pagination.offset + index + 1}</TableCell>
+                          <TableCell className="kb-cell-art">
+                            <div className="kb-cell-art-inner">
+                              <Disc3 className="h-3 w-3" />
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="kb-tr-info">
+                              <div className={`kb-tr-name${isCurrent ? " kb-tr-current-name" : ""}`}>
+                                {track.name}
+                              </div>
+                              <div className="kb-tr-sub">
+                                Track ·{" "}
+                                <Link
+                                  href={`/user/${track.user.id}`}
+                                  className="kb-tr-uploader"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {ownerName}
+                                </Link>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="kb-cell-meta">
+                            {Math.round(track.duration * 1000).toLocaleString()} ms
+                          </TableCell>
+                          <TableCell className="kb-cell-rel">
+                            {track.relevance !== null ? track.relevance.toFixed(2) : "—"}
+                          </TableCell>
+                          <TableCell className="kb-cell-action">
+                            <button
+                              type="button"
+                              className="kb-tr-play"
+                              style={showCtrl ? { opacity: 1 } : undefined}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleTrackPlay(track);
+                              }}
+                              title={isCurrent && isPlaying ? "Pause" : "Play"}
+                            >
+                              {isCurrent && isLoading ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : isCurrent && isPlaying ? (
+                                <Pause className="h-3 w-3" />
+                              ) : (
+                                <Play className="h-3 w-3" />
+                              )}
+                            </button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           )}
 
@@ -430,43 +445,54 @@ export function LibrarySearchPanel({
                   Playlists
                 </div>
               )}
-              <div className="kb-track-header" style={{ gridTemplateColumns: "28px 28px 1fr 120px 70px 28px" }}>
-                <div className="kb-th-num">#</div>
-                <div />
-                <div className="kb-th-col">Name</div>
-                <div className="kb-th-col">Updated</div>
-                <div className="kb-th-col">Relevance</div>
-                <div />
+              <div className="kb-table">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="kb-cell-num">#</TableHead>
+                      <TableHead className="kb-cell-art" />
+                      <TableHead>Name</TableHead>
+                      <TableHead className="kb-cell-meta">Updated</TableHead>
+                      <TableHead className="kb-cell-rel">Relevance</TableHead>
+                      <TableHead className="kb-cell-action" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {playlistResults.map((pl, index) => {
+                      const isSelected = selectedPlaylist?.id === pl.id;
+                      return (
+                        <TableRow
+                          key={`playlist-${pl.id}`}
+                          className={isSelected ? "kb-row-selected" : undefined}
+                          onClick={() => handlePlaylistRowClick(pl)}
+                        >
+                          <TableCell className="kb-cell-num">{index + 1}</TableCell>
+                          <TableCell className="kb-cell-art">
+                            <div className="kb-cell-art-inner">
+                              <ListMusic className="h-3 w-3" />
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="kb-tr-info">
+                              <div className={`kb-tr-name${isSelected ? " kb-tr-current-name" : ""}`}>
+                                {pl.name}
+                              </div>
+                              <div className="kb-tr-sub">
+                                Playlist · {pl.track_count} track{pl.track_count === 1 ? "" : "s"}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="kb-cell-meta">{formatDate(pl.created_at)}</TableCell>
+                          <TableCell className="kb-cell-rel">
+                            {pl.relevance !== null ? pl.relevance.toFixed(2) : "—"}
+                          </TableCell>
+                          <TableCell className="kb-cell-action" />
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
               </div>
-              {playlistResults.map((pl, index) => {
-                const isSelected = selectedPlaylist?.id === pl.id;
-                return (
-                  <div
-                    key={`playlist-${pl.id}`}
-                    className="kb-track-row"
-                    onClick={() => handlePlaylistRowClick(pl)}
-                    style={isSelected ? { background: "var(--kb-accent-dim)" } : undefined}
-                  >
-                    <div className="kb-tr-num">{index + 1}</div>
-                    <div className="kb-tr-art">
-                      <ListMusic className="h-3 w-3" />
-                    </div>
-                    <div className="kb-tr-info">
-                      <div className={`kb-tr-name${isSelected ? " kb-tr-current-name" : ""}`}>
-                        {pl.name}
-                      </div>
-                      <div className="kb-tr-sub">
-                        Playlist · {pl.track_count} track{pl.track_count === 1 ? "" : "s"}
-                      </div>
-                    </div>
-                    <div className="kb-tr-dur">{formatDate(pl.created_at)}</div>
-                    <div className="kb-tr-rel">
-                      {pl.relevance !== null ? pl.relevance.toFixed(2) : "—"}
-                    </div>
-                    <div />
-                  </div>
-                );
-              })}
             </div>
           )}
 
@@ -477,41 +503,52 @@ export function LibrarySearchPanel({
                   Users
                 </div>
               )}
-              <div className="kb-track-header" style={{ gridTemplateColumns: "28px 28px 1fr 120px 70px 28px" }}>
-                <div className="kb-th-num">#</div>
-                <div />
-                <div className="kb-th-col">Name</div>
-                <div className="kb-th-col">Joined</div>
-                <div className="kb-th-col">Relevance</div>
-                <div />
+              <div className="kb-table">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="kb-cell-num">#</TableHead>
+                      <TableHead className="kb-cell-art" />
+                      <TableHead>Name</TableHead>
+                      <TableHead className="kb-cell-meta">Joined</TableHead>
+                      <TableHead className="kb-cell-rel">Relevance</TableHead>
+                      <TableHead className="kb-cell-action" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {userResults.map((u, index) => {
+                      const isSelected = selectedUser?.id === u.id;
+                      return (
+                        <TableRow
+                          key={`user-${u.id}`}
+                          className={isSelected ? "kb-row-selected" : undefined}
+                          onClick={() => handleUserRowClick(u)}
+                        >
+                          <TableCell className="kb-cell-num">{index + 1}</TableCell>
+                          <TableCell className="kb-cell-art">
+                            <div className="kb-cell-art-inner">
+                              <UserIcon className="h-3 w-3" />
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="kb-tr-info">
+                              <div className={`kb-tr-name${isSelected ? " kb-tr-current-name" : ""}`}>
+                                {u.name ?? `User #${u.id}`}
+                              </div>
+                              <div className="kb-tr-sub">User</div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="kb-cell-meta">{formatDate(u.created_at)}</TableCell>
+                          <TableCell className="kb-cell-rel">
+                            {u.relevance !== null ? u.relevance.toFixed(2) : "—"}
+                          </TableCell>
+                          <TableCell className="kb-cell-action" />
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
               </div>
-              {userResults.map((u, index) => {
-                const isSelected = selectedUser?.id === u.id;
-                return (
-                  <div
-                    key={`user-${u.id}`}
-                    className="kb-track-row"
-                    onClick={() => handleUserRowClick(u)}
-                    style={isSelected ? { background: "var(--kb-accent-dim)" } : undefined}
-                  >
-                    <div className="kb-tr-num">{index + 1}</div>
-                    <div className="kb-tr-art">
-                      <UserIcon className="h-3 w-3" />
-                    </div>
-                    <div className="kb-tr-info">
-                      <div className={`kb-tr-name${isSelected ? " kb-tr-current-name" : ""}`}>
-                        {u.name ?? `User #${u.id}`}
-                      </div>
-                      <div className="kb-tr-sub">User</div>
-                    </div>
-                    <div className="kb-tr-dur">{formatDate(u.created_at)}</div>
-                    <div className="kb-tr-rel">
-                      {u.relevance !== null ? u.relevance.toFixed(2) : "—"}
-                    </div>
-                    <div />
-                  </div>
-                );
-              })}
             </div>
           )}
         </>

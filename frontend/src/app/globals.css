@@ -460,6 +460,96 @@ code,
     text-decoration: underline;
   }
 
+  /* Dense shadcn Table override — used by TrackList and LibrarySearchPanel.
+     Applied via the `kb-table` class on a wrapper around <Table>. */
+  .kb-table table {
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 12.5px;
+  }
+  .kb-table thead tr {
+    border-bottom: 1px solid var(--kb-border) !important;
+  }
+  .kb-table thead th {
+    height: auto;
+    padding: 4px 6px;
+    font-size: 10.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--kb-text3);
+  }
+  .kb-table tbody tr {
+    border-bottom: none !important;
+    transition: background 0.1s;
+    cursor: default;
+  }
+  .kb-table tbody tr:hover {
+    background: var(--kb-bg3) !important;
+  }
+  .kb-table tbody tr.kb-row-current,
+  .kb-table tbody tr.kb-row-current:hover {
+    background: var(--kb-accent-dim) !important;
+  }
+  .kb-table tbody tr.kb-row-selected,
+  .kb-table tbody tr.kb-row-selected:hover {
+    background: var(--kb-accent-dim) !important;
+  }
+  .kb-table tbody tr:hover .kb-tr-play {
+    opacity: 1;
+  }
+  .kb-table tbody td {
+    padding: 5px 6px;
+    vertical-align: middle;
+    color: var(--kb-text);
+  }
+  .kb-table .kb-cell-num {
+    width: 36px;
+    color: var(--kb-text3);
+    font-size: 11px;
+    text-align: right;
+    padding-right: 8px;
+  }
+  .kb-table .kb-cell-art {
+    width: 36px;
+  }
+  .kb-table .kb-cell-art-inner {
+    width: 22px;
+    height: 22px;
+    border-radius: 3px;
+    background: var(--kb-bg4);
+    border: 1px solid var(--kb-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--kb-text3);
+  }
+  .kb-table .kb-cell-meta {
+    font-family: "DM Mono", monospace;
+    font-size: 11px;
+    color: var(--kb-text2);
+    width: 130px;
+  }
+  .kb-table .kb-cell-rel {
+    font-family: "DM Mono", monospace;
+    font-size: 11px;
+    color: var(--kb-text3);
+    width: 70px;
+  }
+  .kb-table .kb-cell-action {
+    width: 36px;
+    text-align: center;
+  }
+  .kb-table th.kb-th-sortable {
+    cursor: pointer;
+  }
+  .kb-table th.kb-th-sortable:hover {
+    color: var(--kb-text2);
+  }
+  .kb-table th.kb-th-active {
+    color: var(--kb-text2);
+  }
+
   /* Search view */
   .kb-results-info {
     font-size: 12px;
