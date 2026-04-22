@@ -23,7 +23,7 @@ export function searchSchemasFactory(config: Config) {
       q: z.string().trim().optional(),
       type: z.enum(["all", "tracks", "playlists", "users"]).default("all"),
       sort: z.enum(["relevance", "name", "created_at", "play_count"]).optional(),
-      order: z.enum(["asc", "desc"]).default("asc"),
+      order: z.enum(["asc", "desc"]).optional(),
       // TODO use stringbool after upgrade to ZOD4
       include_deleted: z.coerce.boolean().default(false),
       limit: z.coerce.number().int().min(1).max(config.maxResultsPerPage).default(20),
@@ -89,6 +89,7 @@ export function searchSchemasFactory(config: Config) {
         ...raw,
         // default of sort is based on query presence
         sort: raw.sort ?? (raw.q ? "relevance" : "name"),
+        order: raw.order ?? (raw.q ? "desc" : "asc"),
       }),
     );
 
