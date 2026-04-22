@@ -3,6 +3,13 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.14.0](https://github.com/k1dkev/KevBot/compare/db-v2.13.0...db-v2.14.0) (2026-04-22)
+
+
+### Features
+
+* unified search ([#135](https://github.com/k1dkev/KevBot/issues/135)) ([94bac59](https://github.com/k1dkev/KevBot/commit/94bac5930e63ae180f309be35689394a7183c93e))
+
 ## [2.13.0](https://github.com/Kunedawg/KevBot/compare/db-v2.12.0...db-v2.13.0) (2025-12-31)
 
 

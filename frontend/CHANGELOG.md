@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/k1dkev/KevBot/compare/frontend-v0.3.0...frontend-v0.4.0) (2026-04-22)
+
+
+### Features
+
+* unified search ([#135](https://github.com/k1dkev/KevBot/issues/135)) ([94bac59](https://github.com/k1dkev/KevBot/commit/94bac5930e63ae180f309be35689394a7183c93e))
+
 ## [0.3.0](https://github.com/Kunedawg/KevBot/compare/frontend-v0.2.0...frontend-v0.3.0) (2025-12-31)
 
 
