@@ -486,7 +486,6 @@ export function searchServiceFactory(db: KevbotDb, _config: Config) {
 
     const countResultPromise = base.select(({ fn }) => [fn.countAll<number>().as("total")]).executeTakeFirstOrThrow();
 
-    console.log(sort, order);
     const rowsPromise = base
       .selectAll()
       .orderBy(primaryOrder(sort, order))

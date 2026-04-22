@@ -2,8 +2,6 @@
 
 import { ChangeEvent, KeyboardEvent } from "react";
 import { Loader2, Search } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { SearchFilter } from "@/lib/types";
 
 interface LibrarySearchBarProps {
@@ -40,13 +38,10 @@ export function LibrarySearchBar({
   activeUserLabel,
   onClearUser,
 }: LibrarySearchBarProps) {
-  const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
-    onQueryChange(event.target.value);
-  };
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => onQueryChange(e.target.value);
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
       onSubmit();
     }
   };
@@ -54,76 +49,86 @@ export function LibrarySearchBar({
   const isFilterLocked = lockedFilter !== null && lockedFilter !== undefined;
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
-        <div className="relative flex-1">
-          <input
-            type="search"
-            value={query}
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
-            placeholder="Search tracks, playlists, or users..."
-            disabled={isSearching}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-75"
-            aria-label="Search library"
-          />
-          {isSearching && (
-            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-            </span>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+    <div className="kb-search-form">
+      <div style={{ position: "relative", marginBottom: 10 }}>
+        <input
+          type="search"
+          value={query}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          placeholder="Search tracks, playlists, or users…"
+          disabled={isSearching}
+          className="kb-search-input-lg"
+          aria-label="Search library"
+          autoFocus
+        />
+        {isSearching && (
+          <span
+            style={{
+              position: "absolute",
+              right: 12,
+              top: "50%",
+              transform: "translateY(-50%)",
+              color: "var(--kb-text3)",
+            }}
+          >
+            <Loader2 className="h-4 w-4 animate-spin" />
+          </span>
+        )}
+      </div>
+      <div className="kb-search-meta">
+        <div className="kb-filter-tabs">
           {FILTER_OPTIONS.map((option) => {
             const isActive = selectedFilter === option.value;
             const disabled = isSearching || (isFilterLocked && lockedFilter !== option.value);
             return (
-              <Button
+              <button
                 key={option.value}
                 type="button"
-                variant={isActive ? "default" : "outline"}
-                size="sm"
-                onClick={() => !disabled && onFilterChange(option.value)}
                 disabled={disabled}
+                className={`kb-filter-tab${isActive ? " kb-filter-active" : ""}`}
+                onClick={() => onFilterChange(option.value)}
               >
                 {option.label}
-              </Button>
+              </button>
             );
           })}
-          <Button type="button" onClick={onSubmit} disabled={isSearching} className="md:ml-2">
-            <Search className="mr-2 h-4 w-4" />
-            Search
-          </Button>
         </div>
-        {(activePlaylistLabel || activeUserLabel) && (
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            {activePlaylistLabel && (
-              <Badge variant="secondary" className="flex items-center gap-2">
-                Playlist: {activePlaylistLabel}
-                {onClearPlaylist && (
-                  <button
-                    type="button"
-                    onClick={onClearPlaylist}
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    ×
-                  </button>
-                )}
-              </Badge>
-            )}
-            {activeUserLabel && (
-              <Badge variant="secondary" className="flex items-center gap-2">
-                User: {activeUserLabel}
-                {onClearUser && (
-                  <button type="button" onClick={onClearUser} className="text-muted-foreground hover:text-foreground">
-                    ×
-                  </button>
-                )}
-              </Badge>
-            )}
-          </div>
-        )}
+        <button
+          type="button"
+          onClick={onSubmit}
+          disabled={isSearching}
+          className="kb-search-btn"
+          style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+        >
+          <Search className="h-3 w-3" />
+          Search
+        </button>
       </div>
+      {(activePlaylistLabel || activeUserLabel) && (
+        <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+          {activePlaylistLabel && (
+            <span className="kb-tag">
+              Playlist: {activePlaylistLabel}
+              {onClearPlaylist && (
+                <button type="button" onClick={onClearPlaylist} aria-label="Clear playlist filter">
+                  ×
+                </button>
+              )}
+            </span>
+          )}
+          {activeUserLabel && (
+            <span className="kb-tag">
+              User: {activeUserLabel}
+              {onClearUser && (
+                <button type="button" onClick={onClearUser} aria-label="Clear user filter">
+                  ×
+                </button>
+              )}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

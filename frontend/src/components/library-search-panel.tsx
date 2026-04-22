@@ -16,11 +16,10 @@ import {
 import { useLibraryFilters } from "@/lib/contexts/library-filters-context";
 import { useAuth } from "@/lib/contexts/auth-context";
 import { useMusicPlayer } from "@/lib/contexts/music-player-context";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useInfiniteScroll } from "@/lib/hooks/useInfiniteScroll";
-import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 25;
+
 function formatDate(iso: string): string {
   try {
     return new Date(iso).toLocaleDateString();
@@ -71,10 +70,9 @@ export function LibrarySearchPanel({
   const [isInitialLoading, setIsInitialLoading] = useState(false);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const { currentTrack, isPlaying, isLoading, playTrack, togglePlayPause } = useMusicPlayer();
   const [hoveredTrackId, setHoveredTrackId] = useState<number | null>(null);
 
+  const { currentTrack, isPlaying, isLoading, playTrack, togglePlayPause } = useMusicPlayer();
   const {
     selectedPlaylist,
     setSelectedPlaylist,
@@ -86,7 +84,6 @@ export function LibrarySearchPanel({
   const { user } = useAuth();
 
   const hasMore = results.length < pagination.total;
-
   const playlistLabel = selectedPlaylist?.name ?? null;
   const userLabel = selectedUser
     ? selectedUser.id === user?.id
@@ -96,20 +93,13 @@ export function LibrarySearchPanel({
   const canClearPlaylistSelection = !!playlistLabel && !playlistContext;
   const canClearUserSelection = !!userLabel && !userContext;
 
-  useEffect(() => {
-    setQuery(initialQuery);
-  }, [initialQuery]);
-
-  useEffect(() => {
-    setFilter(lockedFilter ?? initialFilter);
-  }, [initialFilter, lockedFilter]);
+  useEffect(() => setQuery(initialQuery), [initialQuery]);
+  useEffect(() => setFilter(lockedFilter ?? initialFilter), [initialFilter, lockedFilter]);
 
   useEffect(() => {
     if (playlistContext) {
       setSelectedPlaylist(playlistContext);
-      return () => {
-        clearSelectedPlaylist();
-      };
+      return () => clearSelectedPlaylist();
     }
     clearSelectedPlaylist();
     return undefined;
@@ -122,43 +112,29 @@ export function LibrarySearchPanel({
         discordId: userContext.discordId,
         displayName: userContext.displayName ?? null,
       });
-      return () => {
-        clearSelectedUser();
-      };
+      return () => clearSelectedUser();
     }
     clearSelectedUser();
     return undefined;
   }, [clearSelectedUser, setSelectedUser, userContext]);
 
-  const isTrackFilter = filter === "tracks";
-  const isPlaylistFilter = filter === "playlists";
-  const isUserFilter = filter === "users";
-  const columnCount = isTrackFilter || isPlaylistFilter || isUserFilter ? 5 : 4;
-
   useEffect(() => {
-    if (selectedPlaylist && filter !== "tracks") {
-      setFilter("tracks");
-    }
+    if (selectedPlaylist && filter !== "tracks") setFilter("tracks");
   }, [filter, selectedPlaylist]);
-
   useEffect(() => {
-    if (selectedUser && filter !== "tracks") {
-      setFilter("tracks");
-    }
+    if (selectedUser && filter !== "tracks") setFilter("tracks");
   }, [filter, selectedUser]);
 
   const fetchPage = useCallback(
-    async (offset: number) => {
-      const response = await api.search.unified({
+    async (offset: number) =>
+      api.search.unified({
         q: query.trim() || undefined,
         type: filter,
         playlistId: selectedPlaylist?.id ?? undefined,
         userId: selectedUser?.id ?? undefined,
         limit: PAGE_SIZE,
         offset,
-      });
-      return response;
-    },
+      }),
     [filter, query, selectedPlaylist?.id, selectedUser?.id]
   );
 
@@ -177,21 +153,12 @@ export function LibrarySearchPanel({
         if (!cancelled) {
           setError("Unable to perform search. Please try again.");
           setResults([]);
-          setPagination({
-            total: 0,
-            limit: PAGE_SIZE,
-            offset: 0,
-            has_next: false,
-            has_prev: false,
-          });
+          setPagination({ total: 0, limit: PAGE_SIZE, offset: 0, has_next: false, has_prev: false });
         }
       } finally {
-        if (!cancelled) {
-          setIsInitialLoading(false);
-        }
+        if (!cancelled) setIsInitialLoading(false);
       }
     })();
-
     return () => {
       cancelled = true;
     };
@@ -204,19 +171,12 @@ export function LibrarySearchPanel({
       const response = await fetchPage(0);
       setResults(response.data);
       setPagination(response.pagination);
-      const trimmed = query.trim();
-      onSearchStateChange?.({ query: trimmed, filter });
+      onSearchStateChange?.({ query: query.trim(), filter });
     } catch (err) {
       console.error("Search failed", err);
       setError("Unable to perform search. Please try again.");
       setResults([]);
-      setPagination({
-        total: 0,
-        limit: PAGE_SIZE,
-        offset: 0,
-        has_next: false,
-        has_prev: false,
-      });
+      setPagination({ total: 0, limit: PAGE_SIZE, offset: 0, has_next: false, has_prev: false });
     } finally {
       setIsInitialLoading(false);
     }
@@ -226,8 +186,7 @@ export function LibrarySearchPanel({
     if (!hasMore || isInitialLoading || isFetchingMore) return;
     setIsFetchingMore(true);
     try {
-      const nextOffset = results.length;
-      const response = await fetchPage(nextOffset);
+      const response = await fetchPage(results.length);
       setResults((prev) => [...prev, ...response.data]);
       setPagination(response.pagination);
     } catch (err) {
@@ -238,20 +197,16 @@ export function LibrarySearchPanel({
     }
   }, [fetchPage, hasMore, isFetchingMore, isInitialLoading, results.length]);
 
-  const { targetRef, isLoadingRef } = useInfiniteScroll(loadMore, {
+  const { targetRef } = useInfiniteScroll(loadMore, {
     disabled: isInitialLoading || isFetchingMore || !hasMore,
   });
 
   const handleFilterChange = useCallback(
-    (nextFilter: SearchFilter) => {
-      if (lockedFilter && nextFilter !== lockedFilter) {
-        return;
-      }
-      if (filter === nextFilter) {
-        return;
-      }
-      setFilter(nextFilter);
-      onSearchStateChange?.({ query: query.trim(), filter: nextFilter });
+    (next: SearchFilter) => {
+      if (lockedFilter && next !== lockedFilter) return;
+      if (filter === next) return;
+      setFilter(next);
+      onSearchStateChange?.({ query: query.trim(), filter: next });
     },
     [filter, lockedFilter, onSearchStateChange, query]
   );
@@ -263,12 +218,10 @@ export function LibrarySearchPanel({
         onNavigateToPlaylist(payload);
         return;
       }
-
       if (selectedPlaylist?.id === result.id) {
         clearSelectedPlaylist();
         return;
       }
-
       setSelectedPlaylist(payload);
       handleFilterChange("tracks");
     },
@@ -277,22 +230,15 @@ export function LibrarySearchPanel({
 
   const handleUserRowClick = useCallback(
     (result: UnifiedSearchResultUser) => {
-      const payload = {
-        id: result.id,
-        displayName: result.name ?? null,
-        discordId: "",
-      };
-
+      const payload = { id: result.id, displayName: result.name ?? null, discordId: "" };
       if (onNavigateToUser) {
         onNavigateToUser(payload);
         return;
       }
-
       if (selectedUser?.id === result.id) {
         clearSelectedUser();
         return;
       }
-
       setSelectedUser(payload);
       handleFilterChange("tracks");
     },
@@ -322,218 +268,25 @@ export function LibrarySearchPanel({
     [currentTrack?.id, playTrack, togglePlayPause]
   );
 
-  const tableContent = useMemo(() => {
-    if (isInitialLoading && results.length === 0) {
-      return (
-        <TableRow>
-          <TableCell colSpan={columnCount} className="py-10 text-center text-muted-foreground">
-            <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
-            Loading results...
-          </TableCell>
-        </TableRow>
-      );
-    }
+  const trackResults = useMemo(
+    () => results.filter((r): r is UnifiedSearchResultTrack => r.type === "track"),
+    [results]
+  );
+  const playlistResults = useMemo(
+    () => results.filter((r): r is UnifiedSearchResultPlaylist => r.type === "playlist"),
+    [results]
+  );
+  const userResults = useMemo(
+    () => results.filter((r): r is UnifiedSearchResultUser => r.type === "user"),
+    [results]
+  );
 
-    if (results.length === 0) {
-      return (
-        <TableRow>
-          <TableCell colSpan={columnCount} className="py-10 text-center text-muted-foreground">
-            {query ? "No results match your search." : "No results yet."}
-          </TableCell>
-        </TableRow>
-      );
-    }
-
-    return results.map((result, index) => {
-      const displayIndex = pagination.offset + index + 1;
-
-      if (result.type === "track") {
-        const trackResult: UnifiedSearchResultTrack = result;
-        const isCurrent = currentTrack?.id === trackResult.id;
-        const isHovered = hoveredTrackId === trackResult.id;
-        const showControl = isCurrent || isHovered;
-        const playIcon = isCurrent ? (
-          isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : isPlaying ? (
-            <Pause className="h-4 w-4" />
-          ) : (
-            <Play className="h-4 w-4" />
-          )
-        ) : (
-          <Play className="h-4 w-4" />
-        );
-
-        const resolvedOwnerName =
-          selectedUser &&
-          selectedUser.id === trackResult.user.id &&
-          (selectedUser.displayName || selectedUser.discordId)
-            ? selectedUser.displayName ?? selectedUser.discordId ?? `User #${selectedUser.id}`
-            : trackResult.user.display_name ?? `User #${trackResult.user.id}`;
-
-        return (
-          <TableRow
-            key={`track-${trackResult.id}`}
-            className="group cursor-pointer transition-colors hover:bg-muted/60"
-            onMouseEnter={() => setHoveredTrackId(trackResult.id)}
-            onMouseLeave={() => setHoveredTrackId((prev) => (prev === trackResult.id ? null : prev))}
-            onClick={() => handleTrackPlay(trackResult)}
-          >
-            <TableCell className="w-14">
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  handleTrackPlay(trackResult);
-                }}
-                className="relative flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium text-muted-foreground transition-colors hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <span className={cn("transition-opacity", showControl ? "opacity-0" : "opacity-100")}>
-                  {displayIndex}
-                </span>
-                <span
-                  className={cn(
-                    "absolute inset-0 flex items-center justify-center transition-opacity",
-                    showControl ? "opacity-100" : "opacity-0"
-                  )}
-                >
-                  {playIcon}
-                </span>
-              </button>
-            </TableCell>
-            <TableCell className="w-14">
-              <div className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-white text-muted-foreground dark:bg-zinc-900">
-                <Disc3 className="h-4 w-4" />
-              </div>
-            </TableCell>
-            <TableCell>
-              <div className="flex flex-col">
-                <span className={cn("font-medium", { "text-primary": isCurrent })}>{trackResult.name}</span>
-                <span className="text-xs text-muted-foreground">
-                  Track •{" "}
-                  <Link
-                    href={`/user/${trackResult.user.id}`}
-                    className="hover:text-primary hover:underline"
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    {resolvedOwnerName}
-                  </Link>
-                </span>
-              </div>
-            </TableCell>
-            {isTrackFilter && (
-              <TableCell className="text-sm text-muted-foreground">
-                {Math.round(trackResult.duration * 1000).toLocaleString()} ms
-              </TableCell>
-            )}
-            {isPlaylistFilter && <TableCell />}
-            {isUserFilter && <TableCell />}
-            <TableCell className="text-right text-sm text-muted-foreground">
-              {trackResult.relevance !== null ? trackResult.relevance.toFixed(2) : "—"}
-            </TableCell>
-          </TableRow>
-        );
-      }
-
-      if (result.type === "playlist") {
-        const playlistResult: UnifiedSearchResultPlaylist = result;
-        const isSelected = selectedPlaylist?.id === playlistResult.id;
-        return (
-          <TableRow
-            key={`playlist-${playlistResult.id}`}
-            className="cursor-pointer transition-colors hover:bg-muted/60"
-            onClick={() => handlePlaylistRowClick(playlistResult)}
-            data-state={isSelected ? "selected" : undefined}
-          >
-            <TableCell className="w-14 text-sm text-muted-foreground">{displayIndex}</TableCell>
-            <TableCell className="w-14">
-              <div className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-white text-muted-foreground dark:bg-zinc-900">
-                <ListMusic className="h-4 w-4" />
-              </div>
-            </TableCell>
-            <TableCell>
-              <div className="flex flex-col">
-                <span className={cn("font-medium", { "text-primary": isSelected })}>{playlistResult.name}</span>
-                <span className="text-xs text-muted-foreground">
-                  Playlist • {playlistResult.track_count} track{playlistResult.track_count === 1 ? "" : "s"}
-                </span>
-              </div>
-            </TableCell>
-            {isPlaylistFilter && (
-              <TableCell className="text-sm text-muted-foreground">
-                Created {formatDate(playlistResult.created_at)}
-              </TableCell>
-            )}
-            {isUserFilter && <TableCell />}
-            <TableCell className="text-right text-sm text-muted-foreground">
-              {playlistResult.relevance !== null ? playlistResult.relevance.toFixed(2) : "—"}
-            </TableCell>
-          </TableRow>
-        );
-      }
-
-      if (result.type === "user") {
-        const userResult: UnifiedSearchResultUser = result;
-        const isSelected = selectedUser?.id === userResult.id;
-        return (
-          <TableRow
-            key={`user-${userResult.id}`}
-            className="cursor-pointer transition-colors hover:bg-muted/60"
-            onClick={() => handleUserRowClick(userResult)}
-            data-state={isSelected ? "selected" : undefined}
-          >
-            <TableCell className="w-14 text-sm text-muted-foreground">{displayIndex}</TableCell>
-            <TableCell className="w-14">
-              <div className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-white text-muted-foreground dark:bg-zinc-900">
-                <UserIcon className="h-4 w-4" />
-              </div>
-            </TableCell>
-            <TableCell>
-              <div className="flex flex-col">
-                <span className={cn("font-medium", { "text-primary": isSelected })}>
-                  {userResult.name ?? `User #${userResult.id}`}
-                </span>
-                <span className="text-xs text-muted-foreground">User</span>
-              </div>
-            </TableCell>
-            {isTrackFilter && <TableCell />}
-            {isPlaylistFilter && <TableCell />}
-            {isUserFilter && (
-              <TableCell className="text-sm text-muted-foreground">
-                Joined {formatDate(userResult.created_at)}
-              </TableCell>
-            )}
-            <TableCell className="text-right text-sm text-muted-foreground">
-              {userResult.relevance !== null ? userResult.relevance.toFixed(2) : "—"}
-            </TableCell>
-          </TableRow>
-        );
-      }
-
-      return null;
-    });
-  }, [
-    currentTrack?.id,
-    handlePlaylistRowClick,
-    handleTrackPlay,
-    handleUserRowClick,
-    hoveredTrackId,
-    isInitialLoading,
-    isLoading,
-    isPlaylistFilter,
-    isTrackFilter,
-    isUserFilter,
-    isPlaying,
-    pagination.offset,
-    query,
-    results,
-    columnCount,
-    selectedPlaylist?.id,
-    selectedUser,
-  ]);
+  const showTracks = filter === "all" || filter === "tracks";
+  const showPlaylists = filter === "all" || filter === "playlists";
+  const showUsers = filter === "all" || filter === "users";
 
   return (
-    <div className="space-y-6">
+    <div className="kb-view">
       <LibrarySearchBar
         query={query}
         onQueryChange={setQuery}
@@ -549,49 +302,232 @@ export function LibrarySearchPanel({
       />
 
       {error && (
-        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <div
+          style={{
+            color: "hsl(var(--destructive))",
+            fontSize: 12,
+            padding: "8px 10px",
+            border: "1px solid hsl(var(--destructive) / 0.3)",
+            borderRadius: "var(--kb-radius)",
+            marginBottom: 12,
+          }}
+        >
           {error}
         </div>
       )}
 
-      <div className="rounded-md border dark:border-zinc-800 bg-card dark:bg-zinc-900">
-        <div className="flex items-center justify-between border-b px-4 py-3 text-sm text-muted-foreground">
-          <span>
-            Showing {results.length} of {pagination.total} result{pagination.total === 1 ? "" : "s"}
-          </span>
-        </div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-14 text-center">#</TableHead>
-              <TableHead className="w-14">Art</TableHead>
-              <TableHead>Name</TableHead>
-              {isTrackFilter && <TableHead className="text-right">Duration (ms)</TableHead>}
-              {isPlaylistFilter && <TableHead>Updated</TableHead>}
-              {isUserFilter && <TableHead>Joined</TableHead>}
-              <TableHead className="text-right">Relevance</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {tableContent}
-            {isFetchingMore && (
-              <TableRow>
-                <TableCell colSpan={columnCount} className="py-4 text-center text-muted-foreground">
-                  <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
-                  Loading more results...
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-        {hasMore && !isFetchingMore && <div ref={targetRef} className="h-8" />}
-        {!hasMore && results.length > 0 && (
-          <div className="px-4 py-3 text-center text-sm text-muted-foreground">No more results to load</div>
-        )}
-        {isLoadingRef.current && !isFetchingMore && (
-          <div className="px-4 py-3 text-center text-sm text-muted-foreground">Loading more results...</div>
-        )}
+      <div className="kb-results-info">
+        <span>
+          Showing {results.length} of {pagination.total} result{pagination.total === 1 ? "" : "s"}
+          {query ? (
+            <>
+              {" for "}
+              <em>&ldquo;{query}&rdquo;</em>
+            </>
+          ) : null}
+        </span>
       </div>
+
+      {isInitialLoading && results.length === 0 ? (
+        <div className="kb-empty-state">
+          <Loader2 className="inline h-4 w-4 animate-spin" /> Loading results…
+        </div>
+      ) : results.length === 0 ? (
+        <div className="kb-empty-state">
+          {query ? `No results match "${query}".` : "No results yet."}
+        </div>
+      ) : (
+        <>
+          {showTracks && trackResults.length > 0 && (
+            <div style={{ marginBottom: 28 }}>
+              {filter === "all" && (
+                <div className="kb-sb-section-label" style={{ paddingLeft: 0 }}>
+                  Tracks
+                </div>
+              )}
+              <div className="kb-track-header">
+                <div className="kb-th-num">#</div>
+                <div />
+                <div className="kb-th-col">Name</div>
+                <div className="kb-th-col">Duration (ms)</div>
+                <div className="kb-th-col">Relevance</div>
+                <div />
+              </div>
+              {trackResults.map((track, index) => {
+                const isCurrent = currentTrack?.id === track.id;
+                const isHovered = hoveredTrackId === track.id;
+                const showCtrl = isCurrent || isHovered;
+                const ownerName =
+                  selectedUser &&
+                  selectedUser.id === track.user.id &&
+                  (selectedUser.displayName || selectedUser.discordId)
+                    ? selectedUser.displayName ?? selectedUser.discordId ?? `User #${selectedUser.id}`
+                    : track.user.display_name ?? `User #${track.user.id}`;
+
+                return (
+                  <div
+                    key={`track-${track.id}`}
+                    className={`kb-track-row${isCurrent ? " kb-track-current" : ""}`}
+                    onMouseEnter={() => setHoveredTrackId(track.id)}
+                    onMouseLeave={() =>
+                      setHoveredTrackId((prev) => (prev === track.id ? null : prev))
+                    }
+                    onDoubleClick={() => handleTrackPlay(track)}
+                  >
+                    <div className="kb-tr-num">{pagination.offset + index + 1}</div>
+                    <div className="kb-tr-art">
+                      <Disc3 className="h-3 w-3" />
+                    </div>
+                    <div className="kb-tr-info">
+                      <div className={`kb-tr-name${isCurrent ? " kb-tr-current-name" : ""}`}>
+                        {track.name}
+                      </div>
+                      <div className="kb-tr-sub">
+                        Track ·{" "}
+                        <Link
+                          href={`/user/${track.user.id}`}
+                          className="kb-tr-uploader"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {ownerName}
+                        </Link>
+                      </div>
+                    </div>
+                    <div className="kb-tr-dur">
+                      {Math.round(track.duration * 1000).toLocaleString()} ms
+                    </div>
+                    <div className="kb-tr-rel">
+                      {track.relevance !== null ? track.relevance.toFixed(2) : "—"}
+                    </div>
+                    <button
+                      type="button"
+                      className="kb-tr-play"
+                      style={showCtrl ? { opacity: 1 } : undefined}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleTrackPlay(track);
+                      }}
+                      title={isCurrent && isPlaying ? "Pause" : "Play"}
+                    >
+                      {isCurrent && isLoading ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : isCurrent && isPlaying ? (
+                        <Pause className="h-3 w-3" />
+                      ) : (
+                        <Play className="h-3 w-3" />
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {showPlaylists && playlistResults.length > 0 && (
+            <div style={{ marginBottom: 28 }}>
+              {filter === "all" && (
+                <div className="kb-sb-section-label" style={{ paddingLeft: 0 }}>
+                  Playlists
+                </div>
+              )}
+              <div className="kb-track-header" style={{ gridTemplateColumns: "28px 28px 1fr 120px 70px 28px" }}>
+                <div className="kb-th-num">#</div>
+                <div />
+                <div className="kb-th-col">Name</div>
+                <div className="kb-th-col">Updated</div>
+                <div className="kb-th-col">Relevance</div>
+                <div />
+              </div>
+              {playlistResults.map((pl, index) => {
+                const isSelected = selectedPlaylist?.id === pl.id;
+                return (
+                  <div
+                    key={`playlist-${pl.id}`}
+                    className="kb-track-row"
+                    onClick={() => handlePlaylistRowClick(pl)}
+                    style={isSelected ? { background: "var(--kb-accent-dim)" } : undefined}
+                  >
+                    <div className="kb-tr-num">{index + 1}</div>
+                    <div className="kb-tr-art">
+                      <ListMusic className="h-3 w-3" />
+                    </div>
+                    <div className="kb-tr-info">
+                      <div className={`kb-tr-name${isSelected ? " kb-tr-current-name" : ""}`}>
+                        {pl.name}
+                      </div>
+                      <div className="kb-tr-sub">
+                        Playlist · {pl.track_count} track{pl.track_count === 1 ? "" : "s"}
+                      </div>
+                    </div>
+                    <div className="kb-tr-dur">{formatDate(pl.created_at)}</div>
+                    <div className="kb-tr-rel">
+                      {pl.relevance !== null ? pl.relevance.toFixed(2) : "—"}
+                    </div>
+                    <div />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {showUsers && userResults.length > 0 && (
+            <div style={{ marginBottom: 28 }}>
+              {filter === "all" && (
+                <div className="kb-sb-section-label" style={{ paddingLeft: 0 }}>
+                  Users
+                </div>
+              )}
+              <div className="kb-track-header" style={{ gridTemplateColumns: "28px 28px 1fr 120px 70px 28px" }}>
+                <div className="kb-th-num">#</div>
+                <div />
+                <div className="kb-th-col">Name</div>
+                <div className="kb-th-col">Joined</div>
+                <div className="kb-th-col">Relevance</div>
+                <div />
+              </div>
+              {userResults.map((u, index) => {
+                const isSelected = selectedUser?.id === u.id;
+                return (
+                  <div
+                    key={`user-${u.id}`}
+                    className="kb-track-row"
+                    onClick={() => handleUserRowClick(u)}
+                    style={isSelected ? { background: "var(--kb-accent-dim)" } : undefined}
+                  >
+                    <div className="kb-tr-num">{index + 1}</div>
+                    <div className="kb-tr-art">
+                      <UserIcon className="h-3 w-3" />
+                    </div>
+                    <div className="kb-tr-info">
+                      <div className={`kb-tr-name${isSelected ? " kb-tr-current-name" : ""}`}>
+                        {u.name ?? `User #${u.id}`}
+                      </div>
+                      <div className="kb-tr-sub">User</div>
+                    </div>
+                    <div className="kb-tr-dur">{formatDate(u.created_at)}</div>
+                    <div className="kb-tr-rel">
+                      {u.relevance !== null ? u.relevance.toFixed(2) : "—"}
+                    </div>
+                    <div />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {isFetchingMore && (
+        <div className="kb-empty-state" style={{ padding: 16 }}>
+          <Loader2 className="inline h-3 w-3 animate-spin" /> Loading more results…
+        </div>
+      )}
+      {hasMore && !isFetchingMore && <div ref={targetRef} style={{ height: 32 }} />}
+      {!hasMore && results.length > 0 && (
+        <div className="kb-empty-state" style={{ padding: 16, fontSize: 11 }}>
+          No more results to load
+        </div>
+      )}
     </div>
   );
 }

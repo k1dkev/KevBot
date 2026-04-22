@@ -1,103 +1,93 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
+import Link from "next/link";
+import { Loader2, Pause, Play } from "lucide-react";
 import { ApiTrack } from "@/lib/types";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Play, Pause, Loader2 } from "lucide-react";
 import { useMusicPlayer } from "@/lib/contexts/music-player-context";
 
 interface TrackListProps {
   tracks: ApiTrack[];
+  showHeader?: boolean;
 }
 
-function formatDuration(seconds: number): string {
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = Math.round(seconds % 60);
-  return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
+function formatDurationMs(seconds: number): string {
+  return `${Math.round(seconds * 1000).toLocaleString()} ms`;
 }
 
-export function TrackList({ tracks }: TrackListProps) {
-  const [selectedTrackId, setSelectedTrackId] = useState<number | null>(null);
+export function TrackList({ tracks, showHeader = true }: TrackListProps) {
   const { currentTrack, isPlaying, isLoading, playTrack, togglePlayPause } = useMusicPlayer();
 
-  const handleRowClick = (trackId: number) => {
-    setSelectedTrackId((prev) => (prev === trackId ? null : trackId));
-  };
-
-  const handlePlayClick = (track: ApiTrack, event: React.MouseEvent) => {
-    event.stopPropagation(); // Prevent row selection
-
+  const handlePlay = (track: ApiTrack) => {
     if (currentTrack?.id === track.id) {
-      // Same track - toggle play/pause
       togglePlayPause();
     } else {
-      // Different track - play new track
       playTrack(track);
     }
   };
 
-  const getPlayButtonIcon = (track: ApiTrack) => {
-    const isCurrentTrack = currentTrack?.id === track.id;
-
-    if (isCurrentTrack && isLoading) {
-      return <Loader2 className="h-4 w-4 animate-spin" />;
-    }
-
-    if (isCurrentTrack && isPlaying) {
-      return <Pause className="h-4 w-4" />;
-    }
-
-    return <Play className="h-4 w-4" />;
-  };
-
   return (
-    <div className="rounded-md border dark:border-zinc-800 bg-card dark:bg-zinc-900">
-      <Table>
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            <TableHead className="w-[64px] font-medium">#</TableHead>
-            <TableHead className="w-[48px] font-medium"></TableHead>
-            <TableHead className="font-medium">Title</TableHead>
-            <TableHead className="font-medium">Play Count</TableHead>
-            <TableHead className="text-right font-medium">Duration</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {tracks.map((track, index) => {
-            const isSelected = selectedTrackId === track.id;
-            const isCurrentTrack = currentTrack?.id === track.id;
+    <div>
+      {showHeader && (
+        <div className="kb-track-header">
+          <div className="kb-th-num">#</div>
+          <div />
+          <div className="kb-th-col">Name</div>
+          <div className="kb-th-col">Duration (ms)</div>
+          <div />
+        </div>
+      )}
+      {tracks.map((track, index) => {
+        const isCurrent = currentTrack?.id === track.id;
+        const isCurrentLoading = isCurrent && isLoading;
+        const isCurrentPlaying = isCurrent && isPlaying;
 
-            return (
-              <TableRow
-                key={track.id}
-                onClick={() => handleRowClick(track.id)}
-                className={`cursor-pointer transition-colors ${
-                  isSelected || isCurrentTrack ? "bg-muted hover:bg-muted" : "hover:bg-muted/50"
-                }`}
-              >
-                <TableCell className="text-muted-foreground">{index + 1}</TableCell>
-                <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 hover:bg-primary hover:text-primary-foreground"
-                    onClick={(e) => handlePlayClick(track, e)}
-                  >
-                    {getPlayButtonIcon(track)}
-                  </Button>
-                </TableCell>
-                <TableCell className="font-medium">
-                  {/* TODO: Does this ternary actually do anything? */}
-                  <span className={isCurrentTrack ? "text-primary" : ""}>{track.name}</span>
-                </TableCell>
-                <TableCell>{track.total_play_count}</TableCell>
-                <TableCell className="text-right">{formatDuration(track.duration)}</TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
+        return (
+          <div
+            key={track.id}
+            className={`kb-track-row${isCurrent ? " kb-track-current" : ""}`}
+            onDoubleClick={() => handlePlay(track)}
+          >
+            <div className="kb-tr-num">{index + 1}</div>
+            <div className="kb-tr-art" />
+            <div className="kb-tr-info">
+              <div className={`kb-tr-name${isCurrent ? " kb-tr-current-name" : ""}`}>{track.name}</div>
+              <div className="kb-tr-sub">
+                Track ·{" "}
+                <Link
+                  href={`/user/${track.user_id}`}
+                  className="kb-tr-uploader"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {track.user_display_name ?? `User #${track.user_id}`}
+                </Link>
+              </div>
+            </div>
+            <div className="kb-tr-dur">{formatDurationMs(track.duration)}</div>
+            <div className="kb-tr-rel">
+              {typeof track.relevance === "number" ? track.relevance.toFixed(2) : ""}
+            </div>
+            <button
+              type="button"
+              className="kb-tr-play"
+              style={isCurrent ? { opacity: 1 } : undefined}
+              onClick={(e) => {
+                e.stopPropagation();
+                handlePlay(track);
+              }}
+              title={isCurrentPlaying ? "Pause" : "Play"}
+            >
+              {isCurrentLoading ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : isCurrentPlaying ? (
+                <Pause className="h-3 w-3" />
+              ) : (
+                <Play className="h-3 w-3" />
+              )}
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }
