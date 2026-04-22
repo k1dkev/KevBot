@@ -6,6 +6,8 @@ TODO: update docs to allow rebase merging
 
 TODO: update docs to make say that github releases are okay, but they will be manually deleted
 
+TODO: Make sure db versions are released as separate releases. Prefer just putting multiple changes together instead of having so many migration scripts
+
 ## What Was Implemented
 
 ### ✅ 1. Fixed Commit Linting Strategy

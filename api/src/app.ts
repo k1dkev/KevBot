@@ -15,6 +15,7 @@ import path from "path";
 import { authMiddlewareFactory } from "./middlewares/auth";
 import { botRoutesFactory } from "./routes/botRoutes";
 import { devRoutesFactory } from "./routes/devRoutes";
+import { searchRoutesFactory } from "./routes/searchRoutes";
 
 export function appFactory(config: Config, secrets: Secrets, db: Kysely<Database>, tracksBucket: Bucket) {
   const app = express();
@@ -48,6 +49,7 @@ export function appFactory(config: Config, secrets: Secrets, db: Kysely<Database
   app.use("/v1/users", usersRoutesFactory(auth, services.usersService));
   app.use("/v1/tracks", tracksRoutesFactory(config, auth, services.tracksService));
   app.use("/v1/playlists", playlistsRoutesFactory(config, auth, services.playlistsService));
+  app.use("/v1/search", searchRoutesFactory(config, services.searchService));
   app.use("/v1/plays", playsRoutesFactory(auth, services.playsService));
   app.use("/v1/dev", devRoutesFactory(config, secrets, db, services.usersService));
   app.use(errorHandlerFactory(config.maxFileSizeInBytes));

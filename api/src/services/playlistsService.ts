@@ -2,8 +2,9 @@ import { getTrackBaseQuery } from "./tracksService";
 import * as Boom from "@hapi/boom";
 import { Playlist } from "../db/schema";
 import { KevbotDb } from "../db/connection";
+import { Config } from "../config/config";
 
-export function playlistsServiceFactory(db: KevbotDb) {
+export function playlistsServiceFactory(db: KevbotDb, config: Config) {
   interface PlaylistOptions {
     name?: string;
     include_deleted?: boolean;

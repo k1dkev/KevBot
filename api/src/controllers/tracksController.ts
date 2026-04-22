@@ -26,12 +26,6 @@ export function tracksControllerFactory(config: Config, tracksService: TracksSer
     res.status(StatusCodes.OK).json(tracks);
   };
 
-  const getTrackSuggestions = async (req: Request, res: Response) => {
-    const { q, limit } = tracksSchemas.suggestTracksQuerySchema.parse(req.query);
-    const suggestions = await tracksService.suggestTracks({ q, limit });
-    res.status(StatusCodes.OK).json(suggestions);
-  };
-
   const getTrackById = async (req: Request, res: Response) => {
     const { id } = i32IdSchema.parse(req.params);
     const track = await tracksService.getTrackById(id);
@@ -202,7 +196,6 @@ export function tracksControllerFactory(config: Config, tracksService: TracksSer
 
   return {
     getTracks,
-    getTrackSuggestions,
     getTrackById,
     getTrackDownloadById,
     getTrackStreamById,

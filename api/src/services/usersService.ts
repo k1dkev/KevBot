@@ -3,6 +3,7 @@ import { PostUserOptions, PatchUserOptions, PublicUser } from "../db/schema";
 import { KevbotDb } from "../db/connection";
 import { TracksService } from "./tracksService";
 import { PlaylistsService } from "./playlistsService";
+import { Config } from "../config/config";
 
 const PUBLIC_USER_FIELDS = [
   "users.id",
@@ -18,8 +19,12 @@ interface UserOptions {
   discord_username?: string;
 }
 
-// TODO: should services support injection of execution context? That was it would be easy to do complex transactions.
-export function usersServiceFactory(db: KevbotDb, tracksService: TracksService, playlistsService: PlaylistsService) {
+export function usersServiceFactory(
+  db: KevbotDb,
+  config: Config,
+  tracksService: TracksService,
+  playlistsService: PlaylistsService
+) {
   const validateDiscordIdIsUnique = async (discordId: string) => {
     const user = await db
       .selectFrom("users")

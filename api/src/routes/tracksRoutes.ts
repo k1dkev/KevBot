@@ -33,7 +33,6 @@ export function tracksRoutesFactory(config: Config, auth: AuthMiddleware, tracks
   const tracksController = tracksControllerFactory(config, tracksService);
   const upload = uploadFactory(config.maxFileSizeInBytes);
   router.get("/", tracksController.getTracks);
-  router.get("/suggest", tracksController.getTrackSuggestions);
   router.get("/:id", tracksController.getTrackById);
   router.get("/:id/download", tracksController.getTrackDownloadById);
   router.get("/:id/stream", tracksController.getTrackStreamById);
