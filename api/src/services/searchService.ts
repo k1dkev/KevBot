@@ -67,33 +67,34 @@ type Row = {
 };
 
 export function searchServiceFactory(db: KevbotDb, _config: Config) {
-  const scoreExpr = (q: string, nameCol: RawBuilder<unknown>) => sql`(
-    (${nameCol} = ${q}) * 14
-    + (${nameCol} LIKE CONCAT(${q}, '%')) * 12
-    + (${nameCol} LIKE CONCAT('%', ${q}, '%')) * 10
-    + MATCH(${nameCol}) AGAINST (${q} IN NATURAL LANGUAGE MODE)
-  )`;
+  // AI generated
+  async function searchV1(query: UnifiedSearchQuery): Promise<UnifiedSearchResponse> {
+    const scoreExpr = (q: string, nameCol: RawBuilder<unknown>) => sql`(
+      (${nameCol} = ${q}) * 14
+      + (${nameCol} LIKE CONCAT(${q}, '%')) * 12
+      + (${nameCol} LIKE CONCAT('%', ${q}, '%')) * 10
+      + MATCH(${nameCol}) AGAINST (${q} IN NATURAL LANGUAGE MODE)
+    )`;
 
-  const matchFilter = (q: string, nameCol: RawBuilder<unknown>) => sql`(
-    ${nameCol} LIKE CONCAT('%', ${q}, '%')
-    OR MATCH(${nameCol}) AGAINST (${q} IN NATURAL LANGUAGE MODE)
-  )`;
+    const matchFilter = (q: string, nameCol: RawBuilder<unknown>) => sql`(
+      ${nameCol} LIKE CONCAT('%', ${q}, '%')
+      OR MATCH(${nameCol}) AGAINST (${q} IN NATURAL LANGUAGE MODE)
+    )`;
 
-  const primaryOrder = (sort: SearchSort, order: SortOrder) => {
-    const d = order === "asc" ? sql.raw("ASC") : sql.raw("DESC");
-    switch (sort) {
-      case "relevance":
-        return sql`relevance ${d}`;
-      case "name":
-        return sql`name ${d}`;
-      case "created_at":
-        return sql`created_at ${d}`;
-      case "play_count":
-        return sql`total_play_count ${d}`;
-    }
-  };
+    const primaryOrder = (sort: SearchSort, order: SortOrder) => {
+      const d = order === "asc" ? sql.raw("ASC") : sql.raw("DESC");
+      switch (sort) {
+        case "relevance":
+          return sql`relevance ${d}`;
+        case "name":
+          return sql`name ${d}`;
+        case "created_at":
+          return sql`created_at ${d}`;
+        case "play_count":
+          return sql`total_play_count ${d}`;
+      }
+    };
 
-  const search = async (query: UnifiedSearchQuery): Promise<UnifiedSearchResponse> => {
     const { q, type, sort, order, include_deleted, limit, offset, user_id, playlist_id } = query;
     const hasQ = q !== undefined;
 
@@ -240,21 +241,35 @@ export function searchServiceFactory(db: KevbotDb, _config: Config) {
         has_prev: offset > 0,
       },
     };
-  };
+  }
 
-  async function search2(query: UnifiedSearchQuery): Promise<UnifiedSearchResponse> {
+  // only supports tracks
+  async function searchV2(query: UnifiedSearchQuery): Promise<UnifiedSearchResponse> {
     const { q, type, sort, order, include_deleted, limit, offset, user_id, playlist_id } = query;
-    // const hasQ = q !== undefined;
+
+    const primaryOrder = (sort: SearchSort, order: SortOrder) => {
+      const d = order === "asc" ? sql.raw("ASC") : sql.raw("DESC");
+      switch (sort) {
+        case "relevance":
+          return sql`relevance ${d}`;
+        case "name":
+          return sql`name ${d}`;
+        case "created_at":
+          return sql`created_at ${d}`;
+        case "play_count":
+          return sql`total_play_count ${d}`;
+      }
+    };
 
     const scoreExpression = (q: string | undefined, name: string) => {
       if (!q) return sql<number>`0`;
       const col = sql.ref(name);
       return sql<number>`(
-        (${col} = ${q}) * 14
-        + (${col} LIKE CONCAT(${q}, '%')) * 12
-        + (${col} LIKE CONCAT('%', ${q}, '%')) * 10
-        + MATCH(${col}) AGAINST (${q} IN NATURAL LANGUAGE MODE)
-      )`;
+      (${col} = ${q}) * 14
+      + (${col} LIKE CONCAT(${q}, '%')) * 12
+      + (${col} LIKE CONCAT('%', ${q}, '%')) * 10
+      + MATCH(${col}) AGAINST (${q} IN NATURAL LANGUAGE MODE)
+    )`;
     };
 
     const baseQuery = db
@@ -334,7 +349,220 @@ export function searchServiceFactory(db: KevbotDb, _config: Config) {
     };
   }
 
-  return { search, search2 };
+  // supports searching over all
+  async function searchV3(query: UnifiedSearchQuery): Promise<UnifiedSearchResponse> {
+    const { q, type, sort, order, include_deleted, limit, offset, user_id, playlist_id } = query;
+
+    const primaryOrder = (sort: SearchSort, order: SortOrder) => {
+      const d = order === "asc" ? sql.raw("ASC") : sql.raw("DESC");
+      switch (sort) {
+        case "relevance":
+          return sql`relevance ${d}`;
+        case "name":
+          return sql`name ${d}`;
+        case "created_at":
+          return sql`created_at ${d}`;
+        case "play_count":
+          return sql`total_play_count ${d}`;
+      }
+    };
+
+    const scoreExpressionV1 = (q: string | undefined, name: string) => {
+      if (!q) return sql<number>`0`;
+      const col = sql.ref(name);
+      return sql<number>`(
+        (${col} = ${q}) * 14
+        + (${col} LIKE CONCAT(${q}, '%')) * 12
+        + (${col} LIKE CONCAT('%', ${q}, '%')) * 10
+        + MATCH(${col}) AGAINST (${q} IN NATURAL LANGUAGE MODE)
+      )`;
+    };
+
+    const scoreExpressionV2 = (q: string | undefined, name: string) => {
+      if (!q) return sql<number>`0`;
+      const col = sql.ref(name);
+      return sql<number>`(
+        (MATCH(${col}) AGAINST (${q} IN NATURAL LANGUAGE MODE)) * (
+        1
+        + (${col} = ${q}) * 1
+        + (${col} LIKE CONCAT(${q}, '%')) * 1
+        + (${col} LIKE CONCAT('%', ${q}, '%')) * 1
+        )
+      )`;
+    };
+
+    const scoreExpression = scoreExpressionV2;
+
+    const matchFilter = (q: string, name: string) => {
+      const col = sql.ref(name);
+      return sql<boolean>`(
+      ${col} LIKE CONCAT('%', ${q}, '%')
+      OR MATCH(${col}) AGAINST (${q} IN NATURAL LANGUAGE MODE)
+    )`;
+    };
+
+    const trackBranch = db
+      .selectFrom("tracks as t")
+      .leftJoin("users as u", "u.id", "t.user_id")
+      .leftJoin("track_play_counts as tpc", "t.id", "tpc.track_id")
+      .select(({ fn }) => [
+        sql<string>`'track'`.as("entity_type"),
+        sql<number>`0`.as("type_rank"),
+        "t.id as id",
+        "t.name as name",
+        "t.created_at as created_at",
+        "t.deleted_at as deleted_at",
+        "t.user_id as owner_id",
+        "u.discord_username as owner_display_name",
+        "t.duration as duration",
+        fn.coalesce("tpc.total_play_count", sql<number>`0`).as("total_play_count"),
+        fn.coalesce("tpc.raw_total_play_count", sql<number>`0`).as("raw_total_play_count"),
+        sql<number>`0`.as("track_count"),
+        scoreExpression(q, "t.name").as("relevance"),
+      ])
+      .$if(!include_deleted, (qb) => qb.where("t.deleted_at", "is", null))
+      .$if(q !== undefined, (qb) => qb.where(matchFilter(q as string, "t.name")))
+      .$if(playlist_id !== undefined, (qb) =>
+        qb
+          .innerJoin("playlist_tracks as pt", "t.id", "pt.track_id")
+          .where("pt.playlist_id", "=", playlist_id as number),
+      )
+      .$if(user_id !== undefined, (qb) => qb.where("t.user_id", "=", user_id as number));
+
+    const playlistBranch = db
+      .selectFrom("playlists as p")
+      .leftJoin("users as u", "u.id", "p.user_id")
+      .select([
+        sql<string>`'playlist'`.as("entity_type"),
+        sql<number>`1`.as("type_rank"),
+        "p.id as id",
+        "p.name as name",
+        "p.created_at as created_at",
+        "p.deleted_at as deleted_at",
+        "p.user_id as owner_id",
+        "u.discord_username as owner_display_name",
+        sql<number>`0`.as("duration"),
+        sql<number>`0`.as("total_play_count"),
+        sql<number>`0`.as("raw_total_play_count"),
+        sql<number>`(select count(*) from playlist_tracks pt where pt.playlist_id = p.id)`.as("track_count"),
+        scoreExpression(q, "p.name").as("relevance"),
+      ])
+      .$if(!include_deleted, (qb) => qb.where("p.deleted_at", "is", null))
+      .$if(q !== undefined, (qb) => qb.where(matchFilter(q as string, "p.name")))
+      .$if(user_id !== undefined, (qb) => qb.where("p.user_id", "=", user_id as number));
+
+    const userBranch = db
+      .selectFrom("users as u")
+      .select([
+        sql<string>`'user'`.as("entity_type"),
+        sql<number>`2`.as("type_rank"),
+        "u.id as id",
+        sql<string>`u.discord_username`.as("name"),
+        "u.created_at as created_at",
+        sql<Date>`0`.as("deleted_at"),
+        sql<number>`0`.as("owner_id"),
+        sql<string>`''`.as("owner_display_name"),
+        sql<number>`0`.as("duration"),
+        sql<number>`0`.as("total_play_count"),
+        sql<number>`0`.as("raw_total_play_count"),
+        sql<number>`0`.as("track_count"),
+        scoreExpression(q, "u.discord_username").as("relevance"),
+      ])
+      .$if(q !== undefined, (qb) => qb.where(matchFilter(q as string, "u.discord_username")));
+
+    let unionQuery: typeof trackBranch | typeof playlistBranch | typeof userBranch;
+
+    if (type === "tracks") {
+      unionQuery = trackBranch;
+    } else if (type === "playlists") {
+      unionQuery = playlistBranch;
+    } else if (type === "users") {
+      unionQuery = userBranch;
+    } else {
+      unionQuery = trackBranch.unionAll(playlistBranch).unionAll(userBranch);
+    }
+
+    const base = db.selectFrom(unionQuery.as("m"));
+
+    const countResultPromise = base.select(({ fn }) => [fn.countAll<number>().as("total")]).executeTakeFirstOrThrow();
+
+    console.log(sort, order);
+    const rowsPromise = base
+      .selectAll()
+      .orderBy(primaryOrder(sort, order))
+      .orderBy("type_rank", "asc")
+      .orderBy("relevance", "desc")
+      .orderBy("name", "asc")
+      .limit(limit)
+      .offset(offset)
+      .execute();
+
+    const [countResult, rows] = await Promise.all([countResultPromise, rowsPromise]);
+    const total = Number(countResult.total);
+
+    const relOf = (v: number) => {
+      if (q === undefined) return null;
+      return Number(v);
+    };
+
+    const data: UnifiedSearchItem[] = rows.map((r) => {
+      if (r.entity_type === "track") {
+        return {
+          type: "track",
+          id: r.id,
+          name: r.name ?? "",
+          created_at: r.created_at,
+          deleted_at: r.deleted_at,
+          relevance: relOf(r.relevance),
+          duration: Number(r.duration ?? 0),
+          total_play_count: Number(r.total_play_count ?? 0),
+          raw_total_play_count: Number(r.raw_total_play_count ?? 0),
+          user: {
+            id: r.owner_id ?? 0,
+            display_name: r.owner_display_name,
+          },
+        };
+      }
+
+      if (r.entity_type === "playlist") {
+        return {
+          type: "playlist",
+          id: r.id,
+          name: r.name ?? "",
+          created_at: r.created_at,
+          deleted_at: r.deleted_at,
+          relevance: relOf(r.relevance),
+          track_count: Number(r.track_count ?? 0),
+          user: {
+            id: r.owner_id ?? 0,
+            display_name: r.owner_display_name,
+          },
+        };
+      }
+
+      return {
+        type: "user",
+        id: r.id,
+        name: r.name,
+        created_at: r.created_at,
+        deleted_at: null,
+        relevance: relOf(r.relevance),
+      };
+    });
+
+    return {
+      data,
+      pagination: {
+        total,
+        limit,
+        offset,
+        has_next: offset + limit < total,
+        has_prev: offset > 0,
+      },
+    };
+  }
+
+  return { search: searchV3 };
 }
 
 export type SearchService = ReturnType<typeof searchServiceFactory>;

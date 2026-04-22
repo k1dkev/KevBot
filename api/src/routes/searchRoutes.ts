@@ -8,7 +8,6 @@ export function searchRoutesFactory(config: Config, searchService: SearchService
   const controller = searchControllerFactory(config, searchService);
 
   router.get("/", controller.search);
-  router.get("/2", controller.search2);
 
   return router;
 }

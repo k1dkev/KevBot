@@ -23,9 +23,9 @@ export function searchSchemasFactory(config: Config) {
       q: z.string().trim().optional(),
       type: z.enum(["all", "tracks", "playlists", "users"]).default("all"),
       sort: z.enum(["relevance", "name", "created_at", "play_count"]).optional(),
-      order: z.enum(["asc", "desc"]).default("desc"),
+      order: z.enum(["asc", "desc"]).default("asc"),
       // TODO use stringbool after upgrade to ZOD4
-      include_deleted: z.boolean().default(false),
+      include_deleted: z.coerce.boolean().default(false),
       limit: z.coerce.number().int().min(1).max(config.maxResultsPerPage).default(20),
       offset: z.coerce.number().int().min(0).default(0),
       playlist_id: z.coerce.number().int().optional(),
