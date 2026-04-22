@@ -1,15 +1,18 @@
 "use client";
 
-import { ChangeEvent, KeyboardEvent } from "react";
-import { Loader2, Search } from "lucide-react";
-import { SearchFilter } from "@/lib/types";
+import { ChangeEvent } from "react";
+import { Loader2 } from "lucide-react";
+import { SearchFilter, SearchOrder, SearchSort } from "@/lib/types";
 
 interface LibrarySearchBarProps {
   query: string;
   onQueryChange: (value: string) => void;
-  onSubmit: () => void;
   selectedFilter: SearchFilter;
   onFilterChange: (filter: SearchFilter) => void;
+  sort: SearchSort;
+  onSortChange: (sort: SearchSort) => void;
+  order: SearchOrder;
+  onOrderChange: (order: SearchOrder) => void;
   isSearching?: boolean;
   lockedFilter?: SearchFilter | null;
   activePlaylistLabel?: string | null;
@@ -25,12 +28,27 @@ const FILTER_OPTIONS: Array<{ value: SearchFilter; label: string }> = [
   { value: "users", label: "Users" },
 ];
 
+const SORT_OPTIONS: Array<{ value: SearchSort; label: string }> = [
+  { value: "relevance", label: "Relevance" },
+  { value: "name", label: "Name" },
+  { value: "created_at", label: "Created" },
+  { value: "play_count", label: "Plays" },
+];
+
+const ORDER_OPTIONS: Array<{ value: SearchOrder; label: string }> = [
+  { value: "desc", label: "Desc" },
+  { value: "asc", label: "Asc" },
+];
+
 export function LibrarySearchBar({
   query,
   onQueryChange,
-  onSubmit,
   selectedFilter,
   onFilterChange,
+  sort,
+  onSortChange,
+  order,
+  onOrderChange,
   isSearching = false,
   lockedFilter = null,
   activePlaylistLabel,
@@ -39,12 +57,6 @@ export function LibrarySearchBar({
   onClearUser,
 }: LibrarySearchBarProps) {
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => onQueryChange(e.target.value);
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      onSubmit();
-    }
-  };
 
   const isFilterLocked = lockedFilter !== null && lockedFilter !== undefined;
 
@@ -55,9 +67,7 @@ export function LibrarySearchBar({
           type="search"
           value={query}
           onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
           placeholder="Search tracks, playlists, or users…"
-          disabled={isSearching}
           className="kb-search-input-lg"
           aria-label="Search library"
           autoFocus
@@ -80,7 +90,7 @@ export function LibrarySearchBar({
         <div className="kb-filter-tabs">
           {FILTER_OPTIONS.map((option) => {
             const isActive = selectedFilter === option.value;
-            const disabled = isSearching || (isFilterLocked && lockedFilter !== option.value);
+            const disabled = isFilterLocked && lockedFilter !== option.value;
             return (
               <button
                 key={option.value}
@@ -94,16 +104,33 @@ export function LibrarySearchBar({
             );
           })}
         </div>
-        <button
-          type="button"
-          onClick={onSubmit}
-          disabled={isSearching}
-          className="kb-search-btn"
-          style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
-        >
-          <Search className="h-3 w-3" />
-          Search
-        </button>
+        <div className="kb-search-controls">
+          <span className="kb-select-label">Sort by</span>
+          <select
+            className="kb-select"
+            value={sort}
+            onChange={(e) => onSortChange(e.target.value as SearchSort)}
+            aria-label="Sort by"
+          >
+            {SORT_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <select
+            className="kb-select"
+            value={order}
+            onChange={(e) => onOrderChange(e.target.value as SearchOrder)}
+            aria-label="Order"
+          >
+            {ORDER_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
       {(activePlaylistLabel || activeUserLabel) && (
         <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>

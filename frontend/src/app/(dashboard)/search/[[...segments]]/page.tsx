@@ -4,6 +4,7 @@ import { SearchFilter } from "@/lib/types";
 import SearchPageClient from "../search-page-client";
 
 const FILTER_SEGMENTS: Record<string, SearchFilter> = {
+  all: "all",
   tracks: "tracks",
   playlists: "playlists",
   users: "users",
@@ -18,7 +19,7 @@ interface SearchPageProps {
 export default function SearchPage({ params }: SearchPageProps) {
   const segments = params.segments ?? [];
   let initialQuery = "";
-  let initialFilter: SearchFilter = "all";
+  let initialFilter: SearchFilter = "tracks";
 
   if (segments.length === 0) {
     // defaults already set

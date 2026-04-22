@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Disc3, ListMusic, Loader2, Pause, Play, User as UserIcon } from "lucide-react";
 import { api } from "@/lib/api-browser-client";
 import { LibrarySearchBar } from "@/components/track-search-bar";
@@ -9,6 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   ApiTrack,
   SearchFilter,
+  SearchOrder,
+  SearchSort,
   UnifiedSearchResult,
   UnifiedSearchResultPlaylist,
   UnifiedSearchResultTrack,
@@ -20,6 +22,7 @@ import { useMusicPlayer } from "@/lib/contexts/music-player-context";
 import { useInfiniteScroll } from "@/lib/hooks/useInfiniteScroll";
 
 const PAGE_SIZE = 25;
+const DEBOUNCE_MS = 200;
 
 function formatDate(iso: string): string {
   try {
@@ -27,6 +30,10 @@ function formatDate(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+function TypeBadge({ type }: { type: "track" | "playlist" | "user" }) {
+  return <span className={`kb-type-badge kb-type-${type}`}>{type}</span>;
 }
 
 interface PaginationState {
@@ -50,7 +57,7 @@ interface LibrarySearchPanelProps {
 
 export function LibrarySearchPanel({
   initialQuery = "",
-  initialFilter = "all",
+  initialFilter,
   lockedFilter = null,
   playlistContext = null,
   userContext = null,
@@ -58,8 +65,11 @@ export function LibrarySearchPanel({
   onNavigateToPlaylist,
   onNavigateToUser,
 }: LibrarySearchPanelProps) {
+  const defaultFilter: SearchFilter = lockedFilter ?? initialFilter ?? "tracks";
   const [query, setQuery] = useState(initialQuery);
-  const [filter, setFilter] = useState<SearchFilter>(lockedFilter ?? initialFilter);
+  const [filter, setFilter] = useState<SearchFilter>(defaultFilter);
+  const [sort, setSort] = useState<SearchSort>("relevance");
+  const [order, setOrder] = useState<SearchOrder>("desc");
   const [results, setResults] = useState<UnifiedSearchResult[]>([]);
   const [pagination, setPagination] = useState<PaginationState>({
     total: 0,
@@ -95,7 +105,7 @@ export function LibrarySearchPanel({
   const canClearUserSelection = !!userLabel && !userContext;
 
   useEffect(() => setQuery(initialQuery), [initialQuery]);
-  useEffect(() => setFilter(lockedFilter ?? initialFilter), [initialFilter, lockedFilter]);
+  useEffect(() => setFilter(lockedFilter ?? initialFilter ?? "tracks"), [initialFilter, lockedFilter]);
 
   useEffect(() => {
     if (playlistContext) {
@@ -126,18 +136,39 @@ export function LibrarySearchPanel({
     if (selectedUser && filter !== "tracks") setFilter("tracks");
   }, [filter, selectedUser]);
 
+  // Debounce the query so each keystroke doesn't fire a request, but the
+  // input itself is never disabled — typing stays uninterrupted.
+  const [debouncedQuery, setDebouncedQuery] = useState(query);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query), DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [query]);
+
   const fetchPage = useCallback(
     async (offset: number) =>
       api.search.unified({
-        q: query.trim() || undefined,
+        q: debouncedQuery.trim() || undefined,
         type: filter,
+        sort,
+        order,
         playlistId: selectedPlaylist?.id ?? undefined,
         userId: selectedUser?.id ?? undefined,
         limit: PAGE_SIZE,
         offset,
       }),
-    [filter, query, selectedPlaylist?.id, selectedUser?.id]
+    [debouncedQuery, filter, order, sort, selectedPlaylist?.id, selectedUser?.id]
   );
+
+  // Notify parent of state changes (debounced) without forcing a manual submit.
+  const lastNotifiedRef = useRef<{ query: string; filter: SearchFilter } | null>(null);
+  useEffect(() => {
+    if (!onSearchStateChange) return;
+    const trimmed = debouncedQuery.trim();
+    const last = lastNotifiedRef.current;
+    if (last && last.query === trimmed && last.filter === filter) return;
+    lastNotifiedRef.current = { query: trimmed, filter };
+    onSearchStateChange({ query: trimmed, filter });
+  }, [debouncedQuery, filter, onSearchStateChange]);
 
   useEffect(() => {
     let cancelled = false;
@@ -165,24 +196,6 @@ export function LibrarySearchPanel({
     };
   }, [fetchPage]);
 
-  const handleSearch = useCallback(async () => {
-    setIsInitialLoading(true);
-    setError(null);
-    try {
-      const response = await fetchPage(0);
-      setResults(response.data);
-      setPagination(response.pagination);
-      onSearchStateChange?.({ query: query.trim(), filter });
-    } catch (err) {
-      console.error("Search failed", err);
-      setError("Unable to perform search. Please try again.");
-      setResults([]);
-      setPagination({ total: 0, limit: PAGE_SIZE, offset: 0, has_next: false, has_prev: false });
-    } finally {
-      setIsInitialLoading(false);
-    }
-  }, [fetchPage, filter, onSearchStateChange, query]);
-
   const loadMore = useCallback(async () => {
     if (!hasMore || isInitialLoading || isFetchingMore) return;
     setIsFetchingMore(true);
@@ -207,9 +220,8 @@ export function LibrarySearchPanel({
       if (lockedFilter && next !== lockedFilter) return;
       if (filter === next) return;
       setFilter(next);
-      onSearchStateChange?.({ query: query.trim(), filter: next });
     },
-    [filter, lockedFilter, onSearchStateChange, query]
+    [filter, lockedFilter]
   );
 
   const handlePlaylistRowClick = useCallback(
@@ -291,9 +303,12 @@ export function LibrarySearchPanel({
       <LibrarySearchBar
         query={query}
         onQueryChange={setQuery}
-        onSubmit={handleSearch}
         selectedFilter={filter}
         onFilterChange={handleFilterChange}
+        sort={sort}
+        onSortChange={setSort}
+        order={order}
+        onOrderChange={setOrder}
         lockedFilter={lockedFilter}
         isSearching={isInitialLoading}
         activePlaylistLabel={playlistLabel}
@@ -320,10 +335,10 @@ export function LibrarySearchPanel({
       <div className="kb-results-info">
         <span>
           Showing {results.length} of {pagination.total} result{pagination.total === 1 ? "" : "s"}
-          {query ? (
+          {debouncedQuery ? (
             <>
               {" for "}
-              <em>&ldquo;{query}&rdquo;</em>
+              <em>&ldquo;{debouncedQuery}&rdquo;</em>
             </>
           ) : null}
         </span>
@@ -335,7 +350,7 @@ export function LibrarySearchPanel({
         </div>
       ) : results.length === 0 ? (
         <div className="kb-empty-state">
-          {query ? `No results match "${query}".` : "No results yet."}
+          {debouncedQuery ? `No results match "${debouncedQuery}".` : "No results yet."}
         </div>
       ) : (
         <>
@@ -353,7 +368,10 @@ export function LibrarySearchPanel({
                       <TableHead className="kb-cell-num">#</TableHead>
                       <TableHead className="kb-cell-art" />
                       <TableHead>Name</TableHead>
+                      <TableHead className="kb-cell-meta">Type</TableHead>
                       <TableHead className="kb-cell-meta">Duration (ms)</TableHead>
+                      <TableHead className="kb-cell-meta">Plays</TableHead>
+                      <TableHead className="kb-cell-meta">Created</TableHead>
                       <TableHead className="kb-cell-rel">Relevance</TableHead>
                       <TableHead className="kb-cell-action" />
                     </TableRow>
@@ -392,7 +410,6 @@ export function LibrarySearchPanel({
                                 {track.name}
                               </div>
                               <div className="kb-tr-sub">
-                                Track ·{" "}
                                 <Link
                                   href={`/user/${track.user.id}`}
                                   className="kb-tr-uploader"
@@ -404,8 +421,15 @@ export function LibrarySearchPanel({
                             </div>
                           </TableCell>
                           <TableCell className="kb-cell-meta">
+                            <TypeBadge type="track" />
+                          </TableCell>
+                          <TableCell className="kb-cell-meta">
                             {Math.round(track.duration * 1000).toLocaleString()} ms
                           </TableCell>
+                          <TableCell className="kb-cell-meta">
+                            {track.total_play_count.toLocaleString()}
+                          </TableCell>
+                          <TableCell className="kb-cell-meta">{formatDate(track.created_at)}</TableCell>
                           <TableCell className="kb-cell-rel">
                             {track.relevance !== null ? track.relevance.toFixed(2) : "—"}
                           </TableCell>
@@ -452,7 +476,9 @@ export function LibrarySearchPanel({
                       <TableHead className="kb-cell-num">#</TableHead>
                       <TableHead className="kb-cell-art" />
                       <TableHead>Name</TableHead>
-                      <TableHead className="kb-cell-meta">Updated</TableHead>
+                      <TableHead className="kb-cell-meta">Type</TableHead>
+                      <TableHead className="kb-cell-meta">Tracks</TableHead>
+                      <TableHead className="kb-cell-meta">Created</TableHead>
                       <TableHead className="kb-cell-rel">Relevance</TableHead>
                       <TableHead className="kb-cell-action" />
                     </TableRow>
@@ -477,11 +503,13 @@ export function LibrarySearchPanel({
                               <div className={`kb-tr-name${isSelected ? " kb-tr-current-name" : ""}`}>
                                 {pl.name}
                               </div>
-                              <div className="kb-tr-sub">
-                                Playlist · {pl.track_count} track{pl.track_count === 1 ? "" : "s"}
-                              </div>
+                              <div className="kb-tr-sub">{pl.user.display_name ?? `User #${pl.user.id}`}</div>
                             </div>
                           </TableCell>
+                          <TableCell className="kb-cell-meta">
+                            <TypeBadge type="playlist" />
+                          </TableCell>
+                          <TableCell className="kb-cell-meta">{pl.track_count}</TableCell>
                           <TableCell className="kb-cell-meta">{formatDate(pl.created_at)}</TableCell>
                           <TableCell className="kb-cell-rel">
                             {pl.relevance !== null ? pl.relevance.toFixed(2) : "—"}
@@ -510,6 +538,7 @@ export function LibrarySearchPanel({
                       <TableHead className="kb-cell-num">#</TableHead>
                       <TableHead className="kb-cell-art" />
                       <TableHead>Name</TableHead>
+                      <TableHead className="kb-cell-meta">Type</TableHead>
                       <TableHead className="kb-cell-meta">Joined</TableHead>
                       <TableHead className="kb-cell-rel">Relevance</TableHead>
                       <TableHead className="kb-cell-action" />
@@ -535,8 +564,10 @@ export function LibrarySearchPanel({
                               <div className={`kb-tr-name${isSelected ? " kb-tr-current-name" : ""}`}>
                                 {u.name ?? `User #${u.id}`}
                               </div>
-                              <div className="kb-tr-sub">User</div>
                             </div>
+                          </TableCell>
+                          <TableCell className="kb-cell-meta">
+                            <TypeBadge type="user" />
                           </TableCell>
                           <TableCell className="kb-cell-meta">{formatDate(u.created_at)}</TableCell>
                           <TableCell className="kb-cell-rel">
