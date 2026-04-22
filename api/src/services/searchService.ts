@@ -257,24 +257,9 @@ export function searchServiceFactory(db: KevbotDb, _config: Config) {
       )`;
     };
 
-    const tracksQuery = db
+    const baseQuery = db
       .selectFrom("tracks as t")
       .leftJoin("track_play_counts as tpc", "t.id", "tpc.track_id")
-      .select(({ fn }) => [
-        sql<string>`'track'`.as("entity_type"),
-        sql<number>`0`.as("type_rank"),
-        "t.id",
-        "t.name",
-        "t.duration",
-        "t.user_id",
-        "t.deleted_at",
-        "t.created_at",
-        "t.updated_at",
-        sql<number>`COUNT(*) OVER ()`.as("total_rows"),
-        fn.coalesce("tpc.total_play_count", sql<number>`0`).as("total_play_count"),
-        fn.coalesce("tpc.raw_total_play_count", sql<number>`0`).as("raw_total_play_count"),
-        scoreExpression(q, "t.name").as("relevance"),
-      ])
       .$if(!include_deleted, (qb) => qb.where("t.deleted_at", "is", null))
       .$if(q !== undefined, (qb) =>
         qb.where((eb) =>
@@ -287,20 +272,38 @@ export function searchServiceFactory(db: KevbotDb, _config: Config) {
       .$if(playlist_id !== undefined, (qb) =>
         qb
           .innerJoin("playlist_tracks", "t.id", "playlist_tracks.track_id")
-          .where("playlist_tracks.playlist_id", "=", playlist_id as number)
-          .where("t.deleted_at", "is", null),
+          .where("playlist_tracks.playlist_id", "=", playlist_id as number),
       )
-      .$if(user_id !== undefined, (qb) => qb.where("t.user_id", "=", user_id as number))
+      .$if(user_id !== undefined, (qb) => qb.where("t.user_id", "=", user_id as number));
+
+    const countResult = await baseQuery
+      .select(({ fn }) => [fn.countAll<number>().as("total")])
+      .executeTakeFirstOrThrow();
+
+    const total = Number(countResult.total);
+
+    const tracksData = await baseQuery
+      .select(({ fn }) => [
+        sql<string>`'track'`.as("entity_type"),
+        sql<number>`0`.as("type_rank"),
+        "t.id",
+        "t.name",
+        "t.duration",
+        "t.user_id",
+        "t.deleted_at",
+        "t.created_at",
+        "t.updated_at",
+        fn.coalesce("tpc.total_play_count", sql<number>`0`).as("total_play_count"),
+        fn.coalesce("tpc.raw_total_play_count", sql<number>`0`).as("raw_total_play_count"),
+        scoreExpression(q, "t.name").as("relevance"),
+      ])
       .orderBy(primaryOrder(sort, order))
       .orderBy("type_rank", "asc")
       .orderBy("relevance", "desc")
       .orderBy("name", "asc")
       .limit(limit)
-      .offset(offset);
-
-    const tracksData = await tracksQuery.execute();
-
-    const total = tracksData.length > 0 ? tracksData[0].total_rows : 0;
+      .offset(offset)
+      .execute();
 
     const data: UnifiedSearchItem[] = tracksData.map((r) => {
       return {
