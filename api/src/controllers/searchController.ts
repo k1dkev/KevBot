@@ -13,8 +13,14 @@ export function searchControllerFactory(config: Config, searchService: SearchSer
     res.status(StatusCodes.OK).json(results);
   };
 
+  const search2 = async (req: Request, res: Response) => {
+    const query = searchSchemas.searchQuerySchema.parse(req.query);
+    const results = await searchService.search2(query);
+    res.status(StatusCodes.OK).json(results);
+  };
+
   return {
     search,
+    search2,
   };
 }
-

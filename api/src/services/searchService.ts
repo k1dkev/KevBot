@@ -1,6 +1,7 @@
-import { RawBuilder, sql } from "kysely";
+import { RawBuilder, sql, Kysely, Transaction } from "kysely";
 import { Config } from "../config/config";
 import { KevbotDb } from "../db/connection";
+import { Database } from "../db/schema";
 import { SearchSort, SortOrder, UnifiedSearchQuery } from "../schemas/searchSchemas";
 
 type UnifiedUser = { id: number; display_name: string | null };
@@ -67,7 +68,7 @@ type Row = {
 
 export function searchServiceFactory(db: KevbotDb, _config: Config) {
   const scoreExpr = (q: string, nameCol: RawBuilder<unknown>) => sql`(
-    (${nameCol} = ${q}) * 100
+    (${nameCol} = ${q}) * 14
     + (${nameCol} LIKE CONCAT(${q}, '%')) * 12
     + (${nameCol} LIKE CONCAT('%', ${q}, '%')) * 10
     + MATCH(${nameCol}) AGAINST (${q} IN NATURAL LANGUAGE MODE)
@@ -78,10 +79,8 @@ export function searchServiceFactory(db: KevbotDb, _config: Config) {
     OR MATCH(${nameCol}) AGAINST (${q} IN NATURAL LANGUAGE MODE)
   )`;
 
-  const dir = (o: SortOrder) => (o === "asc" ? sql.raw("ASC") : sql.raw("DESC"));
-
   const primaryOrder = (sort: SearchSort, order: SortOrder) => {
-    const d = dir(order);
+    const d = order === "asc" ? sql.raw("ASC") : sql.raw("DESC");
     switch (sort) {
       case "relevance":
         return sql`relevance ${d}`;
@@ -243,7 +242,94 @@ export function searchServiceFactory(db: KevbotDb, _config: Config) {
     };
   };
 
-  return { search };
+  async function search2(query: UnifiedSearchQuery): Promise<UnifiedSearchResponse> {
+    const { q, type, sort, order, include_deleted, limit, offset, user_id, playlist_id } = query;
+    // const hasQ = q !== undefined;
+
+    const scoreExpression = (q: string | undefined, name: string) => {
+      if (!q) return sql<number>`0`;
+      const col = sql.ref(name);
+      return sql<number>`(
+        (${col} = ${q}) * 14
+        + (${col} LIKE CONCAT(${q}, '%')) * 12
+        + (${col} LIKE CONCAT('%', ${q}, '%')) * 10
+        + MATCH(${col}) AGAINST (${q} IN NATURAL LANGUAGE MODE)
+      )`;
+    };
+
+    const tracksQuery = db
+      .selectFrom("tracks as t")
+      .leftJoin("track_play_counts as tpc", "t.id", "tpc.track_id")
+      .select(({ fn }) => [
+        sql<string>`'track'`.as("entity_type"),
+        sql<number>`0`.as("type_rank"),
+        "t.id",
+        "t.name",
+        "t.duration",
+        "t.user_id",
+        "t.deleted_at",
+        "t.created_at",
+        "t.updated_at",
+        sql<number>`COUNT(*) OVER ()`.as("total_rows"),
+        fn.coalesce("tpc.total_play_count", sql<number>`0`).as("total_play_count"),
+        fn.coalesce("tpc.raw_total_play_count", sql<number>`0`).as("raw_total_play_count"),
+        scoreExpression(q, "t.name").as("relevance"),
+      ])
+      .$if(!include_deleted, (qb) => qb.where("t.deleted_at", "is", null))
+      .$if(q !== undefined, (qb) =>
+        qb.where((eb) =>
+          eb.or([
+            sql<boolean>`t.name LIKE CONCAT('%', ${q}, '%')`,
+            sql<boolean>`MATCH(t.name) AGAINST (${q} IN NATURAL LANGUAGE MODE)`,
+          ]),
+        ),
+      )
+      .$if(playlist_id !== undefined, (qb) =>
+        qb
+          .innerJoin("playlist_tracks", "t.id", "playlist_tracks.track_id")
+          .where("playlist_tracks.playlist_id", "=", playlist_id as number)
+          .where("t.deleted_at", "is", null),
+      )
+      .$if(user_id !== undefined, (qb) => qb.where("t.user_id", "=", user_id as number))
+      .orderBy(primaryOrder(sort, order))
+      .orderBy("type_rank", "asc")
+      .orderBy("relevance", "desc")
+      .orderBy("name", "asc")
+      .limit(limit)
+      .offset(offset);
+
+    const tracksData = await tracksQuery.execute();
+
+    const total = tracksData.length > 0 ? tracksData[0].total_rows : 0;
+
+    const data: UnifiedSearchItem[] = tracksData.map((r) => {
+      return {
+        type: "track",
+        id: r.id,
+        name: r.name ?? "",
+        created_at: r.created_at,
+        deleted_at: r.deleted_at,
+        relevance: r.relevance,
+        duration: r.duration,
+        total_play_count: r.total_play_count,
+        raw_total_play_count: r.raw_total_play_count,
+        user: { id: r.user_id, display_name: "user_name" },
+      };
+    });
+
+    return {
+      data: data,
+      pagination: {
+        total: total,
+        limit: limit,
+        offset: offset,
+        has_next: offset + limit < total,
+        has_prev: offset > 0,
+      },
+    };
+  }
+
+  return { search, search2 };
 }
 
 export type SearchService = ReturnType<typeof searchServiceFactory>;
