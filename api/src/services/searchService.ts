@@ -276,13 +276,11 @@ export function searchServiceFactory(db: KevbotDb, _config: Config) {
       )
       .$if(user_id !== undefined, (qb) => qb.where("t.user_id", "=", user_id as number));
 
-    const countResult = await baseQuery
+    const countResultPromise = baseQuery
       .select(({ fn }) => [fn.countAll<number>().as("total")])
       .executeTakeFirstOrThrow();
 
-    const total = Number(countResult.total);
-
-    const tracksData = await baseQuery
+    const tracksDataPromise = baseQuery
       .select(({ fn }) => [
         sql<string>`'track'`.as("entity_type"),
         sql<number>`0`.as("type_rank"),
@@ -304,6 +302,10 @@ export function searchServiceFactory(db: KevbotDb, _config: Config) {
       .limit(limit)
       .offset(offset)
       .execute();
+
+    const [countResult, tracksData] = await Promise.all([countResultPromise, tracksDataPromise]);
+
+    const total = Number(countResult.total);
 
     const data: UnifiedSearchItem[] = tracksData.map((r) => {
       return {
