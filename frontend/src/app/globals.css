@@ -60,6 +60,7 @@ code,
     --kb-player-h: 68px;
     --kb-sidebar-w: 192px;
     --kb-topbar-h: 46px;
+    --kb-max-width: 1200px;
   }
 
   .dark {
@@ -125,6 +126,10 @@ code,
     height: 100vh;
     min-height: 0;
     padding-bottom: var(--kb-player-h);
+    max-width: var(--kb-max-width);
+    margin: 0 auto;
+    border-left: 1px solid var(--kb-border);
+    border-right: 1px solid var(--kb-border);
   }
   .kb-body {
     display: flex;
@@ -164,7 +169,9 @@ code,
     color: var(--kb-text2);
     font-size: 12.5px;
     cursor: pointer;
-    transition: color 0.12s, background 0.12s;
+    transition:
+      color 0.12s,
+      background 0.12s;
     border-radius: 0;
     width: 100%;
     text-align: left;
@@ -239,7 +246,9 @@ code,
     border-radius: var(--kb-radius);
     color: var(--kb-text2);
     font-size: 12px;
-    transition: color 0.12s, background 0.12s;
+    transition:
+      color 0.12s,
+      background 0.12s;
     background: transparent;
     border: none;
     font-family: inherit;
@@ -582,7 +591,10 @@ code,
     font-size: 11.5px;
     font-family: inherit;
     cursor: pointer;
-    transition: color 0.12s, background 0.12s, border-color 0.12s;
+    transition:
+      color 0.12s,
+      background 0.12s,
+      border-color 0.12s;
   }
   .kb-icon-toggle:hover {
     color: var(--kb-text);
@@ -798,15 +810,19 @@ code,
     color: var(--kb-text);
   }
 
-  /* Bottom Player */
+  /* Bottom Player — centered to match the 1440px shell */
   .kb-player {
     position: fixed;
     bottom: 0;
-    left: 0;
-    right: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: var(--kb-max-width);
     height: var(--kb-player-h);
     background: var(--kb-bg2);
     border-top: 1px solid var(--kb-border2);
+    border-left: 1px solid var(--kb-border);
+    border-right: 1px solid var(--kb-border);
     display: grid;
     grid-template-columns: 220px 1fr 180px;
     align-items: center;
@@ -865,7 +881,9 @@ code,
     align-items: center;
     justify-content: center;
     color: var(--kb-text2);
-    transition: color 0.12s, background 0.12s;
+    transition:
+      color 0.12s,
+      background 0.12s;
     background: transparent;
     border: none;
     cursor: pointer;
@@ -1088,7 +1106,9 @@ code,
     border-radius: 8px;
     padding: 12px;
     cursor: pointer;
-    transition: background 0.12s, border-color 0.12s;
+    transition:
+      background 0.12s,
+      border-color 0.12s;
     text-align: left;
     font-family: inherit;
     color: inherit;
