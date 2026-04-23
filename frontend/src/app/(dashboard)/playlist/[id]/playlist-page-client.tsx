@@ -48,6 +48,7 @@ export default function PlaylistPageClient({ playlist, initialQuery }: PlaylistP
       playlistContext={{ id: playlist.id, name: playlist.name }}
       onSearchStateChange={handleStateChange}
       onNavigateToUser={handleNavigateUser}
+      onClearPlaylist={() => router.replace("/search/tracks")}
     />
   );
 }

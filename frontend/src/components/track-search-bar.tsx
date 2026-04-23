@@ -17,6 +17,7 @@ interface LibrarySearchBarProps {
   onIncludeDeletedChange: (next: boolean) => void;
   isSearching?: boolean;
   lockedFilter?: SearchFilter | null;
+  disableUsersFilter?: boolean;
   activePlaylistLabel?: string | null;
   onClearPlaylist?: () => void;
   activeUserLabel?: string | null;
@@ -49,6 +50,7 @@ export function LibrarySearchBar({
   onIncludeDeletedChange,
   isSearching = false,
   lockedFilter = null,
+  disableUsersFilter = false,
   activePlaylistLabel,
   onClearPlaylist,
   activeUserLabel,
@@ -89,12 +91,15 @@ export function LibrarySearchBar({
       <div className="kb-search-controls" style={{ justifyContent: "flex-start" }}>
         {FILTER_OPTIONS.map((option) => {
           const isActive = selectedFilter === option.value;
-          const disabled = isFilterLocked && lockedFilter !== option.value;
+          const lockedOut = isFilterLocked && lockedFilter !== option.value;
+          const usersDisabled = option.value === "users" && disableUsersFilter;
+          const disabled = lockedOut || usersDisabled;
           return (
             <button
               key={option.value}
               type="button"
               disabled={disabled}
+              title={usersDisabled ? "Clear the user filter to browse users" : undefined}
               className={`kb-filter-tab${isActive ? " kb-filter-active" : ""}`}
               onClick={() => onFilterChange(option.value)}
             >

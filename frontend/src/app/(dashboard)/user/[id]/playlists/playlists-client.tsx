@@ -1,57 +1,47 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
-import { api } from "@/lib/api-browser-client";
-import { ApiPlaylist, ApiUser } from "@/lib/types";
-import { UserPlaylistsTable } from "@/components/user-playlists-table";
+import { useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { LibrarySearchPanel } from "@/components/library-search-panel";
+import { ApiUser, SearchFilter } from "@/lib/types";
 
 interface UserPlaylistsClientProps {
   user: ApiUser;
 }
 
 export default function UserPlaylistsClient({ user }: UserPlaylistsClientProps) {
-  const [playlists, setPlaylists] = useState<ApiPlaylist[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialQuery = searchParams.get("q") ?? "";
+  const userBase = `/user/${user.id}`;
 
-  useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    setError(null);
-    (async () => {
-      try {
-        const all = await api.playlists.fetch();
-        if (cancelled) return;
-        setPlaylists(all.filter((p) => p.user_id === user.id));
-      } catch (err) {
-        console.error("Failed to load playlists", err);
-        if (!cancelled) setError("Failed to load playlists.");
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [user.id]);
+  const buildPath = (filter: SearchFilter, query: string) => {
+    const trimmed = query.trim();
+    const qSuffix = trimmed ? `?q=${encodeURIComponent(trimmed)}` : "";
+    if (filter === "tracks") return `${userBase}/tracks${qSuffix}`;
+    if (filter === "playlists") return `${userBase}/playlists${qSuffix}`;
+    return `/search/users${qSuffix}`;
+  };
 
-  if (isLoading) {
-    return (
-      <div className="kb-empty-state">
-        <Loader2 className="inline h-4 w-4 animate-spin" /> Loading playlists…
-      </div>
-    );
-  }
-
-  if (error) {
-    return <div className="kb-empty-state" style={{ color: "hsl(var(--destructive))" }}>{error}</div>;
-  }
+  const handleStateChange = useCallback(
+    ({ query, filter }: { query: string; filter: SearchFilter }) => {
+      router.replace(buildPath(filter, query));
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [router, user.id]
+  );
 
   return (
-    <UserPlaylistsTable
-      playlists={playlists}
-      creatorName={user.discord_username ?? null}
+    <LibrarySearchPanel
+      initialQuery={initialQuery}
+      initialFilter="playlists"
+      userContext={{
+        id: user.id,
+        displayName: user.discord_username ?? null,
+        discordId: user.discord_id,
+      }}
+      onSearchStateChange={handleStateChange}
+      onClearUser={() => router.replace("/search/playlists")}
     />
   );
 }

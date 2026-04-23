@@ -17,7 +17,6 @@ import {
   UnifiedSearchResultUser,
 } from "@/lib/types";
 import { useLibraryFilters } from "@/lib/contexts/library-filters-context";
-import { useAuth } from "@/lib/contexts/auth-context";
 import { useMusicPlayer } from "@/lib/contexts/music-player-context";
 import { useInfiniteScroll } from "@/lib/hooks/useInfiniteScroll";
 
@@ -53,6 +52,10 @@ interface LibrarySearchPanelProps {
   onSearchStateChange?: (state: { query: string; filter: SearchFilter }) => void;
   onNavigateToPlaylist?: (playlist: { id: number; name: string }) => void;
   onNavigateToUser?: (user: { id: number; displayName?: string | null; discordId: string }) => void;
+  // Optional side-effects (e.g. URL navigation) when the user clears a badge
+  // via the X button. The panel always clears its own context first.
+  onClearUser?: () => void;
+  onClearPlaylist?: () => void;
 }
 
 export function LibrarySearchPanel({
@@ -64,6 +67,8 @@ export function LibrarySearchPanel({
   onSearchStateChange,
   onNavigateToPlaylist,
   onNavigateToUser,
+  onClearUser,
+  onClearPlaylist,
 }: LibrarySearchPanelProps) {
   const defaultFilter: SearchFilter = lockedFilter ?? initialFilter ?? "tracks";
   const [query, setQuery] = useState(initialQuery);
@@ -98,49 +103,52 @@ export function LibrarySearchPanel({
     setSelectedUser,
     clearSelectedUser,
   } = useLibraryFilters();
-  const { user } = useAuth();
 
   const hasMore = results.length < pagination.total;
   const playlistLabel = selectedPlaylist?.name ?? null;
   const userLabel = selectedUser
-    ? selectedUser.id === user?.id
-      ? "My uploads"
-      : selectedUser.displayName ?? selectedUser.discordId
+    ? selectedUser.displayName ?? selectedUser.discordId
     : null;
-  const canClearPlaylistSelection = !!playlistLabel && !playlistContext;
-  const canClearUserSelection = !!userLabel && !userContext;
+  const canClearPlaylistSelection = !!playlistLabel;
+  const canClearUserSelection = !!userLabel;
+
+  const handleClearUserBadge = useCallback(() => {
+    clearSelectedUser();
+    onClearUser?.();
+  }, [clearSelectedUser, onClearUser]);
+
+  const handleClearPlaylistBadge = useCallback(() => {
+    clearSelectedPlaylist();
+    onClearPlaylist?.();
+  }, [clearSelectedPlaylist, onClearPlaylist]);
 
   useEffect(() => setQuery(initialQuery), [initialQuery]);
   useEffect(() => setFilter(lockedFilter ?? initialFilter ?? "tracks"), [initialFilter, lockedFilter]);
 
   useEffect(() => {
-    if (playlistContext) {
-      setSelectedPlaylist(playlistContext);
-      return () => clearSelectedPlaylist();
-    }
-    clearSelectedPlaylist();
-    return undefined;
+    // Only manage the playlist selection when a context is explicitly
+    // provided. Pages without a playlistContext must not wipe a selection
+    // that the user just made (e.g. clicking a playlist row immediately
+    // before navigating).
+    if (!playlistContext) return;
+    setSelectedPlaylist(playlistContext);
+    return () => clearSelectedPlaylist();
   }, [clearSelectedPlaylist, playlistContext, setSelectedPlaylist]);
 
   useEffect(() => {
-    if (userContext) {
-      setSelectedUser({
-        id: userContext.id,
-        discordId: userContext.discordId,
-        displayName: userContext.displayName ?? null,
-      });
-      return () => clearSelectedUser();
-    }
-    clearSelectedUser();
-    return undefined;
+    if (!userContext) return;
+    setSelectedUser({
+      id: userContext.id,
+      discordId: userContext.discordId,
+      displayName: userContext.displayName ?? null,
+    });
+    return () => clearSelectedUser();
   }, [clearSelectedUser, setSelectedUser, userContext]);
 
-  useEffect(() => {
-    if (selectedPlaylist && filter !== "tracks") setFilter("tracks");
-  }, [filter, selectedPlaylist]);
-  useEffect(() => {
-    if (selectedUser && filter !== "tracks") setFilter("tracks");
-  }, [filter, selectedUser]);
+  // Note: filter switching when a user/playlist row is clicked is handled
+  // explicitly inside handlePlaylistRowClick / handleUserRowClick. We don't
+  // auto-switch here, because setting selectedUser via userContext (e.g. on
+  // /user/<id>/playlists) would otherwise force-flip the filter to "tracks".
 
   // Debounce the query so each keystroke doesn't fire a request, but the
   // input itself is never disabled — typing stays uninterrupted.
@@ -255,9 +263,16 @@ export function LibrarySearchPanel({
     (next: SearchFilter) => {
       if (lockedFilter && next !== lockedFilter) return;
       if (filter === next) return;
+      // Switching to the playlists filter while a playlist is selected is
+      // contradictory ("show me a list of playlists, scoped to one
+      // playlist") and the API rejects type=playlists + playlist_id. Clear
+      // the playlist selection on the way in.
+      if (next === "playlists" && selectedPlaylist) {
+        clearSelectedPlaylist();
+      }
       setFilter(next);
     },
-    [filter, lockedFilter]
+    [clearSelectedPlaylist, filter, lockedFilter, selectedPlaylist]
   );
 
   const handlePlaylistRowClick = useCallback(
@@ -272,9 +287,18 @@ export function LibrarySearchPanel({
         return;
       }
       setSelectedPlaylist(payload);
+      // Switch to tracks so the result is "tracks in this playlist". An
+      // active user badge is intentionally preserved — the user can clear it
+      // explicitly if they want all tracks in the playlist.
       handleFilterChange("tracks");
     },
-    [clearSelectedPlaylist, handleFilterChange, onNavigateToPlaylist, selectedPlaylist?.id, setSelectedPlaylist]
+    [
+      clearSelectedPlaylist,
+      handleFilterChange,
+      onNavigateToPlaylist,
+      selectedPlaylist?.id,
+      setSelectedPlaylist,
+    ]
   );
 
   const handleUserRowClick = useCallback(
@@ -345,11 +369,12 @@ export function LibrarySearchPanel({
           includeDeleted={includeDeleted}
           onIncludeDeletedChange={setIncludeDeleted}
           lockedFilter={lockedFilter}
+          disableUsersFilter={!!selectedUser}
           isSearching={isInitialLoading}
           activePlaylistLabel={playlistLabel}
-          onClearPlaylist={canClearPlaylistSelection ? clearSelectedPlaylist : undefined}
+          onClearPlaylist={canClearPlaylistSelection ? handleClearPlaylistBadge : undefined}
           activeUserLabel={userLabel}
-          onClearUser={canClearUserSelection ? clearSelectedUser : undefined}
+          onClearUser={canClearUserSelection ? handleClearUserBadge : undefined}
         />
 
         {!skipFetch && (

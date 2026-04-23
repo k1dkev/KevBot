@@ -1,56 +1,47 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
-import { api } from "@/lib/api-browser-client";
-import { ApiTrack, ApiUser } from "@/lib/types";
-import { UserTracksTable } from "@/components/user-tracks-table";
-
-// Server caps `limit` at 100 (api/src/config/config.ts: maxResultsPerPage).
-const TRACK_FETCH_LIMIT = 100;
+import { useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { LibrarySearchPanel } from "@/components/library-search-panel";
+import { ApiUser, SearchFilter } from "@/lib/types";
 
 interface UserTracksClientProps {
   user: ApiUser;
 }
 
 export default function UserTracksClient({ user }: UserTracksClientProps) {
-  const [tracks, setTracks] = useState<ApiTrack[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialQuery = searchParams.get("q") ?? "";
+  const userBase = `/user/${user.id}`;
 
-  useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    setError(null);
-    (async () => {
-      try {
-        const res = await api.tracks.fetch({ user_id: user.id, limit: TRACK_FETCH_LIMIT });
-        if (cancelled) return;
-        setTracks(res.data);
-      } catch (err) {
-        console.error("Failed to load tracks", err);
-        if (!cancelled) setError("Failed to load tracks.");
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [user.id]);
+  const buildPath = (filter: SearchFilter, query: string) => {
+    const trimmed = query.trim();
+    const qSuffix = trimmed ? `?q=${encodeURIComponent(trimmed)}` : "";
+    if (filter === "tracks") return `${userBase}/tracks${qSuffix}`;
+    if (filter === "playlists") return `${userBase}/playlists${qSuffix}`;
+    return `/search/users${qSuffix}`;
+  };
 
-  if (isLoading) {
-    return (
-      <div className="kb-empty-state">
-        <Loader2 className="inline h-4 w-4 animate-spin" /> Loading tracks…
-      </div>
-    );
-  }
+  const handleStateChange = useCallback(
+    ({ query, filter }: { query: string; filter: SearchFilter }) => {
+      router.replace(buildPath(filter, query));
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [router, user.id]
+  );
 
-  if (error) {
-    return <div className="kb-empty-state" style={{ color: "hsl(var(--destructive))" }}>{error}</div>;
-  }
-
-  // TODO(api): paginate beyond TRACK_FETCH_LIMIT (no infinite scroll yet).
-  return <UserTracksTable tracks={tracks} />;
+  return (
+    <LibrarySearchPanel
+      initialQuery={initialQuery}
+      initialFilter="tracks"
+      userContext={{
+        id: user.id,
+        displayName: user.discord_username ?? null,
+        discordId: user.discord_id,
+      }}
+      onSearchStateChange={handleStateChange}
+      onClearUser={() => router.replace("/search/tracks")}
+    />
+  );
 }
