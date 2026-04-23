@@ -35,7 +35,7 @@ export function SideBar() {
   const router = useRouter();
   const pathname = usePathname();
   const { user } = useAuth();
-  const { setSelectedPlaylist, setSelectedUser, resetAll } = useLibraryFilters();
+  const { setSelectedPlaylist } = useLibraryFilters();
 
   const [playlists, setPlaylists] = useState<ApiPlaylist[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -70,8 +70,9 @@ export function SideBar() {
     [playlists]
   );
 
-  const isActive = (path: string) => pathname === path;
   const isPlaylistActive = (id: number) => pathname === `/playlist/${id}`;
+  const isMyUploadsActive = !!user && pathname === `/user/${user.id}/tracks`;
+  const isMyPlaylistsActive = !!user && pathname === `/user/${user.id}/playlists`;
 
   const handlePlaylistClick = (playlist: ApiPlaylist) => {
     setSelectedPlaylist({ id: playlist.id, name: playlist.name });
@@ -80,25 +81,19 @@ export function SideBar() {
 
   const handleMyUploads = () => {
     if (!user) return;
-    setSelectedUser({
-      id: user.id,
-      discordId: user.discordId,
-      displayName: user.discordUsername ?? null,
-    });
-    router.push("/myuploads");
+    router.push(`/user/${user.id}/tracks`);
   };
 
   const handleMyPlaylists = () => {
     if (!user) return;
-    resetAll();
-    router.push(`/user/${user.id}`);
+    router.push(`/user/${user.id}/playlists`);
   };
 
   return (
     <aside className="kb-sidebar">
       <div className="kb-sb-section-label">Library</div>
       <SbItem
-        active={isActive("/myuploads")}
+        active={isMyUploadsActive}
         disabled={!user}
         onClick={handleMyUploads}
         title={user ? undefined : "Log in to view your uploads"}
@@ -106,7 +101,7 @@ export function SideBar() {
         My Uploads
       </SbItem>
       <SbItem
-        active={user ? isActive(`/user/${user.id}`) : false}
+        active={isMyPlaylistsActive}
         disabled={!user}
         onClick={handleMyPlaylists}
         title={user ? undefined : "Log in to view your playlists"}

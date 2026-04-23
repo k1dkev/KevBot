@@ -9,17 +9,9 @@ export default function MyUploadsClient() {
   const { user, isLoading } = useAuth();
 
   useEffect(() => {
-    if (isLoading) {
-      return;
-    }
-    if (user) {
-      router.replace(`/user/${user.id}`);
-    }
+    if (isLoading) return;
+    if (user) router.replace(`/user/${user.id}/tracks`);
   }, [isLoading, router, user]);
 
-  return (
-    <div className="flex h-full min-h-[200px] items-center justify-center text-sm text-muted-foreground">
-      Redirecting…
-    </div>
-  );
+  return <div className="kb-empty-state">Redirecting…</div>;
 }

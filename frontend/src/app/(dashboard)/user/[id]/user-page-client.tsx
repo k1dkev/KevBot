@@ -2,13 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Loader2, Pause, Play } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { api } from "@/lib/api-browser-client";
 import { ApiPlaylist, ApiTrack, ApiUser } from "@/lib/types";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useMusicPlayer } from "@/lib/contexts/music-player-context";
-import { useLibraryFilters } from "@/lib/contexts/library-filters-context";
+import { UserPlaylistsTable } from "@/components/user-playlists-table";
+import { UserTracksTable } from "@/components/user-tracks-table";
 
 const TOP_LIMIT = 5;
 const PLAYLIST_PREVIEW = 8;
@@ -20,8 +18,6 @@ interface UserPageClientProps {
 }
 
 export default function UserPageClient({ user }: UserPageClientProps) {
-  const router = useRouter();
-  const { setSelectedUser } = useLibraryFilters();
   const [tracks, setTracks] = useState<ApiTrack[]>([]);
   const [tracksTotal, setTracksTotal] = useState(0);
   const [playlists, setPlaylists] = useState<ApiPlaylist[]>([]);
@@ -70,15 +66,6 @@ export default function UserPageClient({ user }: UserPageClientProps) {
 
   const playlistsPreview = playlists.slice(0, PLAYLIST_PREVIEW);
 
-  const handleSeeAllTracks = () => {
-    setSelectedUser({
-      id: user.id,
-      discordId: user.discord_id,
-      displayName: user.discord_username ?? null,
-    });
-    router.push("/search/tracks");
-  };
-
   if (isLoading) {
     return (
       <div className="kb-empty-state">
@@ -113,160 +100,43 @@ export default function UserPageClient({ user }: UserPageClientProps) {
       </div>
 
       <div className="kb-grid-2col">
-        <ProfileTrackSection title="Top Uploads" tracks={topUploads} onSeeAll={handleSeeAllTracks} />
-        <ProfileTrackSection
-          title="Top Listened"
-          tracks={topListened}
-          emptyMessage="Listening history not yet available."
-        />
+        <div>
+          <div className="kb-section-header">
+            <div className="kb-section-title">Top Uploads</div>
+            {tracks.length > TOP_LIMIT && (
+              <Link href={`/user/${user.id}/tracks`} className="kb-link-btn">
+                See all →
+              </Link>
+            )}
+          </div>
+          <UserTracksTable tracks={topUploads} showPlays={false} showCreated={false} />
+        </div>
+        <div>
+          <div className="kb-section-header">
+            <div className="kb-section-title">Top Listened</div>
+          </div>
+          {topListened.length === 0 ? (
+            <div className="kb-empty-state" style={{ padding: 24 }}>
+              Listening history not yet available.
+            </div>
+          ) : (
+            <UserTracksTable tracks={topListened} showPlays={false} showCreated={false} />
+          )}
+        </div>
       </div>
 
       <div className="kb-section-header">
         <div className="kb-section-title">Playlists</div>
-      </div>
-      {playlists.length === 0 ? (
-        <div className="kb-empty-state" style={{ padding: 24 }}>No playlists yet.</div>
-      ) : (
-        <div className="kb-pl-grid">
-          {playlistsPreview.map((pl) => (
-            <PlaylistCard key={pl.id} playlist={pl} creatorName={user.discord_username ?? null} />
-          ))}
-        </div>
-      )}
-    </>
-  );
-}
-
-interface ProfileTrackSectionProps {
-  title: string;
-  tracks: ApiTrack[];
-  onSeeAll?: () => void;
-  emptyMessage?: string;
-}
-
-function ProfileTrackSection({ title, tracks, onSeeAll, emptyMessage }: ProfileTrackSectionProps) {
-  const { currentTrack, isPlaying, isLoading, playTrack, togglePlayPause } = useMusicPlayer();
-
-  const handlePlay = (track: ApiTrack) => {
-    if (currentTrack?.id === track.id) {
-      togglePlayPause();
-    } else {
-      playTrack(track);
-    }
-  };
-
-  return (
-    <div>
-      <div className="kb-section-header">
-        <div className="kb-section-title">{title}</div>
-        {onSeeAll && (
-          <button type="button" className="kb-link-btn" onClick={onSeeAll}>
+        {playlists.length > PLAYLIST_PREVIEW && (
+          <Link href={`/user/${user.id}/playlists`} className="kb-link-btn">
             See all →
-          </button>
+          </Link>
         )}
       </div>
-      {tracks.length === 0 ? (
-        <div className="kb-empty-state" style={{ padding: 24 }}>
-          {emptyMessage ?? "No tracks yet."}
-        </div>
-      ) : (
-        <div className="kb-table">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="kb-cell-num">#</TableHead>
-                <TableHead className="kb-cell-art" />
-                <TableHead>Name</TableHead>
-                <TableHead className="kb-cell-meta">Duration (ms)</TableHead>
-                <TableHead className="kb-cell-action" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {tracks.map((track, index) => {
-                const isCurrent = currentTrack?.id === track.id;
-                const isCurrentLoading = isCurrent && isLoading;
-                const isCurrentPlaying = isCurrent && isPlaying;
-                return (
-                  <TableRow
-                    key={track.id}
-                    className={isCurrent ? "kb-row-current" : undefined}
-                    onDoubleClick={() => handlePlay(track)}
-                  >
-                    <TableCell className="kb-cell-num">{index + 1}</TableCell>
-                    <TableCell className="kb-cell-art">
-                      <div className="kb-cell-art-inner" />
-                    </TableCell>
-                    <TableCell>
-                      <div className="kb-tr-info">
-                        <div className={`kb-tr-name${isCurrent ? " kb-tr-current-name" : ""}`}>
-                          {track.name}
-                        </div>
-                        <div className="kb-tr-sub">
-                          Track ·{" "}
-                          <Link
-                            href={`/user/${track.user_id}`}
-                            className="kb-tr-uploader"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {track.user_display_name ?? `User #${track.user_id}`}
-                          </Link>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="kb-cell-meta">
-                      {Math.round(track.duration * 1000).toLocaleString()} ms
-                    </TableCell>
-                    <TableCell className="kb-cell-action">
-                      <button
-                        type="button"
-                        className="kb-tr-play"
-                        style={isCurrent ? { opacity: 1 } : undefined}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handlePlay(track);
-                        }}
-                        title={isCurrentPlaying ? "Pause" : "Play"}
-                      >
-                        {isCurrentLoading ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : isCurrentPlaying ? (
-                          <Pause className="h-3 w-3" />
-                        ) : (
-                          <Play className="h-3 w-3" />
-                        )}
-                      </button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-interface PlaylistCardProps {
-  playlist: ApiPlaylist;
-  creatorName: string | null;
-}
-
-function PlaylistCard({ playlist, creatorName }: PlaylistCardProps) {
-  const router = useRouter();
-  const initial = playlist.name[0]?.toUpperCase() ?? "?";
-
-  return (
-    <button
-      type="button"
-      className="kb-pl-card"
-      onClick={() => router.push(`/playlist/${playlist.id}`)}
-    >
-      <div className="kb-pl-card-art">{initial}</div>
-      <div className="kb-pl-card-name">{playlist.name}</div>
-      <div className="kb-pl-card-sub">
-        {creatorName ? `Created by ${creatorName}` : `User #${playlist.user_id}`}
-      </div>
-    </button>
+      <UserPlaylistsTable
+        playlists={playlistsPreview}
+        creatorName={user.discord_username ?? null}
+      />
+    </>
   );
 }
