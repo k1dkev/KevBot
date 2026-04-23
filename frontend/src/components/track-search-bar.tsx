@@ -86,57 +86,54 @@ export function LibrarySearchBar({
           </span>
         )}
       </div>
-      <div className="kb-search-meta">
-        <div className="kb-search-controls">
-          <span className="kb-control-label">Sort by</span>
-          {SORT_OPTIONS.map((opt) => (
+      <div className="kb-search-controls" style={{ justifyContent: "flex-start" }}>
+        {FILTER_OPTIONS.map((option) => {
+          const isActive = selectedFilter === option.value;
+          const disabled = isFilterLocked && lockedFilter !== option.value;
+          return (
             <button
-              key={opt.value}
+              key={option.value}
               type="button"
-              className={`kb-filter-tab${sort === opt.value ? " kb-filter-active" : ""}`}
-              onClick={() => onSortChange(opt.value)}
+              disabled={disabled}
+              className={`kb-filter-tab${isActive ? " kb-filter-active" : ""}`}
+              onClick={() => onFilterChange(option.value)}
             >
-              {opt.label}
+              {option.label}
             </button>
-          ))}
+          );
+        })}
+        <span className="kb-control-divider" />
+        <span className="kb-control-label">Sort by</span>
+        {SORT_OPTIONS.map((opt) => (
           <button
+            key={opt.value}
             type="button"
-            className="kb-icon-toggle"
-            onClick={() => onOrderChange(order === "asc" ? "desc" : "asc")}
-            title={`Order: ${orderLabel} (click to toggle)`}
-            aria-label={`Toggle order, currently ${orderLabel}`}
+            className={`kb-filter-tab${sort === opt.value ? " kb-filter-active" : ""}`}
+            onClick={() => onSortChange(opt.value)}
           >
-            <OrderIcon className="h-3 w-3" />
-            {orderLabel}
+            {opt.label}
           </button>
-          <button
-            type="button"
-            className={`kb-icon-toggle${includeDeleted ? " kb-icon-toggle-active" : ""}`}
-            onClick={() => onIncludeDeletedChange(!includeDeleted)}
-            title={includeDeleted ? "Hide deleted" : "Include deleted"}
-            aria-pressed={includeDeleted}
-          >
-            <Trash2 className="h-3 w-3" />
-            Include deleted
-          </button>
-        </div>
-        <div className="kb-filter-tabs">
-          {FILTER_OPTIONS.map((option) => {
-            const isActive = selectedFilter === option.value;
-            const disabled = isFilterLocked && lockedFilter !== option.value;
-            return (
-              <button
-                key={option.value}
-                type="button"
-                disabled={disabled}
-                className={`kb-filter-tab${isActive ? " kb-filter-active" : ""}`}
-                onClick={() => onFilterChange(option.value)}
-              >
-                {option.label}
-              </button>
-            );
-          })}
-        </div>
+        ))}
+        <button
+          type="button"
+          className="kb-icon-toggle"
+          onClick={() => onOrderChange(order === "asc" ? "desc" : "asc")}
+          title={`Order: ${orderLabel} (click to toggle)`}
+          aria-label={`Toggle order, currently ${orderLabel}`}
+        >
+          <OrderIcon className="h-3 w-3" />
+          {orderLabel}
+        </button>
+        <button
+          type="button"
+          className={`kb-icon-toggle${includeDeleted ? " kb-icon-toggle-active" : ""}`}
+          onClick={() => onIncludeDeletedChange(!includeDeleted)}
+          title={includeDeleted ? "Hide deleted" : "Include deleted"}
+          aria-pressed={includeDeleted}
+        >
+          <Trash2 className="h-3 w-3" />
+          Include deleted
+        </button>
       </div>
       {(activePlaylistLabel || activeUserLabel) && (
         <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>

@@ -554,6 +554,14 @@ code,
     font-size: 11px;
     color: var(--kb-text3);
     margin-right: 4px;
+    margin-left: 4px;
+  }
+  .kb-control-divider {
+    display: inline-block;
+    width: 1px;
+    height: 18px;
+    background: var(--kb-border);
+    margin: 0 6px;
   }
   .kb-search-controls {
     display: flex;
@@ -615,6 +623,46 @@ code,
   .kb-table-sticky-head thead th {
     background: var(--kb-bg);
     border-bottom: 1px solid var(--kb-border);
+  }
+
+  /* Condensed table — sizes to its content rather than stretching to fill. */
+  .kb-table-condensed table {
+    width: auto;
+    max-width: 100%;
+  }
+  .kb-table-condensed td,
+  .kb-table-condensed th {
+    white-space: nowrap;
+  }
+  .kb-table-condensed .kb-cell-name {
+    min-width: 200px;
+    max-width: 360px;
+  }
+  .kb-table-condensed .kb-cell-meta {
+    width: auto;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  /* Sort/filter CTA prompt shown when relevance is picked with no query */
+  .kb-cta {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 80px 20px;
+    text-align: center;
+  }
+  .kb-cta-title {
+    font-size: 13px;
+    color: var(--kb-text2);
+  }
+  .kb-cta-buttons {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
   }
 
   /* Type badges */

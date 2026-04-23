@@ -162,6 +162,17 @@ export function LibrarySearchPanel({
     setSort(next);
   }, []);
 
+  // Relevance with no query is meaningless — show a CTA prompt instead of
+  // hitting the API and rendering arbitrary results.
+  const isRelevanceWithoutQuery = sort === "relevance" && !debouncedQuery.trim();
+
+  // Sorting users/playlists by play_count isn't supported by the API yet
+  // (api/src/schemas/searchSchemas.ts rejects play_count when type != tracks).
+  const isUnsupportedSort =
+    sort === "play_count" && (filter === "users" || filter === "playlists");
+
+  const skipFetch = isRelevanceWithoutQuery || isUnsupportedSort;
+
   const fetchPage = useCallback(
     async (offset: number) =>
       api.search.unified({
@@ -189,6 +200,13 @@ export function LibrarySearchPanel({
   }, [debouncedQuery, filter, onSearchStateChange]);
 
   useEffect(() => {
+    if (skipFetch) {
+      setResults([]);
+      setPagination({ total: 0, limit: PAGE_SIZE, offset: 0, has_next: false, has_prev: false });
+      setIsInitialLoading(false);
+      setError(null);
+      return;
+    }
     let cancelled = false;
     setIsInitialLoading(true);
     setError(null);
@@ -212,7 +230,7 @@ export function LibrarySearchPanel({
     return () => {
       cancelled = true;
     };
-  }, [fetchPage]);
+  }, [fetchPage, skipFetch]);
 
   const loadMore = useCallback(async () => {
     if (!hasMore || isInitialLoading || isFetchingMore) return;
@@ -334,17 +352,19 @@ export function LibrarySearchPanel({
           onClearUser={canClearUserSelection ? clearSelectedUser : undefined}
         />
 
-        <div className="kb-results-info" style={{ marginTop: 12, marginBottom: 0 }}>
-          <span>
-            Showing {results.length} of {pagination.total} result{pagination.total === 1 ? "" : "s"}
-            {debouncedQuery ? (
-              <>
-                {" for "}
-                <em>&ldquo;{debouncedQuery}&rdquo;</em>
-              </>
-            ) : null}
-          </span>
-        </div>
+        {!skipFetch && (
+          <div className="kb-results-info" style={{ marginTop: 12, marginBottom: 0 }}>
+            <span>
+              Showing {results.length} of {pagination.total} result{pagination.total === 1 ? "" : "s"}
+              {debouncedQuery ? (
+                <>
+                  {" for "}
+                  <em>&ldquo;{debouncedQuery}&rdquo;</em>
+                </>
+              ) : null}
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="kb-view-fill-scroll">
@@ -363,7 +383,67 @@ export function LibrarySearchPanel({
           </div>
         )}
 
-        {isInitialLoading && results.length === 0 ? (
+        {isUnsupportedSort ? (
+          <div className="kb-cta">
+            <div className="kb-cta-title">
+              Sorting {filter} by plays is coming soon. Pick another sort:
+            </div>
+            <div className="kb-cta-buttons">
+              {debouncedQuery.trim() && (
+                <button
+                  type="button"
+                  className="kb-filter-tab"
+                  onClick={() => handleSortChange("relevance")}
+                >
+                  Relevance
+                </button>
+              )}
+              <button
+                type="button"
+                className="kb-filter-tab"
+                onClick={() => handleSortChange("name")}
+              >
+                Name
+              </button>
+              <button
+                type="button"
+                className="kb-filter-tab"
+                onClick={() => handleSortChange("created_at")}
+              >
+                Created
+              </button>
+            </div>
+          </div>
+        ) : isRelevanceWithoutQuery ? (
+          <div className="kb-cta">
+            <div className="kb-cta-title">
+              Search for something, or pick a different sort to browse:
+            </div>
+            <div className="kb-cta-buttons">
+              <button
+                type="button"
+                className="kb-filter-tab"
+                onClick={() => handleSortChange("name")}
+              >
+                Name
+              </button>
+              <button
+                type="button"
+                className="kb-filter-tab"
+                onClick={() => handleSortChange("created_at")}
+              >
+                Created
+              </button>
+              <button
+                type="button"
+                className="kb-filter-tab"
+                onClick={() => handleSortChange("play_count")}
+              >
+                Plays
+              </button>
+            </div>
+          </div>
+        ) : isInitialLoading && results.length === 0 ? (
           <div className="kb-empty-state">
             <Loader2 className="inline h-4 w-4 animate-spin" /> Loading results…
           </div>
@@ -372,13 +452,13 @@ export function LibrarySearchPanel({
             {debouncedQuery ? `No results match "${debouncedQuery}".` : "No results yet."}
           </div>
         ) : filter === "tracks" ? (
-          <div className="kb-table kb-table-sticky-head">
+          <div className="kb-table kb-table-sticky-head kb-table-condensed">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="kb-cell-num">#</TableHead>
                   <TableHead className="kb-cell-art" />
-                  <TableHead>Name</TableHead>
+                  <TableHead className="kb-cell-name">Name</TableHead>
                   <TableHead className="kb-cell-meta">Type</TableHead>
                   <TableHead className="kb-cell-meta">Duration (ms)</TableHead>
                   <TableHead className="kb-cell-meta">Plays</TableHead>
@@ -471,13 +551,13 @@ export function LibrarySearchPanel({
             </Table>
           </div>
         ) : filter === "playlists" ? (
-          <div className="kb-table kb-table-sticky-head">
+          <div className="kb-table kb-table-sticky-head kb-table-condensed">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="kb-cell-num">#</TableHead>
                   <TableHead className="kb-cell-art" />
-                  <TableHead>Name</TableHead>
+                  <TableHead className="kb-cell-name">Name</TableHead>
                   <TableHead className="kb-cell-meta">Type</TableHead>
                   <TableHead className="kb-cell-meta">Tracks</TableHead>
                   <TableHead className="kb-cell-meta">Created</TableHead>
@@ -524,13 +604,13 @@ export function LibrarySearchPanel({
             </Table>
           </div>
         ) : filter === "users" ? (
-          <div className="kb-table kb-table-sticky-head">
+          <div className="kb-table kb-table-sticky-head kb-table-condensed">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="kb-cell-num">#</TableHead>
                   <TableHead className="kb-cell-art" />
-                  <TableHead>Name</TableHead>
+                  <TableHead className="kb-cell-name">Name</TableHead>
                   <TableHead className="kb-cell-meta">Type</TableHead>
                   <TableHead className="kb-cell-meta">Joined</TableHead>
                   <TableHead className="kb-cell-rel">Relevance</TableHead>
