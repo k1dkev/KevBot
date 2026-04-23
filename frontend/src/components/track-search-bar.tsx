@@ -1,12 +1,9 @@
 "use client";
 
-import { ChangeEvent } from "react";
-import { ArrowDown, ArrowUp, Loader2, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Trash2 } from "lucide-react";
 import { SearchFilter, SearchOrder, SearchSort } from "@/lib/types";
 
 interface LibrarySearchBarProps {
-  query: string;
-  onQueryChange: (value: string) => void;
   selectedFilter: SearchFilter;
   onFilterChange: (filter: SearchFilter) => void;
   sort: SearchSort;
@@ -15,7 +12,6 @@ interface LibrarySearchBarProps {
   onOrderChange: (order: SearchOrder) => void;
   includeDeleted: boolean;
   onIncludeDeletedChange: (next: boolean) => void;
-  isSearching?: boolean;
   lockedFilter?: SearchFilter | null;
   disableUsersFilter?: boolean;
   activePlaylistLabel?: string | null;
@@ -38,8 +34,6 @@ const SORT_OPTIONS: Array<{ value: SearchSort; label: string }> = [
 ];
 
 export function LibrarySearchBar({
-  query,
-  onQueryChange,
   selectedFilter,
   onFilterChange,
   sort,
@@ -48,7 +42,6 @@ export function LibrarySearchBar({
   onOrderChange,
   includeDeleted,
   onIncludeDeletedChange,
-  isSearching = false,
   lockedFilter = null,
   disableUsersFilter = false,
   activePlaylistLabel,
@@ -56,38 +49,12 @@ export function LibrarySearchBar({
   activeUserLabel,
   onClearUser,
 }: LibrarySearchBarProps) {
-  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => onQueryChange(e.target.value);
   const isFilterLocked = lockedFilter !== null && lockedFilter !== undefined;
-
   const orderLabel = order === "asc" ? "Asc" : "Desc";
   const OrderIcon = order === "asc" ? ArrowUp : ArrowDown;
 
   return (
-    <div className="kb-search-form" style={{ marginBottom: 0 }}>
-      <div style={{ position: "relative", marginBottom: 10 }}>
-        <input
-          type="search"
-          value={query}
-          onChange={handleInputChange}
-          placeholder="Search tracks, playlists, or users…"
-          className="kb-search-input-lg"
-          aria-label="Search library"
-          autoFocus
-        />
-        {isSearching && (
-          <span
-            style={{
-              position: "absolute",
-              right: 12,
-              top: "50%",
-              transform: "translateY(-50%)",
-              color: "var(--kb-text3)",
-            }}
-          >
-            <Loader2 className="h-4 w-4 animate-spin" />
-          </span>
-        )}
-      </div>
+    <div className="kb-search-form">
       <div className="kb-search-controls" style={{ justifyContent: "flex-start" }}>
         {FILTER_OPTIONS.map((option) => {
           const isActive = selectedFilter === option.value;

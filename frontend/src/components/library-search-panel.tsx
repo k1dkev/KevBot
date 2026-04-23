@@ -31,10 +31,6 @@ function formatDate(iso: string): string {
   }
 }
 
-function TypeBadge({ type }: { type: "track" | "playlist" | "user" }) {
-  return <span className={`kb-type-badge kb-type-${type}`}>{type}</span>;
-}
-
 interface PaginationState {
   total: number;
   limit: number;
@@ -170,9 +166,11 @@ export function LibrarySearchPanel({
     setSort(next);
   }, []);
 
+  const hasQuery = debouncedQuery.trim().length > 0;
+
   // Relevance with no query is meaningless — show a CTA prompt instead of
   // hitting the API and rendering arbitrary results.
-  const isRelevanceWithoutQuery = sort === "relevance" && !debouncedQuery.trim();
+  const isRelevanceWithoutQuery = sort === "relevance" && !hasQuery;
 
   // Sorting users/playlists by play_count isn't supported by the API yet
   // (api/src/schemas/searchSchemas.ts rejects play_count when type != tracks).
@@ -358,8 +356,6 @@ export function LibrarySearchPanel({
     <div className="kb-view-fill">
       <div className="kb-view-fill-top">
         <LibrarySearchBar
-          query={query}
-          onQueryChange={setQuery}
           selectedFilter={filter}
           onFilterChange={handleFilterChange}
           sort={sort}
@@ -370,7 +366,6 @@ export function LibrarySearchPanel({
           onIncludeDeletedChange={setIncludeDeleted}
           lockedFilter={lockedFilter}
           disableUsersFilter={!!selectedUser}
-          isSearching={isInitialLoading}
           activePlaylistLabel={playlistLabel}
           onClearPlaylist={canClearPlaylistSelection ? handleClearPlaylistBadge : undefined}
           activeUserLabel={userLabel}
@@ -477,18 +472,17 @@ export function LibrarySearchPanel({
             {debouncedQuery ? `No results match "${debouncedQuery}".` : "No results yet."}
           </div>
         ) : filter === "tracks" ? (
-          <div className="kb-table kb-table-sticky-head kb-table-condensed">
+          <div className="kb-table kb-table-sticky-head">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="kb-cell-num">#</TableHead>
                   <TableHead className="kb-cell-art" />
                   <TableHead className="kb-cell-name">Name</TableHead>
-                  <TableHead className="kb-cell-meta">Type</TableHead>
                   <TableHead className="kb-cell-meta">Duration (ms)</TableHead>
                   <TableHead className="kb-cell-meta">Plays</TableHead>
                   <TableHead className="kb-cell-meta">Created</TableHead>
-                  <TableHead className="kb-cell-rel">Relevance</TableHead>
+                  {hasQuery && <TableHead className="kb-cell-rel">Relevance</TableHead>}
                   <TableHead className="kb-cell-action" />
                 </TableRow>
               </TableHeader>
@@ -537,18 +531,17 @@ export function LibrarySearchPanel({
                         </div>
                       </TableCell>
                       <TableCell className="kb-cell-meta">
-                        <TypeBadge type="track" />
-                      </TableCell>
-                      <TableCell className="kb-cell-meta">
                         {Math.round(track.duration * 1000).toLocaleString()} ms
                       </TableCell>
                       <TableCell className="kb-cell-meta">
                         {track.total_play_count.toLocaleString()}
                       </TableCell>
                       <TableCell className="kb-cell-meta">{formatDate(track.created_at)}</TableCell>
-                      <TableCell className="kb-cell-rel">
-                        {track.relevance !== null ? track.relevance.toFixed(2) : "—"}
-                      </TableCell>
+                      {hasQuery && (
+                        <TableCell className="kb-cell-rel">
+                          {track.relevance !== null ? track.relevance.toFixed(2) : "—"}
+                        </TableCell>
+                      )}
                       <TableCell className="kb-cell-action">
                         <button
                           type="button"
@@ -576,17 +569,16 @@ export function LibrarySearchPanel({
             </Table>
           </div>
         ) : filter === "playlists" ? (
-          <div className="kb-table kb-table-sticky-head kb-table-condensed">
+          <div className="kb-table kb-table-sticky-head">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="kb-cell-num">#</TableHead>
                   <TableHead className="kb-cell-art" />
                   <TableHead className="kb-cell-name">Name</TableHead>
-                  <TableHead className="kb-cell-meta">Type</TableHead>
                   <TableHead className="kb-cell-meta">Tracks</TableHead>
                   <TableHead className="kb-cell-meta">Created</TableHead>
-                  <TableHead className="kb-cell-rel">Relevance</TableHead>
+                  {hasQuery && <TableHead className="kb-cell-rel">Relevance</TableHead>}
                   <TableHead className="kb-cell-action" />
                 </TableRow>
               </TableHeader>
@@ -613,14 +605,13 @@ export function LibrarySearchPanel({
                           <div className="kb-tr-sub">{pl.user.display_name ?? `User #${pl.user.id}`}</div>
                         </div>
                       </TableCell>
-                      <TableCell className="kb-cell-meta">
-                        <TypeBadge type="playlist" />
-                      </TableCell>
                       <TableCell className="kb-cell-meta">{pl.track_count}</TableCell>
                       <TableCell className="kb-cell-meta">{formatDate(pl.created_at)}</TableCell>
-                      <TableCell className="kb-cell-rel">
-                        {pl.relevance !== null ? pl.relevance.toFixed(2) : "—"}
-                      </TableCell>
+                      {hasQuery && (
+                        <TableCell className="kb-cell-rel">
+                          {pl.relevance !== null ? pl.relevance.toFixed(2) : "—"}
+                        </TableCell>
+                      )}
                       <TableCell className="kb-cell-action" />
                     </TableRow>
                   );
@@ -629,16 +620,15 @@ export function LibrarySearchPanel({
             </Table>
           </div>
         ) : filter === "users" ? (
-          <div className="kb-table kb-table-sticky-head kb-table-condensed">
+          <div className="kb-table kb-table-sticky-head">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="kb-cell-num">#</TableHead>
                   <TableHead className="kb-cell-art" />
                   <TableHead className="kb-cell-name">Name</TableHead>
-                  <TableHead className="kb-cell-meta">Type</TableHead>
                   <TableHead className="kb-cell-meta">Joined</TableHead>
-                  <TableHead className="kb-cell-rel">Relevance</TableHead>
+                  {hasQuery && <TableHead className="kb-cell-rel">Relevance</TableHead>}
                   <TableHead className="kb-cell-action" />
                 </TableRow>
               </TableHeader>
@@ -664,13 +654,12 @@ export function LibrarySearchPanel({
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="kb-cell-meta">
-                        <TypeBadge type="user" />
-                      </TableCell>
                       <TableCell className="kb-cell-meta">{formatDate(u.created_at)}</TableCell>
-                      <TableCell className="kb-cell-rel">
-                        {u.relevance !== null ? u.relevance.toFixed(2) : "—"}
-                      </TableCell>
+                      {hasQuery && (
+                        <TableCell className="kb-cell-rel">
+                          {u.relevance !== null ? u.relevance.toFixed(2) : "—"}
+                        </TableCell>
+                      )}
                       <TableCell className="kb-cell-action" />
                     </TableRow>
                   );

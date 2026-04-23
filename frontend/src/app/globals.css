@@ -732,6 +732,7 @@ code,
   }
   .kb-search-form {
     margin-bottom: 16px;
+    max-width: 720px;
   }
   .kb-search-input-lg {
     width: 100%;
