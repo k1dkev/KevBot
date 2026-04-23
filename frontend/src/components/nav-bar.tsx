@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useAuth } from "@/lib/contexts/auth-context";
@@ -51,16 +51,23 @@ export function NavBar() {
     [pathname, searchParams]
   );
   const [q, setQ] = useState(urlQuery);
+  // Tracks the last query value we sent to the router. When the async URL update
+  // catches up, we suppress the sync-from-URL so it doesn't clobber newer keystrokes.
+  const lastNavigatedRef = useRef(urlQuery);
 
-  // Sync local input with URL when the page changes underneath us.
+  // Sync local input with URL only when the URL changes from outside our own navigation
+  // (e.g., back/forward, link click, programmatic navigation elsewhere).
   useEffect(() => {
+    if (urlQuery === lastNavigatedRef.current) return;
+    lastNavigatedRef.current = urlQuery;
     setQ(urlQuery);
   }, [urlQuery]);
 
   // Debounce navigation so typing doesn't fire one router.replace per keystroke.
   useEffect(() => {
-    if (q === urlQuery) return;
+    if (q === lastNavigatedRef.current) return;
     const timer = setTimeout(() => {
+      lastNavigatedRef.current = q;
       const nextPath = buildSearchPath(pathname, q);
       const isStaying = pathname.startsWith("/search") || pathname.startsWith("/user/") || pathname.startsWith("/playlist/");
       if (isStaying) {
@@ -70,7 +77,7 @@ export function NavBar() {
       }
     }, NAV_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [pathname, q, router, urlQuery]);
+  }, [pathname, q, router]);
 
   const isDark = (resolvedTheme ?? theme) === "dark";
 
