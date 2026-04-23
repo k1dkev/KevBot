@@ -5,7 +5,6 @@ import UserPageClient from "./user-page-client";
 
 interface UserPageProps {
   params: { id: string };
-  searchParams?: { q?: string };
 }
 
 async function fetchUser(id: string): Promise<ApiUser> {
@@ -24,22 +23,35 @@ async function fetchUser(id: string): Promise<ApiUser> {
   return res.json();
 }
 
-export default async function UserPage({ params, searchParams }: UserPageProps) {
+function formatJoined(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+export default async function UserPage({ params }: UserPageProps) {
   const user = await fetchUser(params.id);
-  const initialQuery = searchParams?.q ?? "";
+  const displayName = user.discord_username ?? `User #${user.id}`;
+  const initial = displayName[0]?.toUpperCase() ?? "?";
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">
-          {user.discord_username ?? `User #${user.id}`}
-        </h1>
-        <p className="text-muted-foreground">
-          Joined {new Date(user.created_at).toLocaleDateString()} · Discord ID {user.discord_id}
-        </p>
+    <div className="kb-view">
+      <div className="kb-profile-hero">
+        <div className="kb-profile-avatar">{initial}</div>
+        <div>
+          <div className="kb-profile-name">{displayName}</div>
+          <div className="kb-profile-sub">
+            Joined {formatJoined(user.created_at)} · Discord ID <code>{user.discord_id}</code>
+          </div>
+        </div>
       </div>
-      <UserPageClient user={user} initialQuery={initialQuery} />
+      <UserPageClient user={user} />
     </div>
   );
 }
-
