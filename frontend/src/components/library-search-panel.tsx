@@ -21,7 +21,6 @@ import { useMusicPlayer } from "@/lib/contexts/music-player-context";
 import { useInfiniteScroll } from "@/lib/hooks/useInfiniteScroll";
 
 const PAGE_SIZE = 25;
-const DEBOUNCE_MS = 200;
 
 function formatDate(iso: string): string {
   try {
@@ -80,10 +79,14 @@ export function LibrarySearchPanel({
     has_next: false,
     has_prev: false,
   });
-  const [isInitialLoading, setIsInitialLoading] = useState(false);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hoveredTrackId, setHoveredTrackId] = useState<number | null>(null);
+  // Track which fetch parameter set last produced the currently-rendered
+  // results. Comparing this against the current fetch key during render lets
+  // us derive an accurate "is fetching" without waiting for a useEffect to
+  // flip a flag — that one-render gap is what was flashing "No results".
+  const [lastFetchedKey, setLastFetchedKey] = useState<string | null>(null);
 
   // Track whether the user has manually picked a sort. If they haven't, we
   // auto-default sort based on whether there's a query (name when empty,
@@ -146,13 +149,10 @@ export function LibrarySearchPanel({
   // auto-switch here, because setting selectedUser via userContext (e.g. on
   // /user/<id>/playlists) would otherwise force-flip the filter to "tracks".
 
-  // Debounce the query so each keystroke doesn't fire a request, but the
-  // input itself is never disabled — typing stays uninterrupted.
-  const [debouncedQuery, setDebouncedQuery] = useState(query);
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedQuery(query), DEBOUNCE_MS);
-    return () => clearTimeout(t);
-  }, [query]);
+  // The query arrives already-debounced from the NavBar (it owns the input
+  // and debounces URL navigation). A second debounce here just adds latency
+  // and keeps stale results onscreen longer than necessary.
+  const debouncedQuery = query;
 
   // Auto-switch sort default based on query presence (only if user hasn't
   // explicitly chosen a sort).
@@ -178,6 +178,29 @@ export function LibrarySearchPanel({
     sort === "play_count" && (filter === "users" || filter === "playlists");
 
   const skipFetch = isRelevanceWithoutQuery || isUnsupportedSort;
+
+  // Stable identity for the current set of fetch parameters. We use this both
+  // to gate the fetch effect and (critically) to derive `isFetching` during
+  // render — comparing it against the last successfully-fetched key tells us
+  // whether the on-screen results are stale, with no one-render lag.
+  const fetchKey = useMemo(
+    () =>
+      skipFetch
+        ? "__skip__"
+        : [
+            debouncedQuery.trim(),
+            filter,
+            sort,
+            order,
+            includeDeleted ? "1" : "0",
+            selectedPlaylist?.id ?? "",
+            selectedUser?.id ?? "",
+          ].join("|"),
+    [debouncedQuery, filter, includeDeleted, order, sort, skipFetch, selectedPlaylist?.id, selectedUser?.id]
+  );
+
+  const isFetching = !skipFetch && lastFetchedKey !== fetchKey;
+  const hasSettled = lastFetchedKey !== null;
 
   const fetchPage = useCallback(
     async (offset: number) =>
@@ -209,12 +232,11 @@ export function LibrarySearchPanel({
     if (skipFetch) {
       setResults([]);
       setPagination({ total: 0, limit: PAGE_SIZE, offset: 0, has_next: false, has_prev: false });
-      setIsInitialLoading(false);
       setError(null);
+      setLastFetchedKey(fetchKey);
       return;
     }
     let cancelled = false;
-    setIsInitialLoading(true);
     setError(null);
     (async () => {
       try {
@@ -222,24 +244,24 @@ export function LibrarySearchPanel({
         if (cancelled) return;
         setResults(response.data);
         setPagination(response.pagination);
+        setLastFetchedKey(fetchKey);
       } catch (err) {
         console.error("Search failed", err);
         if (!cancelled) {
           setError("Unable to perform search. Please try again.");
           setResults([]);
           setPagination({ total: 0, limit: PAGE_SIZE, offset: 0, has_next: false, has_prev: false });
+          setLastFetchedKey(fetchKey);
         }
-      } finally {
-        if (!cancelled) setIsInitialLoading(false);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [fetchPage, skipFetch]);
+  }, [fetchKey, fetchPage, skipFetch]);
 
   const loadMore = useCallback(async () => {
-    if (!hasMore || isInitialLoading || isFetchingMore) return;
+    if (!hasMore || isFetching || isFetchingMore) return;
     setIsFetchingMore(true);
     try {
       const response = await fetchPage(results.length);
@@ -251,10 +273,10 @@ export function LibrarySearchPanel({
     } finally {
       setIsFetchingMore(false);
     }
-  }, [fetchPage, hasMore, isFetchingMore, isInitialLoading, results.length]);
+  }, [fetchPage, hasMore, isFetchingMore, isFetching, results.length]);
 
   const { targetRef } = useInfiniteScroll(loadMore, {
-    disabled: isInitialLoading || isFetchingMore || !hasMore,
+    disabled: isFetching || isFetchingMore || !hasMore,
   });
 
   const handleFilterChange = useCallback(
@@ -374,14 +396,32 @@ export function LibrarySearchPanel({
 
         {!skipFetch && (
           <div className="kb-results-info" style={{ marginTop: 12, marginBottom: 0 }}>
-            <span>
-              Showing {results.length} of {pagination.total} result{pagination.total === 1 ? "" : "s"}
-              {debouncedQuery ? (
-                <>
-                  {" for "}
-                  <em>&ldquo;{debouncedQuery}&rdquo;</em>
-                </>
-              ) : null}
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              {hasSettled ? (
+                <span>
+                  Showing {results.length} of {pagination.total} result
+                  {pagination.total === 1 ? "" : "s"}
+                  {debouncedQuery ? (
+                    <>
+                      {" for "}
+                      <em>&ldquo;{debouncedQuery}&rdquo;</em>
+                    </>
+                  ) : null}
+                </span>
+              ) : (
+                <span style={{ opacity: 0.5 }}>Searching…</span>
+              )}
+              <span
+                aria-hidden={!isFetching}
+                style={{
+                  display: "inline-flex",
+                  width: 12,
+                  height: 12,
+                  visibility: isFetching ? "visible" : "hidden",
+                }}
+              >
+                <Loader2 className="h-3 w-3 animate-spin" style={{ opacity: 0.6 }} />
+              </span>
             </span>
           </div>
         )}
@@ -463,11 +503,7 @@ export function LibrarySearchPanel({
               </button>
             </div>
           </div>
-        ) : isInitialLoading && results.length === 0 ? (
-          <div className="kb-empty-state">
-            <Loader2 className="inline h-4 w-4 animate-spin" /> Loading results…
-          </div>
-        ) : results.length === 0 ? (
+        ) : hasSettled && results.length === 0 && !isFetching ? (
           <div className="kb-empty-state">
             {debouncedQuery ? `No results match "${debouncedQuery}".` : "No results yet."}
           </div>

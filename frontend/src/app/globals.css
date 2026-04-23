@@ -626,7 +626,13 @@ code,
     padding: 12px 24px 48px;
   }
 
-  /* Sticky thead — sticks to the top of its nearest scroll ancestor. */
+  /* Sticky thead — sticks to the top of its nearest scroll ancestor. The
+     shadcn Table wraps <table> in a div with overflow-auto, which would
+     hijack the sticky context; neutralize it so the thead sticks to the
+     outer .kb-view-fill-scroll. */
+  .kb-table-sticky-head > div {
+    overflow: visible;
+  }
   .kb-table-sticky-head thead tr {
     position: sticky;
     top: 0;
@@ -1156,3 +1162,4 @@ code,
     text-decoration: underline;
   }
 }
+
