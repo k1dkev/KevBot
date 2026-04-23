@@ -1,7 +1,7 @@
 "use client";
 
 import { ChangeEvent } from "react";
-import { Loader2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Loader2, Trash2 } from "lucide-react";
 import { SearchFilter, SearchOrder, SearchSort } from "@/lib/types";
 
 interface LibrarySearchBarProps {
@@ -13,6 +13,8 @@ interface LibrarySearchBarProps {
   onSortChange: (sort: SearchSort) => void;
   order: SearchOrder;
   onOrderChange: (order: SearchOrder) => void;
+  includeDeleted: boolean;
+  onIncludeDeletedChange: (next: boolean) => void;
   isSearching?: boolean;
   lockedFilter?: SearchFilter | null;
   activePlaylistLabel?: string | null;
@@ -22,7 +24,6 @@ interface LibrarySearchBarProps {
 }
 
 const FILTER_OPTIONS: Array<{ value: SearchFilter; label: string }> = [
-  { value: "all", label: "All" },
   { value: "tracks", label: "Tracks" },
   { value: "playlists", label: "Playlists" },
   { value: "users", label: "Users" },
@@ -35,11 +36,6 @@ const SORT_OPTIONS: Array<{ value: SearchSort; label: string }> = [
   { value: "play_count", label: "Plays" },
 ];
 
-const ORDER_OPTIONS: Array<{ value: SearchOrder; label: string }> = [
-  { value: "desc", label: "Desc" },
-  { value: "asc", label: "Asc" },
-];
-
 export function LibrarySearchBar({
   query,
   onQueryChange,
@@ -49,6 +45,8 @@ export function LibrarySearchBar({
   onSortChange,
   order,
   onOrderChange,
+  includeDeleted,
+  onIncludeDeletedChange,
   isSearching = false,
   lockedFilter = null,
   activePlaylistLabel,
@@ -57,11 +55,13 @@ export function LibrarySearchBar({
   onClearUser,
 }: LibrarySearchBarProps) {
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => onQueryChange(e.target.value);
-
   const isFilterLocked = lockedFilter !== null && lockedFilter !== undefined;
 
+  const orderLabel = order === "asc" ? "Asc" : "Desc";
+  const OrderIcon = order === "asc" ? ArrowUp : ArrowDown;
+
   return (
-    <div className="kb-search-form">
+    <div className="kb-search-form" style={{ marginBottom: 0 }}>
       <div style={{ position: "relative", marginBottom: 10 }}>
         <input
           type="search"
@@ -87,6 +87,39 @@ export function LibrarySearchBar({
         )}
       </div>
       <div className="kb-search-meta">
+        <div className="kb-search-controls">
+          <span className="kb-control-label">Sort by</span>
+          {SORT_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              className={`kb-filter-tab${sort === opt.value ? " kb-filter-active" : ""}`}
+              onClick={() => onSortChange(opt.value)}
+            >
+              {opt.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            className="kb-icon-toggle"
+            onClick={() => onOrderChange(order === "asc" ? "desc" : "asc")}
+            title={`Order: ${orderLabel} (click to toggle)`}
+            aria-label={`Toggle order, currently ${orderLabel}`}
+          >
+            <OrderIcon className="h-3 w-3" />
+            {orderLabel}
+          </button>
+          <button
+            type="button"
+            className={`kb-icon-toggle${includeDeleted ? " kb-icon-toggle-active" : ""}`}
+            onClick={() => onIncludeDeletedChange(!includeDeleted)}
+            title={includeDeleted ? "Hide deleted" : "Include deleted"}
+            aria-pressed={includeDeleted}
+          >
+            <Trash2 className="h-3 w-3" />
+            Include deleted
+          </button>
+        </div>
         <div className="kb-filter-tabs">
           {FILTER_OPTIONS.map((option) => {
             const isActive = selectedFilter === option.value;
@@ -103,33 +136,6 @@ export function LibrarySearchBar({
               </button>
             );
           })}
-        </div>
-        <div className="kb-search-controls">
-          <span className="kb-select-label">Sort by</span>
-          <select
-            className="kb-select"
-            value={sort}
-            onChange={(e) => onSortChange(e.target.value as SearchSort)}
-            aria-label="Sort by"
-          >
-            {SORT_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          <select
-            className="kb-select"
-            value={order}
-            onChange={(e) => onOrderChange(e.target.value as SearchOrder)}
-            aria-label="Order"
-          >
-            {ORDER_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
         </div>
       </div>
       {(activePlaylistLabel || activeUserLabel) && (
