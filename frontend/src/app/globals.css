@@ -416,6 +416,7 @@ code,
   }
   .kb-tr-current-name {
     color: var(--kb-accent);
+    font-weight: 600;
   }
   .kb-tr-sub {
     font-size: 10.5px;
@@ -516,8 +517,15 @@ code,
     width: 36px;
     color: var(--kb-text3);
     font-size: 11px;
-    text-align: right;
-    padding-right: 8px;
+    text-align: center;
+  }
+  .kb-table .kb-cell-num .kb-tr-play-num {
+    opacity: 1;
+    margin: 0 auto;
+  }
+  .kb-tr-playing-icon {
+    color: var(--kb-accent);
+    margin: 0 auto;
   }
   .kb-table .kb-cell-art {
     width: 36px;
@@ -639,12 +647,10 @@ code,
   .kb-table-sticky-head > div {
     overflow: visible;
   }
-  .kb-table-sticky-head thead tr {
+  .kb-table-sticky-head thead th {
     position: sticky;
     top: 0;
-    z-index: 5;
-  }
-  .kb-table-sticky-head thead th {
+    z-index: 10;
     background: var(--kb-bg);
     border-bottom: 1px solid var(--kb-border);
   }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Disc3, ListMusic, Loader2, Pause, Play, User as UserIcon } from "lucide-react";
+import { AudioLines, Disc3, ListMusic, Loader2, Pause, Play, User as UserIcon } from "lucide-react";
 import { api } from "@/lib/api-browser-client";
 import { LibrarySearchBar } from "@/components/track-search-bar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -203,9 +203,8 @@ export function LibrarySearchPanel({
   const hasSettled = lastFetchedKey !== null;
 
   const fetchPage = useCallback(
-    async (offset: number) => {
-      console.log("api.search.unified called with", { debouncedQuery, offset });
-      return api.search.unified({
+    async (offset: number) =>
+      api.search.unified({
         q: debouncedQuery.trim() || undefined,
         type: filter,
         sort,
@@ -215,8 +214,7 @@ export function LibrarySearchPanel({
         userId: selectedUser?.id ?? undefined,
         limit: PAGE_SIZE,
         offset,
-      });
-    },
+      }),
     [debouncedQuery, filter, includeDeleted, order, sort, selectedPlaylist?.id, selectedUser?.id],
   );
 
@@ -475,14 +473,12 @@ export function LibrarySearchPanel({
                   <TableHead className="kb-cell-meta">Plays</TableHead>
                   <TableHead className="kb-cell-meta">Created</TableHead>
                   {hasQuery && <TableHead className="kb-cell-rel">Relevance</TableHead>}
-                  <TableHead className="kb-cell-action" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {trackResults.map((track, index) => {
                   const isCurrent = currentTrack?.id === track.id;
                   const isHovered = hoveredTrackId === track.id;
-                  const showCtrl = isCurrent || isHovered;
                   const ownerName =
                     selectedUser &&
                     selectedUser.id === track.user.id &&
@@ -498,7 +494,31 @@ export function LibrarySearchPanel({
                       onMouseLeave={() => setHoveredTrackId((prev) => (prev === track.id ? null : prev))}
                       onDoubleClick={() => handleTrackPlay(track)}
                     >
-                      <TableCell className="kb-cell-num">{pagination.offset + index + 1}</TableCell>
+                      <TableCell className="kb-cell-num">
+                        {isHovered ? (
+                          <button
+                            type="button"
+                            className="kb-tr-play kb-tr-play-num"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleTrackPlay(track);
+                            }}
+                            title={isCurrent && isPlaying ? "Pause" : "Play"}
+                          >
+                            {isCurrent && isLoading ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : isCurrent && isPlaying ? (
+                              <Pause className="h-3 w-3" />
+                            ) : (
+                              <Play className="h-3 w-3" />
+                            )}
+                          </button>
+                        ) : isCurrent && isPlaying ? (
+                          <AudioLines className="kb-tr-playing-icon h-3 w-3" />
+                        ) : (
+                          index + 1
+                        )}
+                      </TableCell>
                       <TableCell className="kb-cell-art">
                         <div className="kb-cell-art-inner">
                           <Disc3 className="h-3 w-3" />
@@ -528,26 +548,6 @@ export function LibrarySearchPanel({
                           {track.relevance !== null ? track.relevance.toFixed(2) : "—"}
                         </TableCell>
                       )}
-                      <TableCell className="kb-cell-action">
-                        <button
-                          type="button"
-                          className="kb-tr-play"
-                          style={showCtrl ? { opacity: 1 } : undefined}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleTrackPlay(track);
-                          }}
-                          title={isCurrent && isPlaying ? "Pause" : "Play"}
-                        >
-                          {isCurrent && isLoading ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : isCurrent && isPlaying ? (
-                            <Pause className="h-3 w-3" />
-                          ) : (
-                            <Play className="h-3 w-3" />
-                          )}
-                        </button>
-                      </TableCell>
                     </TableRow>
                   );
                 })}

@@ -28,13 +28,7 @@ export default async function PlaylistPage({ params }: PlaylistPageProps) {
   const playlist = await fetchPlaylist(id);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">{playlist.name}</h1>
-        <p className="text-muted-foreground">
-          Created at {new Date(playlist.created_at).toLocaleDateString()} · Owned by user #{playlist.user_id}
-        </p>
-      </div>
+    <div className="kb-view">
       <PlaylistPageClient playlist={playlist} />
     </div>
   );

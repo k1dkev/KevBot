@@ -35,19 +35,11 @@ export function SideBar() {
   const router = useRouter();
   const pathname = usePathname();
   const { user } = useAuth();
-  const { setSelectedPlaylist } = useLibraryFilters();
+  const { setSelectedPlaylist, clearSelectedPlaylist } = useLibraryFilters();
 
   const [playlists, setPlaylists] = useState<ApiPlaylist[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // log of mount/unmount
-  useEffect(() => {
-    console.log("SideBar mounted");
-    return () => {
-      console.log("SideBar unmounted");
-    };
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,6 +83,7 @@ export function SideBar() {
 
   const handleMyPlaylists = () => {
     if (!user) return;
+    clearSelectedPlaylist();
     router.push(`/user/${user.id}/playlists`);
   };
 
