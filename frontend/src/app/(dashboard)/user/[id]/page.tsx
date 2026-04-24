@@ -4,7 +4,7 @@ import { ApiUser } from "@/lib/types";
 import UserPageClient from "./user-page-client";
 
 interface UserPageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 async function fetchUser(id: string): Promise<ApiUser> {
@@ -36,7 +36,8 @@ function formatJoined(iso: string): string {
 }
 
 export default async function UserPage({ params }: UserPageProps) {
-  const user = await fetchUser(params.id);
+  const { id } = await params;
+  const user = await fetchUser(id);
   const displayName = user.discord_username ?? `User #${user.id}`;
   const initial = displayName[0]?.toUpperCase() ?? "?";
 

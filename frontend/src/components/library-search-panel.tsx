@@ -93,6 +93,14 @@ export function LibrarySearchPanel({
   // relevance when something is typed).
   const userPickedSortRef = useRef(false);
 
+  // TEMP: detect whether the panel is remounting on URL navigation. Remove
+  // once we've identified the source of the search-result flash.
+  useEffect(() => {
+    const id = Math.random().toString(36).slice(2, 7);
+    console.log("[LibrarySearchPanel] mount", id);
+    return () => console.log("[LibrarySearchPanel] unmount", id);
+  }, []);
+
   const { currentTrack, isPlaying, isLoading, playTrack, togglePlayPause } = useMusicPlayer();
   const {
     selectedPlaylist,
@@ -536,7 +544,7 @@ export function LibrarySearchPanel({
 
                   return (
                     <TableRow
-                      key={`track-${track.id}`}
+                      key={`track-row-${index}`}
                       className={isCurrent ? "kb-row-current" : undefined}
                       onMouseEnter={() => setHoveredTrackId(track.id)}
                       onMouseLeave={() =>
@@ -623,7 +631,7 @@ export function LibrarySearchPanel({
                   const isSelected = selectedPlaylist?.id === pl.id;
                   return (
                     <TableRow
-                      key={`playlist-${pl.id}`}
+                      key={`playlist-row-${index}`}
                       className={isSelected ? "kb-row-selected" : undefined}
                       onClick={() => handlePlaylistRowClick(pl)}
                     >
@@ -673,7 +681,7 @@ export function LibrarySearchPanel({
                   const isSelected = selectedUser?.id === u.id;
                   return (
                     <TableRow
-                      key={`user-${u.id}`}
+                      key={`user-row-${index}`}
                       className={isSelected ? "kb-row-selected" : undefined}
                       onClick={() => handleUserRowClick(u)}
                     >

@@ -4,7 +4,7 @@ import { ApiUser } from "@/lib/types";
 import UserTracksClient from "./tracks-client";
 
 interface UserTracksPageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 async function fetchUser(id: string): Promise<ApiUser> {
@@ -18,6 +18,7 @@ async function fetchUser(id: string): Promise<ApiUser> {
 }
 
 export default async function UserTracksPage({ params }: UserTracksPageProps) {
-  const user = await fetchUser(params.id);
+  const { id } = await params;
+  const user = await fetchUser(id);
   return <UserTracksClient user={user} />;
 }

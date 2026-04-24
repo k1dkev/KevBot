@@ -4,7 +4,7 @@ import { ApiUser } from "@/lib/types";
 import UserPlaylistsClient from "./playlists-client";
 
 interface UserPlaylistsPageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 async function fetchUser(id: string): Promise<ApiUser> {
@@ -18,6 +18,7 @@ async function fetchUser(id: string): Promise<ApiUser> {
 }
 
 export default async function UserPlaylistsPage({ params }: UserPlaylistsPageProps) {
-  const user = await fetchUser(params.id);
+  const { id } = await params;
+  const user = await fetchUser(id);
   return <UserPlaylistsClient user={user} />;
 }

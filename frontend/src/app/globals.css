@@ -623,7 +623,13 @@ code,
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+    /* Reserve space for the scrollbar so its appear/disappear during result
+       updates doesn't reflow the whole area. */
+    scrollbar-gutter: stable;
     padding: 12px 24px 48px;
+    /* Limit paint/layout work when result rows update. */
+    contain: layout paint;
+    background: var(--kb-bg);
   }
 
   /* Sticky thead — sticks to the top of its nearest scroll ancestor. The

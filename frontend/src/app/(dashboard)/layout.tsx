@@ -1,5 +1,10 @@
-import { ReactNode } from "react";
+import { ReactNode, Suspense } from "react";
 import { NavBar } from "@/components/nav-bar";
+
+// NavBar uses useSearchParams which forces this layout out of static
+// generation. Mark dynamic explicitly so Next doesn't try (and fail) to
+// prerender pages that inherit this layout.
+export const dynamic = "force-dynamic";
 import { SideBar } from "@/components/side-bar";
 import { PlayBar } from "@/components/play-bar";
 import { RequireAuth } from "@/components/require-auth";
@@ -16,7 +21,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       <MusicPlayerProvider>
         <LibraryFiltersProvider>
           <div className="kb-shell">
-            <NavBar />
+            <Suspense fallback={<header className="kb-topbar" />}>
+              <NavBar />
+            </Suspense>
             <div className="kb-body">
               <SideBar />
               <div className="kb-main">
