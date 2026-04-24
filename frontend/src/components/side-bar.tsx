@@ -41,6 +41,14 @@ export function SideBar() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // log of mount/unmount
+  useEffect(() => {
+    console.log("SideBar mounted");
+    return () => {
+      console.log("SideBar unmounted");
+    };
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     setIsLoading(true);
@@ -65,10 +73,7 @@ export function SideBar() {
     };
   }, []);
 
-  const sortedPlaylists = useMemo(
-    () => playlists.slice().sort((a, b) => a.name.localeCompare(b.name)),
-    [playlists]
-  );
+  const sortedPlaylists = useMemo(() => playlists.slice().sort((a, b) => a.name.localeCompare(b.name)), [playlists]);
 
   const isPlaylistActive = (id: number) => pathname === `/playlist/${id}`;
   const isMyUploadsActive = !!user && pathname === `/user/${user.id}/tracks`;

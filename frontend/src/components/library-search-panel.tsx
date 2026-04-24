@@ -44,7 +44,10 @@ interface LibrarySearchPanelProps {
   lockedFilter?: SearchFilter | null;
   playlistContext?: { id: number; name: string } | null;
   userContext?: { id: number; displayName?: string | null; discordId: string } | null;
-  onSearchStateChange?: (state: { query: string; filter: SearchFilter }) => void;
+  // Notifies the caller when the user picks a different filter inside the
+  // panel — used to keep an external source of truth (e.g. SearchProvider)
+  // in sync with the panel's local filter state.
+  onFilterChangeExternal?: (filter: SearchFilter) => void;
   onNavigateToPlaylist?: (playlist: { id: number; name: string }) => void;
   onNavigateToUser?: (user: { id: number; displayName?: string | null; discordId: string }) => void;
   // Optional side-effects (e.g. URL navigation) when the user clears a badge
@@ -59,7 +62,7 @@ export function LibrarySearchPanel({
   lockedFilter = null,
   playlistContext = null,
   userContext = null,
-  onSearchStateChange,
+  onFilterChangeExternal,
   onNavigateToPlaylist,
   onNavigateToUser,
   onClearUser,
@@ -93,14 +96,6 @@ export function LibrarySearchPanel({
   // relevance when something is typed).
   const userPickedSortRef = useRef(false);
 
-  // TEMP: detect whether the panel is remounting on URL navigation. Remove
-  // once we've identified the source of the search-result flash.
-  useEffect(() => {
-    const id = Math.random().toString(36).slice(2, 7);
-    console.log("[LibrarySearchPanel] mount", id);
-    return () => console.log("[LibrarySearchPanel] unmount", id);
-  }, []);
-
   const { currentTrack, isPlaying, isLoading, playTrack, togglePlayPause } = useMusicPlayer();
   const {
     selectedPlaylist,
@@ -113,9 +108,7 @@ export function LibrarySearchPanel({
 
   const hasMore = results.length < pagination.total;
   const playlistLabel = selectedPlaylist?.name ?? null;
-  const userLabel = selectedUser
-    ? selectedUser.displayName ?? selectedUser.discordId
-    : null;
+  const userLabel = selectedUser ? (selectedUser.displayName ?? selectedUser.discordId) : null;
   const canClearPlaylistSelection = !!playlistLabel;
   const canClearUserSelection = !!userLabel;
 
@@ -182,8 +175,7 @@ export function LibrarySearchPanel({
 
   // Sorting users/playlists by play_count isn't supported by the API yet
   // (api/src/schemas/searchSchemas.ts rejects play_count when type != tracks).
-  const isUnsupportedSort =
-    sort === "play_count" && (filter === "users" || filter === "playlists");
+  const isUnsupportedSort = sort === "play_count" && (filter === "users" || filter === "playlists");
 
   const skipFetch = isRelevanceWithoutQuery || isUnsupportedSort;
 
@@ -204,15 +196,16 @@ export function LibrarySearchPanel({
             selectedPlaylist?.id ?? "",
             selectedUser?.id ?? "",
           ].join("|"),
-    [debouncedQuery, filter, includeDeleted, order, sort, skipFetch, selectedPlaylist?.id, selectedUser?.id]
+    [debouncedQuery, filter, includeDeleted, order, sort, skipFetch, selectedPlaylist?.id, selectedUser?.id],
   );
 
   const isFetching = !skipFetch && lastFetchedKey !== fetchKey;
   const hasSettled = lastFetchedKey !== null;
 
   const fetchPage = useCallback(
-    async (offset: number) =>
-      api.search.unified({
+    async (offset: number) => {
+      console.log("api.search.unified called with", { debouncedQuery, offset });
+      return api.search.unified({
         q: debouncedQuery.trim() || undefined,
         type: filter,
         sort,
@@ -222,19 +215,10 @@ export function LibrarySearchPanel({
         userId: selectedUser?.id ?? undefined,
         limit: PAGE_SIZE,
         offset,
-      }),
-    [debouncedQuery, filter, includeDeleted, order, sort, selectedPlaylist?.id, selectedUser?.id]
+      });
+    },
+    [debouncedQuery, filter, includeDeleted, order, sort, selectedPlaylist?.id, selectedUser?.id],
   );
-
-  const lastNotifiedRef = useRef<{ query: string; filter: SearchFilter } | null>(null);
-  useEffect(() => {
-    if (!onSearchStateChange) return;
-    const trimmed = debouncedQuery.trim();
-    const last = lastNotifiedRef.current;
-    if (last && last.query === trimmed && last.filter === filter) return;
-    lastNotifiedRef.current = { query: trimmed, filter };
-    onSearchStateChange({ query: trimmed, filter });
-  }, [debouncedQuery, filter, onSearchStateChange]);
 
   useEffect(() => {
     if (skipFetch) {
@@ -299,8 +283,9 @@ export function LibrarySearchPanel({
         clearSelectedPlaylist();
       }
       setFilter(next);
+      onFilterChangeExternal?.(next);
     },
-    [clearSelectedPlaylist, filter, lockedFilter, selectedPlaylist]
+    [clearSelectedPlaylist, filter, lockedFilter, onFilterChangeExternal, selectedPlaylist],
   );
 
   const handlePlaylistRowClick = useCallback(
@@ -320,13 +305,7 @@ export function LibrarySearchPanel({
       // explicitly if they want all tracks in the playlist.
       handleFilterChange("tracks");
     },
-    [
-      clearSelectedPlaylist,
-      handleFilterChange,
-      onNavigateToPlaylist,
-      selectedPlaylist?.id,
-      setSelectedPlaylist,
-    ]
+    [clearSelectedPlaylist, handleFilterChange, onNavigateToPlaylist, selectedPlaylist?.id, setSelectedPlaylist],
   );
 
   const handleUserRowClick = useCallback(
@@ -343,7 +322,7 @@ export function LibrarySearchPanel({
       setSelectedUser(payload);
       handleFilterChange("tracks");
     },
-    [clearSelectedUser, handleFilterChange, onNavigateToUser, selectedUser?.id, setSelectedUser]
+    [clearSelectedUser, handleFilterChange, onNavigateToUser, selectedUser?.id, setSelectedUser],
   );
 
   const handleTrackPlay = useCallback(
@@ -366,21 +345,18 @@ export function LibrarySearchPanel({
       };
       playTrack(track);
     },
-    [currentTrack?.id, playTrack, togglePlayPause]
+    [currentTrack?.id, playTrack, togglePlayPause],
   );
 
   const trackResults = useMemo(
     () => results.filter((r): r is UnifiedSearchResultTrack => r.type === "track"),
-    [results]
+    [results],
   );
   const playlistResults = useMemo(
     () => results.filter((r): r is UnifiedSearchResultPlaylist => r.type === "playlist"),
-    [results]
+    [results],
   );
-  const userResults = useMemo(
-    () => results.filter((r): r is UnifiedSearchResultUser => r.type === "user"),
-    [results]
-  );
+  const userResults = useMemo(() => results.filter((r): r is UnifiedSearchResultUser => r.type === "user"), [results]);
 
   return (
     <div className="kb-view-fill">
@@ -453,60 +429,32 @@ export function LibrarySearchPanel({
 
         {isUnsupportedSort ? (
           <div className="kb-cta">
-            <div className="kb-cta-title">
-              Sorting {filter} by plays is coming soon. Pick another sort:
-            </div>
+            <div className="kb-cta-title">Sorting {filter} by plays is coming soon. Pick another sort:</div>
             <div className="kb-cta-buttons">
               {debouncedQuery.trim() && (
-                <button
-                  type="button"
-                  className="kb-filter-tab"
-                  onClick={() => handleSortChange("relevance")}
-                >
+                <button type="button" className="kb-filter-tab" onClick={() => handleSortChange("relevance")}>
                   Relevance
                 </button>
               )}
-              <button
-                type="button"
-                className="kb-filter-tab"
-                onClick={() => handleSortChange("name")}
-              >
+              <button type="button" className="kb-filter-tab" onClick={() => handleSortChange("name")}>
                 Name
               </button>
-              <button
-                type="button"
-                className="kb-filter-tab"
-                onClick={() => handleSortChange("created_at")}
-              >
+              <button type="button" className="kb-filter-tab" onClick={() => handleSortChange("created_at")}>
                 Created
               </button>
             </div>
           </div>
         ) : isRelevanceWithoutQuery ? (
           <div className="kb-cta">
-            <div className="kb-cta-title">
-              Search for something, or pick a different sort to browse:
-            </div>
+            <div className="kb-cta-title">Search for something, or pick a different sort to browse:</div>
             <div className="kb-cta-buttons">
-              <button
-                type="button"
-                className="kb-filter-tab"
-                onClick={() => handleSortChange("name")}
-              >
+              <button type="button" className="kb-filter-tab" onClick={() => handleSortChange("name")}>
                 Name
               </button>
-              <button
-                type="button"
-                className="kb-filter-tab"
-                onClick={() => handleSortChange("created_at")}
-              >
+              <button type="button" className="kb-filter-tab" onClick={() => handleSortChange("created_at")}>
                 Created
               </button>
-              <button
-                type="button"
-                className="kb-filter-tab"
-                onClick={() => handleSortChange("play_count")}
-              >
+              <button type="button" className="kb-filter-tab" onClick={() => handleSortChange("play_count")}>
                 Plays
               </button>
             </div>
@@ -539,17 +487,15 @@ export function LibrarySearchPanel({
                     selectedUser &&
                     selectedUser.id === track.user.id &&
                     (selectedUser.displayName || selectedUser.discordId)
-                      ? selectedUser.displayName ?? selectedUser.discordId ?? `User #${selectedUser.id}`
-                      : track.user.display_name ?? `User #${track.user.id}`;
+                      ? (selectedUser.displayName ?? selectedUser.discordId ?? `User #${selectedUser.id}`)
+                      : (track.user.display_name ?? `User #${track.user.id}`);
 
                   return (
                     <TableRow
                       key={`track-row-${index}`}
                       className={isCurrent ? "kb-row-current" : undefined}
                       onMouseEnter={() => setHoveredTrackId(track.id)}
-                      onMouseLeave={() =>
-                        setHoveredTrackId((prev) => (prev === track.id ? null : prev))
-                      }
+                      onMouseLeave={() => setHoveredTrackId((prev) => (prev === track.id ? null : prev))}
                       onDoubleClick={() => handleTrackPlay(track)}
                     >
                       <TableCell className="kb-cell-num">{pagination.offset + index + 1}</TableCell>
@@ -560,9 +506,7 @@ export function LibrarySearchPanel({
                       </TableCell>
                       <TableCell>
                         <div className="kb-tr-info">
-                          <div className={`kb-tr-name${isCurrent ? " kb-tr-current-name" : ""}`}>
-                            {track.name}
-                          </div>
+                          <div className={`kb-tr-name${isCurrent ? " kb-tr-current-name" : ""}`}>{track.name}</div>
                           <div className="kb-tr-sub">
                             <Link
                               href={`/user/${track.user.id}`}
@@ -577,9 +521,7 @@ export function LibrarySearchPanel({
                       <TableCell className="kb-cell-meta">
                         {Math.round(track.duration * 1000).toLocaleString()} ms
                       </TableCell>
-                      <TableCell className="kb-cell-meta">
-                        {track.total_play_count.toLocaleString()}
-                      </TableCell>
+                      <TableCell className="kb-cell-meta">{track.total_play_count.toLocaleString()}</TableCell>
                       <TableCell className="kb-cell-meta">{formatDate(track.created_at)}</TableCell>
                       {hasQuery && (
                         <TableCell className="kb-cell-rel">
@@ -643,9 +585,7 @@ export function LibrarySearchPanel({
                       </TableCell>
                       <TableCell>
                         <div className="kb-tr-info">
-                          <div className={`kb-tr-name${isSelected ? " kb-tr-current-name" : ""}`}>
-                            {pl.name}
-                          </div>
+                          <div className={`kb-tr-name${isSelected ? " kb-tr-current-name" : ""}`}>{pl.name}</div>
                           <div className="kb-tr-sub">{pl.user.display_name ?? `User #${pl.user.id}`}</div>
                         </div>
                       </TableCell>

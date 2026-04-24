@@ -5,7 +5,6 @@ import PlaylistPageClient from "./playlist-page-client";
 
 interface PlaylistPageProps {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ q?: string }>;
 }
 
 async function fetchPlaylist(id: string): Promise<ApiPlaylist> {
@@ -24,11 +23,9 @@ async function fetchPlaylist(id: string): Promise<ApiPlaylist> {
   return res.json();
 }
 
-export default async function PlaylistPage({ params, searchParams }: PlaylistPageProps) {
+export default async function PlaylistPage({ params }: PlaylistPageProps) {
   const { id } = await params;
-  const sp = (await searchParams) ?? {};
   const playlist = await fetchPlaylist(id);
-  const initialQuery = sp.q ?? "";
 
   return (
     <div className="space-y-6">
@@ -38,7 +35,7 @@ export default async function PlaylistPage({ params, searchParams }: PlaylistPag
           Created at {new Date(playlist.created_at).toLocaleDateString()} · Owned by user #{playlist.user_id}
         </p>
       </div>
-      <PlaylistPageClient playlist={playlist} initialQuery={initialQuery} />
+      <PlaylistPageClient playlist={playlist} />
     </div>
   );
 }
