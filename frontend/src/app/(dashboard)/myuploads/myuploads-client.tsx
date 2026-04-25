@@ -10,7 +10,7 @@ export default function MyUploadsClient() {
 
   useEffect(() => {
     if (isLoading) return;
-    if (user) router.replace(`/user/${user.id}/tracks`);
+    if (user) router.replace(`/user/${user.id}/search?type=tracks`);
   }, [isLoading, router, user]);
 
   return <div className="kb-empty-state">Redirecting…</div>;

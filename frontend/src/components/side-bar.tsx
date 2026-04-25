@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api-browser-client";
 import { ApiPlaylist } from "@/lib/types";
 import { useLibraryFilters } from "@/lib/contexts/library-filters-context";
@@ -34,6 +34,7 @@ function SbItem({ active, disabled, onClick, children, title }: SbItemProps) {
 export function SideBar() {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const { setSelectedPlaylist, clearSelectedPlaylist } = useLibraryFilters();
 
@@ -68,8 +69,10 @@ export function SideBar() {
   const sortedPlaylists = useMemo(() => playlists.slice().sort((a, b) => a.name.localeCompare(b.name)), [playlists]);
 
   const isPlaylistActive = (id: number) => pathname === `/playlist/${id}`;
-  const isMyUploadsActive = !!user && pathname === `/user/${user.id}/tracks`;
-  const isMyPlaylistsActive = !!user && pathname === `/user/${user.id}/playlists`;
+  const onMySearch = !!user && pathname === `/user/${user.id}/search`;
+  const currentType = searchParams.get("type");
+  const isMyUploadsActive = onMySearch && (currentType === null || currentType === "tracks");
+  const isMyPlaylistsActive = onMySearch && currentType === "playlists";
 
   const handlePlaylistClick = (playlist: ApiPlaylist) => {
     setSelectedPlaylist({ id: playlist.id, name: playlist.name });
@@ -78,13 +81,14 @@ export function SideBar() {
 
   const handleMyUploads = () => {
     if (!user) return;
-    router.push(`/user/${user.id}/tracks`);
+    clearSelectedPlaylist();
+    router.push(`/user/${user.id}/search?type=tracks`);
   };
 
   const handleMyPlaylists = () => {
     if (!user) return;
     clearSelectedPlaylist();
-    router.push(`/user/${user.id}/playlists`);
+    router.push(`/user/${user.id}/search?type=playlists`);
   };
 
   return (

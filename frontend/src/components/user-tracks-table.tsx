@@ -19,6 +19,7 @@ interface UserTracksTableProps {
   stickyHead?: boolean;
   showPlays?: boolean;
   showCreated?: boolean;
+  showDuration?: boolean;
 }
 
 export function UserTracksTable({
@@ -26,6 +27,7 @@ export function UserTracksTable({
   stickyHead = false,
   showPlays = true,
   showCreated = true,
+  showDuration = true,
 }: UserTracksTableProps) {
   const { currentTrack, isPlaying, isLoading, playTrack, togglePlayPause } = useMusicPlayer();
 
@@ -49,7 +51,7 @@ export function UserTracksTable({
             <TableHead className="kb-cell-num">#</TableHead>
             <TableHead className="kb-cell-art" />
             <TableHead className="kb-cell-name">Name</TableHead>
-            <TableHead className="kb-cell-meta">Duration (ms)</TableHead>
+            {showDuration && <TableHead className="kb-cell-meta">Duration (ms)</TableHead>}
             {showPlays && <TableHead className="kb-cell-meta">Plays</TableHead>}
             {showCreated && <TableHead className="kb-cell-meta">Created</TableHead>}
             <TableHead className="kb-cell-action" />
@@ -86,9 +88,11 @@ export function UserTracksTable({
                     </div>
                   </div>
                 </TableCell>
-                <TableCell className="kb-cell-meta">
-                  {Math.round(track.duration * 1000).toLocaleString()} ms
-                </TableCell>
+                {showDuration && (
+                  <TableCell className="kb-cell-meta">
+                    {Math.round(track.duration * 1000).toLocaleString()} ms
+                  </TableCell>
+                )}
                 {showPlays && (
                   <TableCell className="kb-cell-meta">
                     {track.total_play_count.toLocaleString()}

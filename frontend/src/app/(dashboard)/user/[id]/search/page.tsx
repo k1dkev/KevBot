@@ -1,9 +1,9 @@
 import { notFound } from "next/navigation";
 import { getConfig } from "@/lib/config";
 import { ApiUser } from "@/lib/types";
-import UserPlaylistsClient from "./playlists-client";
+import UserSearchClient from "./search-client";
 
-interface UserPlaylistsPageProps {
+interface UserSearchPageProps {
   params: Promise<{ id: string }>;
 }
 
@@ -17,8 +17,8 @@ async function fetchUser(id: string): Promise<ApiUser> {
   return res.json();
 }
 
-export default async function UserPlaylistsPage({ params }: UserPlaylistsPageProps) {
+export default async function UserSearchPage({ params }: UserSearchPageProps) {
   const { id } = await params;
   const user = await fetchUser(id);
-  return <UserPlaylistsClient user={user} />;
+  return <UserSearchClient user={user} />;
 }

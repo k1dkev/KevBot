@@ -50,9 +50,8 @@ interface LibrarySearchPanelProps {
   onFilterChangeExternal?: (filter: SearchFilter) => void;
   onNavigateToPlaylist?: (playlist: { id: number; name: string }) => void;
   onNavigateToUser?: (user: { id: number; displayName?: string | null; discordId: string }) => void;
-  // Optional side-effects (e.g. URL navigation) when the user clears a badge
-  // via the X button. The panel always clears its own context first.
-  onClearUser?: () => void;
+  // Optional side-effect (e.g. URL navigation) when the user clears the
+  // playlist badge. The panel always clears its own context first.
   onClearPlaylist?: () => void;
 }
 
@@ -65,7 +64,6 @@ export function LibrarySearchPanel({
   onFilterChangeExternal,
   onNavigateToPlaylist,
   onNavigateToUser,
-  onClearUser,
   onClearPlaylist,
 }: LibrarySearchPanelProps) {
   const defaultFilter: SearchFilter = lockedFilter ?? initialFilter ?? "tracks";
@@ -108,14 +106,7 @@ export function LibrarySearchPanel({
 
   const hasMore = results.length < pagination.total;
   const playlistLabel = selectedPlaylist?.name ?? null;
-  const userLabel = selectedUser ? (selectedUser.displayName ?? selectedUser.discordId) : null;
   const canClearPlaylistSelection = !!playlistLabel;
-  const canClearUserSelection = !!userLabel;
-
-  const handleClearUserBadge = useCallback(() => {
-    clearSelectedUser();
-    onClearUser?.();
-  }, [clearSelectedUser, onClearUser]);
 
   const handleClearPlaylistBadge = useCallback(() => {
     clearSelectedPlaylist();
@@ -372,8 +363,6 @@ export function LibrarySearchPanel({
           disableUsersFilter={!!selectedUser}
           activePlaylistLabel={playlistLabel}
           onClearPlaylist={canClearPlaylistSelection ? handleClearPlaylistBadge : undefined}
-          activeUserLabel={userLabel}
-          onClearUser={canClearUserSelection ? handleClearUserBadge : undefined}
         />
 
         {!skipFetch && (

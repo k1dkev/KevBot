@@ -23,35 +23,12 @@ async function fetchUser(id: string): Promise<ApiUser> {
   return res.json();
 }
 
-function formatJoined(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  } catch {
-    return iso;
-  }
-}
-
 export default async function UserPage({ params }: UserPageProps) {
   const { id } = await params;
   const user = await fetchUser(id);
-  const displayName = user.discord_username ?? `User #${user.id}`;
-  const initial = displayName[0]?.toUpperCase() ?? "?";
 
   return (
     <div className="kb-view">
-      <div className="kb-profile-hero">
-        <div className="kb-profile-avatar">{initial}</div>
-        <div>
-          <div className="kb-profile-name">{displayName}</div>
-          <div className="kb-profile-sub">
-            Joined {formatJoined(user.created_at)} · Discord ID <code>{user.discord_id}</code>
-          </div>
-        </div>
-      </div>
       <UserPageClient user={user} />
     </div>
   );

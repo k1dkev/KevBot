@@ -13,13 +13,24 @@ function formatDate(iso: string): string {
   }
 }
 
+// TODO(api): no per-playlist play_count yet — placeholder until backend exposes it.
+const PLAYS_PLACEHOLDER = 9000;
+
 interface UserPlaylistsTableProps {
   playlists: ApiPlaylist[];
   creatorName: string | null;
   stickyHead?: boolean;
+  showPlays?: boolean;
+  showCreated?: boolean;
 }
 
-export function UserPlaylistsTable({ playlists, creatorName, stickyHead = false }: UserPlaylistsTableProps) {
+export function UserPlaylistsTable({
+  playlists,
+  creatorName,
+  stickyHead = false,
+  showPlays = false,
+  showCreated = true,
+}: UserPlaylistsTableProps) {
   const router = useRouter();
 
   if (playlists.length === 0) {
@@ -34,7 +45,8 @@ export function UserPlaylistsTable({ playlists, creatorName, stickyHead = false 
             <TableHead className="kb-cell-num">#</TableHead>
             <TableHead className="kb-cell-art" />
             <TableHead className="kb-cell-name">Name</TableHead>
-            <TableHead className="kb-cell-meta">Created</TableHead>
+            {showPlays && <TableHead className="kb-cell-meta">Plays</TableHead>}
+            {showCreated && <TableHead className="kb-cell-meta">Created</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -58,7 +70,10 @@ export function UserPlaylistsTable({ playlists, creatorName, stickyHead = false 
                   </div>
                 </div>
               </TableCell>
-              <TableCell className="kb-cell-meta">{formatDate(pl.created_at)}</TableCell>
+              {showPlays && (
+                <TableCell className="kb-cell-meta">{PLAYS_PLACEHOLDER.toLocaleString()}</TableCell>
+              )}
+              {showCreated && <TableCell className="kb-cell-meta">{formatDate(pl.created_at)}</TableCell>}
             </TableRow>
           ))}
         </TableBody>

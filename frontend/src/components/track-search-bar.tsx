@@ -16,8 +16,6 @@ interface LibrarySearchBarProps {
   disableUsersFilter?: boolean;
   activePlaylistLabel?: string | null;
   onClearPlaylist?: () => void;
-  activeUserLabel?: string | null;
-  onClearUser?: () => void;
 }
 
 const FILTER_OPTIONS: Array<{ value: SearchFilter; label: string }> = [
@@ -46,8 +44,6 @@ export function LibrarySearchBar({
   disableUsersFilter = false,
   activePlaylistLabel,
   onClearPlaylist,
-  activeUserLabel,
-  onClearUser,
 }: LibrarySearchBarProps) {
   const isFilterLocked = lockedFilter !== null && lockedFilter !== undefined;
   const orderLabel = order === "asc" ? "Asc" : "Desc";
@@ -76,16 +72,18 @@ export function LibrarySearchBar({
         })}
         <span className="kb-control-divider" />
         <span className="kb-control-label">Sort by</span>
-        {SORT_OPTIONS.map((opt) => (
-          <button
-            key={opt.value}
-            type="button"
-            className={`kb-filter-tab${sort === opt.value ? " kb-filter-active" : ""}`}
-            onClick={() => onSortChange(opt.value)}
-          >
-            {opt.label}
-          </button>
-        ))}
+        <select
+          className="kb-select"
+          value={sort}
+          onChange={(e) => onSortChange(e.target.value as SearchSort)}
+          aria-label="Sort by"
+        >
+          {SORT_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
         <button
           type="button"
           className="kb-icon-toggle"
@@ -107,28 +105,16 @@ export function LibrarySearchBar({
           Include deleted
         </button>
       </div>
-      {(activePlaylistLabel || activeUserLabel) && (
+      {activePlaylistLabel && (
         <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-          {activePlaylistLabel && (
-            <span className="kb-tag">
-              Playlist: {activePlaylistLabel}
-              {onClearPlaylist && (
-                <button type="button" onClick={onClearPlaylist} aria-label="Clear playlist filter">
-                  ×
-                </button>
-              )}
-            </span>
-          )}
-          {activeUserLabel && (
-            <span className="kb-tag">
-              User: {activeUserLabel}
-              {onClearUser && (
-                <button type="button" onClick={onClearUser} aria-label="Clear user filter">
-                  ×
-                </button>
-              )}
-            </span>
-          )}
+          <span className="kb-tag">
+            Playlist: {activePlaylistLabel}
+            {onClearPlaylist && (
+              <button type="button" onClick={onClearPlaylist} aria-label="Clear playlist filter">
+                ×
+              </button>
+            )}
+          </span>
         </div>
       )}
     </div>
