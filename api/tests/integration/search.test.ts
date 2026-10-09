@@ -137,6 +137,46 @@ describe("GET /v1/search — browse mode (no q)", () => {
 });
 
 describe("GET /v1/search — search mode (with q)", () => {
+  it("ranks exact matches above prefixes and substrings", async () => {
+    await db
+      .insertInto("tracks")
+      .values([
+        {
+          id: 101,
+          name: "ranktarget",
+          created_at: new Date("2024-12-15T07:21:03.000Z"),
+          user_id: 1,
+          duration: 1,
+          updated_at: new Date("2024-12-15T07:21:03.000Z"),
+        },
+        {
+          id: 102,
+          name: "ranktarget-extra",
+          created_at: new Date("2024-12-15T07:21:03.000Z"),
+          user_id: 1,
+          duration: 1,
+          updated_at: new Date("2024-12-15T07:21:03.000Z"),
+        },
+        {
+          id: 103,
+          name: "song-ranktarget",
+          created_at: new Date("2024-12-15T07:21:03.000Z"),
+          user_id: 1,
+          duration: 1,
+          updated_at: new Date("2024-12-15T07:21:03.000Z"),
+        },
+      ])
+      .execute();
+
+    try {
+      const res = await request(app).get("/v1/search?q=ranktarget&type=tracks");
+      expect(res.status).toBe(200);
+      expect(names(res.body.data)).toEqual(["ranktarget", "ranktarget-extra", "song-ranktarget"]);
+    } finally {
+      await db.deleteFrom("tracks").where("id", "in", [101, 102, 103]).execute();
+    }
+  });
+
   it("type=tracks returns hybrid-ranked tracks when q is provided", async () => {
     const res = await request(app).get("/v1/search?q=happy&type=tracks");
     expect(res.status).toBe(200);
