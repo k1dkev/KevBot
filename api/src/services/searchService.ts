@@ -367,31 +367,16 @@ export function searchServiceFactory(db: KevbotDb, _config: Config) {
       }
     };
 
-    const scoreExpressionV1 = (q: string | undefined, name: string) => {
+    const scoreExpression = (q: string | undefined, name: string) => {
       if (!q) return sql<number>`0`;
       const col = sql.ref(name);
       return sql<number>`(
-        (${col} = ${q}) * 14
-        + (${col} LIKE CONCAT(${q}, '%')) * 12
-        + (${col} LIKE CONCAT('%', ${q}, '%')) * 10
+        (${col} = ${q}) * 4
+        + (${col} LIKE CONCAT(${q}, '%')) * 3
+        + (${col} LIKE CONCAT('%', ${q}, '%')) * 2
         + MATCH(${col}) AGAINST (${q} IN NATURAL LANGUAGE MODE)
       )`;
     };
-
-    const scoreExpressionV2 = (q: string | undefined, name: string) => {
-      if (!q) return sql<number>`0`;
-      const col = sql.ref(name);
-      return sql<number>`(
-        (MATCH(${col}) AGAINST (${q} IN NATURAL LANGUAGE MODE)) * (
-        1
-        + (${col} = ${q}) * 1
-        + (${col} LIKE CONCAT(${q}, '%')) * 1
-        + (${col} LIKE CONCAT('%', ${q}, '%')) * 1
-        )
-      )`;
-    };
-
-    const scoreExpression = scoreExpressionV2;
 
     const matchFilter = (q: string, name: string) => {
       const col = sql.ref(name);
