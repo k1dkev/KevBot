@@ -1,5 +1,11 @@
 # KevBot Unified Audio Platform PRD
 
+> This older PRD needs reconciliation with the current implementation. Its
+> password-auth endpoints, user model, search references, and PostgreSQL mention
+> are stale. Use [ROADMAP.md](ROADMAP.md) for current proposed release scope and
+> [the planning audit](docs/PLANNING_AUDIT.md) for contract conflicts. The first
+> usable v2 release requires full legacy bot command parity.
+
 ## 1. Overview
 
 KevBot will provide a single audio library experience surfaced through both a web application and a Discord bot. Creators upload short-form audio clips once, and listeners can discover, queue, and play them in either surface while sharing playlists across the ecosystem. The backend REST API underpins every interaction so that feature parity, governance, and analytics remain consistent.
