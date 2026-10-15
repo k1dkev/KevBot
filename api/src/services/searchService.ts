@@ -367,16 +367,31 @@ export function searchServiceFactory(db: KevbotDb, _config: Config) {
       }
     };
 
-    const scoreExpression = (q: string | undefined, name: string) => {
+    const scoreExpressionV1 = (q: string | undefined, name: string) => {
       if (!q) return sql<number>`0`;
       const col = sql.ref(name);
       return sql<number>`(
-        (${col} = ${q}) * 4
-        + (${col} LIKE CONCAT(${q}, '%')) * 3
-        + (${col} LIKE CONCAT('%', ${q}, '%')) * 2
+        (${col} = ${q}) * 14
+        + (${col} LIKE CONCAT(${q}, '%')) * 12
+        + (${col} LIKE CONCAT('%', ${q}, '%')) * 10
         + MATCH(${col}) AGAINST (${q} IN NATURAL LANGUAGE MODE)
       )`;
     };
+
+    const scoreExpressionV2 = (q: string | undefined, name: string) => {
+      if (!q) return sql<number>`0`;
+      const col = sql.ref(name);
+      return sql<number>`(
+        (MATCH(${col}) AGAINST (${q} IN NATURAL LANGUAGE MODE)) * (
+        1
+        + (${col} = ${q}) * 1
+        + (${col} LIKE CONCAT(${q}, '%')) * 1
+        + (${col} LIKE CONCAT('%', ${q}, '%')) * 1
+        )
+      )`;
+    };
+
+    const scoreExpression = scoreExpressionV2;
 
     const matchFilter = (q: string, name: string) => {
       const col = sql.ref(name);
@@ -471,6 +486,7 @@ export function searchServiceFactory(db: KevbotDb, _config: Config) {
 
     const countResultPromise = base.select(({ fn }) => [fn.countAll<number>().as("total")]).executeTakeFirstOrThrow();
 
+    console.log(sort, order);
     const rowsPromise = base
       .selectAll()
       .orderBy(primaryOrder(sort, order))
