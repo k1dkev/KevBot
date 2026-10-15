@@ -2,6 +2,19 @@
 
 A Discord bot and music management platform with a modern web interface, RESTful API, and automated audio processing capabilities.
 
+## Current Planning
+
+Start with the [consolidated v2 roadmap](ROADMAP.md) for release scope, milestone
+order, and the proposed GitHub issue/design workflow. The first usable v2 release
+requires the legacy bot's full command set; its [parity specification](specs/bot-parity.md)
+is currently a draft.
+
+The [planning audit](docs/PLANNING_AUDIT.md) maps older GitHub issues, Obsidian
+notes, and conflicting documentation to current implementation. Some setup,
+architecture, and release instructions below still need the reconciliation
+identified there. Use the [M0 epic and its sub-issues](https://github.com/k1dkev/KevBot/issues/137)
+for current task status; older issues are being reviewed in batches.
+
 ## Overview
 
 KevBot is a monorepo containing multiple components that work together:
