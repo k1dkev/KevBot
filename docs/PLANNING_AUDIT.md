@@ -82,7 +82,7 @@ legacy or v2 behavior; age alone is not a reason to close them.
 
 ### Review batches — 2026-10-14
 
-The original 47 open issues were rechecked and remain unchanged. New outcome
+The original 47 open issues were rechecked. New outcome
 epics #137–#140 and initial sub-issues #141–#146 are separate tracking work;
 see [the live roadmap links](../ROADMAP.md#first-issue-batch).
 
@@ -94,14 +94,19 @@ see [the live roadmap links](../ROADMAP.md#first-issue-batch).
 | Legacy maintenance/design review | 5 | #86, #80, #77, #30, #11 | Decide whether any value remains after replacing direct-storage/cached legacy architecture; avoid a generic refactor campaign |
 | Private data verification | 1 | #45 | Verify ownership in a private data-repair process; do not infer completion or reproduce private records in public issues |
 
-Start with #81 (API now exists), #60/#59 (stored procedures removed), and #56
-(old README checklist checked) for the simplest evidence review. Then review
-#57/#43/#19/#66/#20 against code and relevant behavior. Closing an original legacy
-feature ticket must not imply its replacement bot implementation is complete.
+The initial batches above record the review grouping, not current open counts.
+The subsequent evidence pass closed eight individual originals:
 
-The row-by-row recommendations below remain the evidence record. No batch was
-automatically closed, and the original issue count is not the current total
-after creating the ten new tracking issues.
+| Result | Issues | Evidence and retained scope |
+| --- | --- | --- |
+| Completed original tasks | #81, #56, #57, #43, #66, #20 | REST API exists; requested legacy docs, dispatch guard, shared resolver, category greetings, and farewell events have implementation/history evidence. Full replacement-bot behavior remains in #138/#139/#141 |
+| Superseded / not planned | #60, #59 | Migration `2.1.0__remove_stored_procedures.sql` removes the targeted procedures; their proposed commenting/refactor work was not performed |
+| Kept open after verification | #19 | `updateRecentlyUploaded.js` reassigns a destructured local array rather than updating the shared exported cache. The source does not establish working upload history |
+
+Each closed issue has a source/commit explanation and links to the remaining v2
+work and planning PR #147. No runtime or production verification was claimed.
+No ticket was closed merely because it was old. The remaining originals are
+still open; new tracking issues and #148/#149 change the overall issue total.
 
 | Issue | Proposed disposition |
 | --- | --- |

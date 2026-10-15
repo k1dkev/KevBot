@@ -5,7 +5,13 @@ and the KevBot Obsidian notes. Reviewed implementation: `07180b4` on
 `feat/frontend-overhaul`, 18 commits ahead of `main` at the time of review.
 
 GitHub tracking was established on 2026-10-14: four outcome epics, four milestones,
-and six initial sub-issues. The original 47 open issues remain under review.
+and six initial sub-issues. The first evidence review closed eight original
+issues; upload-history issue #19 remains open because a concrete cache defect
+was found. The remaining original issues are still under review.
+
+Planning publication: [PR #147](https://github.com/k1dkev/KevBot/pull/147).
+Additional M0 tasks: [formatting/CI #148](https://github.com/k1dkev/KevBot/issues/148)
+and [remaining frontend build-tool advisories #149](https://github.com/k1dkev/KevBot/issues/149).
 
 This is the consolidated plan. GitHub issues track execution. The
 [planning audit](docs/PLANNING_AUDIT.md) records evidence and historical sources;
@@ -286,8 +292,10 @@ and [issue dependency docs](https://docs.github.com/en/issues/tracking-your-work
 The current CLI token lacks `read:project`, so existing Projects could not be
 inventoried. Project creation/configuration would require the corresponding
 access. The 2026-10-14 setup created the epics, sub-issues, milestones, and area
-labels listed above. The original 47 issues have not been closed, relabeled, or
-reparented; review their proposed dispositions first.
+labels listed above. The first evidence pass closed #81, #56, #57, #43, #66,
+and #20 as completed original tasks, and #60/#59 as superseded/not planned.
+Their closure comments retain the v2 requirements and source evidence. #19
+remains open; the other original tickets await individual review.
 
 ### What makes an issue Ready
 
