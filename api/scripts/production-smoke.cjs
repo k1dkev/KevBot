@@ -53,7 +53,10 @@ async function main() {
 
     const ffmpeg = await api.exec(["ffmpeg", "-version"]);
     assert.equal(ffmpeg.exitCode, 0, ffmpeg.output);
-    const probe = await api.exec(["node", "-e", `
+    const probe = await api.exec([
+      "node",
+      "-e",
+      `
       const assert = require('node:assert/strict');
       const fs = require('node:fs');
       (async () => {
@@ -75,13 +78,17 @@ async function main() {
         const users = await response.json();
         assert.ok(Array.isArray(users), 'Expected a database-backed users response');
       })().catch(error => { console.error(error); process.exit(1); });
-    `]);
+    `,
+    ]);
     assert.equal(probe.exitCode, 0, probe.output);
     console.log("Production image smoke passed: startup, migrated MySQL, Swagger assets, FFmpeg, runtime-only files.");
   } finally {
-    await Promise.all(containers.reverse().map(container => container.stop()));
+    await Promise.all(containers.reverse().map((container) => container.stop()));
     await network.stop();
   }
 }
 
-main().catch(error => { console.error(error); process.exitCode = 1; });
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
