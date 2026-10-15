@@ -4,9 +4,12 @@ Drafted on 2026-10-08 from the working branch, GitHub issues, repository docs,
 and the KevBot Obsidian notes. Reviewed implementation: `07180b4` on
 `feat/frontend-overhaul`, 18 commits ahead of `main` at the time of review.
 
-This is the consolidated plan. GitHub issues will track execution once the
-backlog is triaged. The [planning audit](docs/PLANNING_AUDIT.md) records evidence
-and historical sources; it is not another active backlog.
+GitHub tracking was established on 2026-10-14: four outcome epics, four milestones,
+and six initial sub-issues. The original 47 open issues remain under review.
+
+This is the consolidated plan. GitHub issues track execution. The
+[planning audit](docs/PLANNING_AUDIT.md) records evidence and historical sources;
+it is not another active backlog.
 
 ## Release goal
 
@@ -47,8 +50,16 @@ been validated during this planning pass.
 
 ## Milestones and completion gates
 
-Milestones describe outcomes, not dates. Use these names for GitHub milestones
-so release membership is stored in one place.
+Milestones describe outcomes, not dates. Native sub-issues belong to outcome
+epics; milestone membership groups the corresponding issues and PRs. Later
+implementation tasks will be split out as contracts become ready.
+
+| Outcome | Parent epic | GitHub milestone |
+| --- | --- | --- |
+| M0 — Reliable development and release foundation | [#137](https://github.com/k1dkev/KevBot/issues/137) | [M0](https://github.com/k1dkev/KevBot/milestone/1) |
+| M1 — Complete shared library workflows | [#138](https://github.com/k1dkev/KevBot/issues/138) | [M1](https://github.com/k1dkev/KevBot/milestone/2) |
+| M2 — Full Discord bot parity | [#139](https://github.com/k1dkev/KevBot/issues/139) | [M2](https://github.com/k1dkev/KevBot/milestone/3) |
+| M3 — Production cutover and operation | [#140](https://github.com/k1dkev/KevBot/issues/140) | [M3](https://github.com/k1dkev/KevBot/milestone/4) |
 
 ### M0 — Reliable development and release foundation
 
@@ -188,23 +199,50 @@ work should proceed early rather than being discovered at cutover.
 
 ## First issue batch
 
-These are draft issue descriptions, not created GitHub tickets. Create this
-small batch first; expand later milestones when dependencies and designs are
-ready. One ticket should normally produce one reviewable PR.
+These six issues are native sub-issues of [M0/#137](https://github.com/k1dkev/KevBot/issues/137).
+Expand later milestones when dependencies and designs are ready. One task should
+normally produce one reviewable PR; epics and broad doc reconciliation can span
+multiple focused PRs.
 
-| Order | Draft issue | Area | Completion criteria |
+| Order | Issue | Area | Completion criteria |
 | --- | --- | --- | --- |
-| 1 | Finalize the full legacy bot parity contract | Bot/API | Review the existing draft inventory; settle command, duration, ranking, and permission decisions; map v2/API gaps; define test-guild acceptance |
-| 2 | Patch the current frontend dependency baseline | Frontend | Review current official advisories; update compatible Next/React and related tooling; validate lockfile, build, auth, and core pages; resolve the old security PR appropriately |
-| 3 | Make the API production image reproducible | API/platform | Clean tracked-source image compiles, packages OpenAPI docs, contains FFmpeg, starts with valid config, and passes an image check in CI |
-| 4 | Repair hosted migration execution | DB/tools | Confirm hosting and secure connection requirements; update workflow to current CLI; verify dry run, explicit version, already-current case, and nonzero failure |
-| 5 | Reconcile the current docs and release workflow | Platform | Refresh PRD/architecture/auth/OpenAPI/search/setup docs against accepted behavior; reconcile actual release/settings config; replace obsolete duplicate plans with links |
-| 6 | Review and integrate the existing frontend overhaul | Frontend | Produce a scoped PR from the current branch; identify and separate unfinished placeholders; verify changed browsing/profile/player flows before merging |
+| 1 | [#141 Finalize legacy bot parity](https://github.com/k1dkev/KevBot/issues/141) | Bot/API | Review the existing draft inventory; settle command, duration, ranking, and permission decisions; map v2/API gaps; define test-guild acceptance |
+| 2 | [#142 Patch frontend dependencies](https://github.com/k1dkev/KevBot/issues/142) | Frontend | Review current official advisories; update compatible Next/React and related tooling; validate lockfile, build, auth, and core pages; resolve the old security PR appropriately |
+| 3 | [#143 Reproducible API production image](https://github.com/k1dkev/KevBot/issues/143) | API/platform | Clean tracked-source image compiles, packages OpenAPI docs, contains FFmpeg, starts with valid config, and passes an image check in CI |
+| 4 | [#144 Repair hosted MySQL migrations](https://github.com/k1dkev/KevBot/issues/144) | DB/tools | Confirm hosting and secure connection requirements; update workflow to current CLI; verify dry run, explicit version, already-current case, and nonzero failure |
+| 5 | [#145 Reconcile current docs](https://github.com/k1dkev/KevBot/issues/145) | Platform | Refresh PRD/architecture/auth/OpenAPI/search/setup docs against accepted behavior; reconcile actual release/settings config; replace obsolete duplicate plans with links |
+| 6 | [#146 Finish and review the frontend overhaul](https://github.com/k1dkev/KevBot/issues/146) | Frontend | Produce a scoped PR from the current branch; fix search/navigation regressions; remove or label placeholders; verify affected browsing/profile/player flows |
 
 Next issues should cover trusted bot actors, shared permission rules, missing
 history queries, web upload/edit flows, playlist playback, real activity/stats,
 and migration recovery. Give each its own acceptance criteria and dependencies;
 avoid tickets such as "finish API" or "build frontend."
+
+Native dependencies currently record #146 blocked by #142, full bot parity
+blocked by its contract #141, and production cutover blocked by the preceding
+outcome gates. They do not require all frontend work to finish before bot work
+can begin.
+
+## Current branch finish line
+
+As of 2026-10-14, `feat/frontend-overhaul` is clean and 19 local commits ahead
+of `main`. Its first 18 commits are published; planning commit `2d53a86` is local
+only. No PR was open for this branch at review time.
+
+Preserve the branch. Publish the planning commit in a small docs PR, then finish
+the cohesive UI/API scope through #146: shell/navigation, shared tables,
+search/scoped browsing, profiles/playlist detail, player presentation, and the
+completed search-ranking fix. Avoid splitting tightly coupled shared components
+into separate screen PRs or restarting the work.
+
+Before the UI PR is ready, fix same-route search state, `type=all` handling,
+stale pagination results, and keyboard playback access. Hide/label incomplete
+counts and disable/remove cosmetic controls. Verify applicable build/lint/API
+checks and focused browser flows with UI evidence.
+
+Upload/management, playlist editing/playback, playback reporting, real stats,
+broader session hardening, and the replacement bot remain separately scoped
+work. These instructions do not require finishing all v2 features in this branch.
 
 ## How to manage the work
 
@@ -247,8 +285,9 @@ and [issue dependency docs](https://docs.github.com/en/issues/tracking-your-work
 
 The current CLI token lacks `read:project`, so existing Projects could not be
 inventoried. Project creation/configuration would require the corresponding
-access. Issues, labels, milestones, and PRs were readable. Nothing was created
-or changed on GitHub during this audit.
+access. The 2026-10-14 setup created the epics, sub-issues, milestones, and area
+labels listed above. The original 47 issues have not been closed, relabeled, or
+reparented; review their proposed dispositions first.
 
 ### What makes an issue Ready
 

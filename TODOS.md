@@ -1,7 +1,7 @@
 # TODOS
 
 > Historical backlog and design sketches. Use [ROADMAP.md](ROADMAP.md) for the
-> consolidated v2 plan and GitHub issues for execution after triage. Several
+> consolidated v2 plan and GitHub issues for execution. Several
 > unchecked items below are already implemented or superseded; see the
 > [planning audit](docs/PLANNING_AUDIT.md) before treating them as requirements.
 

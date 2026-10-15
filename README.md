@@ -12,7 +12,8 @@ is currently a draft.
 The [planning audit](docs/PLANNING_AUDIT.md) maps older GitHub issues, Obsidian
 notes, and conflicting documentation to current implementation. Some setup,
 architecture, and release instructions below still need the reconciliation
-identified there. Use GitHub issues for task status once the backlog is triaged.
+identified there. Use the [M0 epic and its sub-issues](https://github.com/k1dkev/KevBot/issues/137)
+for current task status; older issues are being reviewed in batches.
 
 ## Overview
 
