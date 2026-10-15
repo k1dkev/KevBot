@@ -80,6 +80,29 @@ These are proposed actions for review, not closure decisions. Link a replacement
 before closing an old issue as superseded. Reproduce defects against the relevant
 legacy or v2 behavior; age alone is not a reason to close them.
 
+### Review batches — 2026-10-14
+
+The original 47 open issues were rechecked and remain unchanged. New outcome
+epics #137–#140 and initial sub-issues #141–#146 are separate tracking work;
+see [the live roadmap links](../ROADMAP.md#first-issue-batch).
+
+| Review batch | Count | Original issue numbers | Recommendation |
+| --- | --- | --- | --- |
+| Delivered/superseded candidates | 9 | #81, #60, #59, #57, #56, #43, #19, #66, #20 | Review evidence first. API creation and removed-procedure work are strong closure candidates; legacy features still need their v2 parity rows verified |
+| Carry requirements into v2 | 19 | #84, #79, #76, #75, #74, #72, #71, #68, #65, #63, #62, #55, #54, #51, #32, #26, #25, #21, #17 | Retain the requirement; consolidate overlapping tickets or link a bounded replacement under the appropriate epic before closing an original |
+| Later enhancements | 13 | #83, #82, #78, #73, #70, #69, #64, #61, #58, #53, #47, #18, #9 | Keep as later ideas unless deliberately prioritized. Additional privileges are separate from required master-equivalent parity |
+| Legacy maintenance/design review | 5 | #86, #80, #77, #30, #11 | Decide whether any value remains after replacing direct-storage/cached legacy architecture; avoid a generic refactor campaign |
+| Private data verification | 1 | #45 | Verify ownership in a private data-repair process; do not infer completion or reproduce private records in public issues |
+
+Start with #81 (API now exists), #60/#59 (stored procedures removed), and #56
+(old README checklist checked) for the simplest evidence review. Then review
+#57/#43/#19/#66/#20 against code and relevant behavior. Closing an original legacy
+feature ticket must not imply its replacement bot implementation is complete.
+
+The row-by-row recommendations below remain the evidence record. No batch was
+automatically closed, and the original issue count is not the current total
+after creating the ten new tracking issues.
+
 | Issue | Proposed disposition |
 | --- | --- |
 | [#86 transfer-manager downloads](https://github.com/k1dkev/KevBot/issues/86) | Reassess against API streaming/caching design; whole-bucket legacy startup optimization may be superseded |
