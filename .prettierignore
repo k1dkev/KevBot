@@ -1,0 +1,17 @@
+**/node_modules/
+**/dist/
+**/build/
+**/.next/
+**/out/
+**/coverage/
+**/test-results/
+**/playwright-report/
+**/.venv/
+**/.venv-format/
+**/__pycache__/
+**/next-env.d.ts
+**/*.min.js
+gcloud/data/
+db/migration/
+v1/
+tmp/

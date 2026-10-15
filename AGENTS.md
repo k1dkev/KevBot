@@ -23,7 +23,8 @@
 
 ## Coding Practices
 - Prefer TypeScript and shared contracts (`api/src/`, `frontend/src/lib/types.ts`); keep modules small and reusable.
-- Frontend linting runs through `npm run lint`. Add backend ESLint/Prettier only when standards converge and record the commands.
+- From the repository root, use `npm run format:check` with the formatting Python environment activated. Prettier covers active JS/TS/TSX at 120 columns; Ruff formats Python at 88 columns targeting 3.12. See `docs/FORMATTING.md` for setup and exclusions.
+- Frontend correctness/framework linting remains `cd frontend && npm run lint`. Formatting CI does not enable Ruff lint/import fixes or add backend ESLint rules.
 - SQL migrations stay forward-only and named `<version>__slug.sql`; keep generated seeds out of version control.
 - Place reusable scripts in `tools/` with execute bits and README notes.
 
