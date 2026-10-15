@@ -4,8 +4,7 @@ import { ApiUser } from "@/lib/types";
 import UserPageClient from "./user-page-client";
 
 interface UserPageProps {
-  params: { id: string };
-  searchParams?: { q?: string };
+  params: Promise<{ id: string }>;
 }
 
 async function fetchUser(id: string): Promise<ApiUser> {
@@ -24,22 +23,13 @@ async function fetchUser(id: string): Promise<ApiUser> {
   return res.json();
 }
 
-export default async function UserPage({ params, searchParams }: UserPageProps) {
-  const user = await fetchUser(params.id);
-  const initialQuery = searchParams?.q ?? "";
+export default async function UserPage({ params }: UserPageProps) {
+  const { id } = await params;
+  const user = await fetchUser(id);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">
-          {user.discord_username ?? `User #${user.id}`}
-        </h1>
-        <p className="text-muted-foreground">
-          Joined {new Date(user.created_at).toLocaleDateString()} · Discord ID {user.discord_id}
-        </p>
-      </div>
-      <UserPageClient user={user} initialQuery={initialQuery} />
+    <div className="kb-view">
+      <UserPageClient user={user} />
     </div>
   );
 }
-

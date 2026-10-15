@@ -4,8 +4,7 @@ import { ApiPlaylist } from "@/lib/types";
 import PlaylistPageClient from "./playlist-page-client";
 
 interface PlaylistPageProps {
-  params: { id: string };
-  searchParams?: { q?: string };
+  params: Promise<{ id: string }>;
 }
 
 async function fetchPlaylist(id: string): Promise<ApiPlaylist> {
@@ -24,20 +23,13 @@ async function fetchPlaylist(id: string): Promise<ApiPlaylist> {
   return res.json();
 }
 
-export default async function PlaylistPage({ params, searchParams }: PlaylistPageProps) {
-  const playlist = await fetchPlaylist(params.id);
-  const initialQuery = searchParams?.q ?? "";
+export default async function PlaylistPage({ params }: PlaylistPageProps) {
+  const { id } = await params;
+  const playlist = await fetchPlaylist(id);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">{playlist.name}</h1>
-        <p className="text-muted-foreground">
-          Created at {new Date(playlist.created_at).toLocaleDateString()} · Owned by user #{playlist.user_id}
-        </p>
-      </div>
-      <PlaylistPageClient playlist={playlist} initialQuery={initialQuery} />
+    <div className="kb-view">
+      <PlaylistPageClient playlist={playlist} />
     </div>
   );
 }
-

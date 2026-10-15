@@ -10,6 +10,36 @@ on:
       - main
 
 jobs:
+  frontend_checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:4301
+      NEXT_PUBLIC_FRONTEND_URL: http://127.0.0.1:4300
+      NEXT_PUBLIC_DISCORD_OAUTH2_CLIENT_ID: build-check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run test:unit
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: frontend-browser-results
+          path: frontend/test-results
+          if-no-files-found: ignore
+
   run_api_tests:
     runs-on: ubuntu-latest
     defaults:

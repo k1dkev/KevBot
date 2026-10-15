@@ -54,3 +54,35 @@ Note: All frontend environment variables must be prefixed with `NEXT_PUBLIC_` to
 
 - `/src/components/ui` contain ui elements from shadcn library.
 - `/src/components` will contain custom project specific components.
+
+## Checks and browser smoke tests
+
+```sh
+npm ci
+npm run lint
+npm run test:unit
+npm run build
+```
+
+The frontend uses Next.js 15.5.28 and React 19.3.1, including their published
+2026-10-14 fixes. Next's nested PostCSS resolves to the same patched 8.x range
+as the direct dependency. ESLint checks exclude generated Next output.
+
+The Playwright suite checks production-built pages against a synthetic API on
+ports 4300/4301. It covers search URL/history/scope state, delayed pagination,
+keyboard audio playback/seeking, profiles/playlists, and unauthenticated routing.
+It does not exercise real Discord OAuth, MySQL, or GCS.
+
+```sh
+npx playwright install chromium
+NEXT_PUBLIC_API_URL=http://127.0.0.1:4301 \
+NEXT_PUBLIC_FRONTEND_URL=http://127.0.0.1:4300 \
+NEXT_PUBLIC_DISCORD_OAUTH2_CLIENT_ID=smoke-check npm run build
+npm run test:e2e
+```
+
+Both ports must be available. Tests own and stop their fixture/API processes;
+they do not reuse an existing application. Failure traces/screenshots are written
+to ignored `test-results/`. CI uses the same build settings and uploads failed
+browser artifacts. `npm audit --omit=dev` checks shipped dependencies separately
+from development-tool advisory findings.

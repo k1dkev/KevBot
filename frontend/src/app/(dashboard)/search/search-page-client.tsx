@@ -1,42 +1,13 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { LibrarySearchPanel } from "@/components/library-search-panel";
-import { SearchFilter } from "@/lib/types";
+import { useSearchContext } from "@/lib/contexts/search-context";
 
-interface SearchPageClientProps {
-  initialQuery: string;
-  initialFilter: SearchFilter;
-}
-
-export default function SearchPageClient({ initialQuery, initialFilter }: SearchPageClientProps) {
+export default function SearchPageClient() {
   const router = useRouter();
-  const pathname = usePathname();
-
-  const normalizedInitialQuery = useMemo(() => initialQuery ?? "", [initialQuery]);
-  const normalizedFilter = useMemo(() => initialFilter ?? "all", [initialFilter]);
-
-  const handleStateChange = useCallback(
-    ({ query, filter }: { query: string; filter: SearchFilter }) => {
-      const trimmed = query.trim();
-      let nextPath = "/search";
-
-      if (trimmed) {
-        nextPath += `/${encodeURIComponent(trimmed)}`;
-        if (filter !== "all") {
-          nextPath += `/${filter}`;
-        }
-      } else if (filter !== "all") {
-        nextPath += `/${filter}`;
-      }
-
-      if (nextPath !== pathname) {
-        router.replace(nextPath);
-      }
-    },
-    [pathname, router]
-  );
+  const { query, type, setType } = useSearchContext();
 
   const handleNavigatePlaylist = useCallback(
     (playlist: { id: number; name: string }) => {
@@ -52,14 +23,16 @@ export default function SearchPageClient({ initialQuery, initialFilter }: Search
     [router]
   );
 
+  // The panel still owns its filter UI; we hand it the live filter from the
+  // context and let it call back to update it. The query is read directly
+  // from context (live, no debounce on the URL).
   return (
     <LibrarySearchPanel
-      initialQuery={normalizedInitialQuery}
-      initialFilter={normalizedFilter}
-      onSearchStateChange={handleStateChange}
+      initialQuery={query}
+      initialFilter={type}
+      onFilterChangeExternal={setType}
       onNavigateToPlaylist={handleNavigatePlaylist}
       onNavigateToUser={handleNavigateUser}
     />
   );
 }
-
