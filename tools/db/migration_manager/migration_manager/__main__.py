@@ -2,17 +2,17 @@ import argparse
 import os
 import re
 import subprocess
-import shlex
+import tempfile
 import time
 from dotenv import load_dotenv
-from packaging.version import parse as parse_version, Version
+from packaging.version import parse as parse_version, Version, InvalidVersion
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
 from enum import Enum
 from collections import defaultdict
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 
 VERSION_TABLE_NAME = "schema_version"
 
@@ -134,21 +134,40 @@ def parse_args():
 
 class MySQLClient:
     def __init__(self, connection_string: str):
-        parsed = urlparse(connection_string)
-        self.host = parsed.hostname
-        self.user = parsed.username
-        self.password = parsed.password
-        self.port = parsed.port or 3306
-        self.database = parsed.path.lstrip("/")
+        try:
+            parsed = urlparse(connection_string)
+            self.host = parsed.hostname
+            self.user = unquote(parsed.username or "")
+            self.password = unquote(parsed.password or "")
+            self.port = parsed.port or 3306
+            self.database = unquote(parsed.path.lstrip("/"))
+            if parsed.scheme != "mysql" or not all([self.host, self.user, self.database]):
+                raise ValueError()
+            if parsed.query or parsed.fragment or not re.fullmatch(r"[A-Za-z0-9_$-]+", self.database):
+                raise ValueError()
+        except ValueError:
+            raise MigrationManagerError(
+                "DB_CONNECTION_STRING must be mysql://user:password@host:port/database "
+                "with URL-encoded credentials and a simple schema name; configure TLS with MYSQL_SSL_CA."
+            ) from None
+        self.ssl_ca = os.getenv("MYSQL_SSL_CA")
+        if self.ssl_ca and not Path(self.ssl_ca).is_file():
+            raise MigrationManagerError("MYSQL_SSL_CA must point to a readable CA certificate file.")
 
     def run_sql_command(self, sql_cmd):
-        cmd = (
-            f"mysql -h {self.host} -u {self.user} -p{self.password} -D"
-            f" {self.database} -P {self.port}"
-        )
-        result = subprocess.run(
-            shlex.split(cmd), capture_output=True, text=True, input=sql_cmd
-        )
+        # Keep passwords out of process arguments and preserve spaces/URL-encoded characters.
+        password = self.password.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\r", "\\r")
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".cnf") as options:
+            options.write(f'[client]\npassword="{password}"\n')
+            options.flush()
+            cmd = [
+                "mysql", f"--defaults-extra-file={options.name}", "--protocol=TCP",
+                "--host", self.host, "--user", self.user,
+                "--database", self.database, "--port", str(self.port),
+            ]
+            if self.ssl_ca:
+                cmd.extend([f"--ssl-ca={Path(self.ssl_ca).resolve()}", "--ssl-verify-server-cert"])
+            result = subprocess.run(cmd, capture_output=True, text=True, input=sql_cmd)
         if result.returncode != 0:
             raise MigrationManagerError(f"SQL command failed!\n{result.stderr}")
         return result
@@ -281,14 +300,20 @@ def perform_action(env_vars: EnvVars, args):
         check_mysql_connection(client)
         schema_status = get_schema_status(client)
         print(schema_status.describe())
+        if not Path(args.scripts_directory).is_dir():
+            raise MigrationManagerError("Scripts directory does not exist or is not a directory.")
         all_scripts = [
             script
             for f in Path(args.scripts_directory).rglob("*")
             if (script := parse_script_file(f))
         ]
+        if not all_scripts:
+            raise MigrationManagerError("No SQL scripts found in scripts directory.")
         if args.version == "latest":
             target_version = max(s.version for s in all_scripts)
         else:
+            if not re.fullmatch(r"\d+\.\d+\.\d+", args.version):
+                raise MigrationManagerError("Target version must be 'latest' or major.minor.patch.")
             target_version = parse_version(args.version)
         print(f"Target version: {target_version}")
         if schema_status.version:
@@ -447,9 +472,14 @@ def main():
         args = parse_args()
         env_vars = EnvVars(env_file=args.env_file)
         perform_action(env_vars, args)
+        return 0
     except MigrationManagerError as e:
-        print(f"\nMigration failed with the following error: {e.message}")
+        print(f"\nMigration failed with the following error: {e.message}", file=sys.stderr)
+        return 1
+    except (OSError, InvalidVersion, ValueError) as e:
+        print(f"\nMigration failed: {type(e).__name__}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

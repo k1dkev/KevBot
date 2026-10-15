@@ -6,62 +6,57 @@ on:
       environment:
         required: true
         type: environment
-        description: Select environment
+        description: Select the protected GitHub environment
       migration_version:
         required: true
         type: string
-        description: Migration version
+        description: Explicit major.minor.patch target, or latest
         default: latest
+      dry_run:
+        type: boolean
+        description: Plan only; do not apply SQL
+        default: true
+      verify_tls:
+        type: boolean
+        description: Verify server TLS using MYSQL_SSL_CA_CERT (disable only for an explicitly approved non-TLS target)
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: database-migrate-${{ inputs.environment }}
+  cancel-in-progress: false
 
 jobs:
   migrate-database:
     runs-on: ubuntu-latest
-
+    timeout-minutes: 20
     environment: ${{ inputs.environment }}
-
-    env:
-      MIGRATION_VERSION: ${{ inputs.migration_version }}
-
     steps:
-      - name: Echo configuration
-        run: |
-          echo "GitHub ref: ${{ github.ref }}"
-          echo "Environment: ${{ inputs.environment }}"
-          echo "Migration Version: ${{ inputs.migration_version}}"
-
-      - name: Decode base64 encoded secrets
-        run: echo "GCP_SERVICE_ACCOUNT_JSON=$(echo '${{ secrets.GCP_SERVICE_ACCOUNT_JSON_64 }}' | base64 --decode)" >> $GITHUB_ENV
-
-      - name: Checkout the selected branch or tag
-        uses: actions/checkout@v4
-
-      - name: Build Docker image
-        run: |
-          cd $GITHUB_WORKSPACE/tools
-          docker build --target production -t kevbot_tools .
-
-      - id: auth
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ env.GCP_SERVICE_ACCOUNT_JSON }}
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Get mysql test data from Google Cloud Storage
-        run: |
-          gsutil cp gs://${{ secrets.GCP_SENSITIVE_DATA_BUCKET }}/${{ secrets.GCP_MYSQL_TEST_DATA_FILE }} $GITHUB_WORKSPACE/db/migration/sensitive_supplemental_scripts/${{ secrets.GCP_MYSQL_TEST_DATA_FILE }}
-
-      - name: Create .env file
-        run: |
-          cd $GITHUB_WORKSPACE/tools
-          echo "MYSQL_TCP_PORT=${{ secrets.MYSQL_TCP_PORT }}" > .env
-          echo "MYSQL_ROOT_USER=${{ secrets.MYSQL_ROOT_USER }}" >> .env
-          echo "MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}" >> .env
-          echo "MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}" >> .env
-          echo "MYSQL_HOST=${{ secrets.MYSQL_HOST }}" >> .env
-
+      - uses: actions/checkout@v4
+      - name: Build migration manager
+        run: docker build -t migration-manager:workflow tools/db/migration_manager
       - name: Run migration
+        env:
+          DB_CONNECTION_STRING: ${{ secrets.DB_CONNECTION_STRING }}
+          MYSQL_SSL_CA_CERT: ${{ secrets.MYSQL_SSL_CA_CERT }}
+          MIGRATION_VERSION: ${{ inputs.migration_version }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          VERIFY_TLS: ${{ inputs.verify_tls }}
+        shell: bash
         run: |
-          cd $GITHUB_WORKSPACE/tools
-          docker run --rm --env-file .env -v $GITHUB_WORKSPACE/db/migration:/tools/db/migration_manager/migration kevbot_tools bash -c "cd /tools/db/migration_manager && /opt/migration_manager/.venv/bin/python migration_manager migrate -v $MIGRATION_VERSION --schema-dir ./migration/schema_change_scripts --supplemental-dirs ./migration/supplemental_scripts ./migration/sensitive_supplemental_scripts"
+          set -euo pipefail
+          test -n "$DB_CONNECTION_STRING" || { echo "Missing DB_CONNECTION_STRING secret" >&2; exit 1; }
+          args=(migrate /migration --version "$MIGRATION_VERSION")
+          if [[ "$DRY_RUN" == true ]]; then args+=(--dry-run); fi
+          docker_args=(--rm -e DB_CONNECTION_STRING --mount "type=bind,source=$GITHUB_WORKSPACE/db/migration,target=/migration,readonly")
+          if [[ "$VERIFY_TLS" == true ]]; then
+            test -n "$MYSQL_SSL_CA_CERT" || { echo "Verified TLS requires MYSQL_SSL_CA_CERT" >&2; exit 1; }
+            ca_file="$RUNNER_TEMP/migration-mysql-ca.pem"
+            trap 'rm -f "$ca_file"' EXIT
+            umask 077
+            printf '%s\n' "$MYSQL_SSL_CA_CERT" > "$ca_file"
+            docker_args+=(--mount "type=bind,source=$ca_file,target=/run/secrets/mysql-ca.pem,readonly" -e MYSQL_SSL_CA=/run/secrets/mysql-ca.pem)
+          fi
+          docker run "${docker_args[@]}" migration-manager:workflow "${args[@]}"
