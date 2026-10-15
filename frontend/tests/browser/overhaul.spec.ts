@@ -89,7 +89,7 @@ test("an earlier first page cannot replace a newer A-to-B-to-A search", async ({
   } finally { release(); }
 });
 
-test("keyboard playback and seeking work without hover; placeholders are honest", async ({ page }, testInfo) => {
+test("keyboard playback and seeking work without hover; placeholders are honest", async ({ page }) => {
   await page.goto("/search?type=tracks");
   const play = page.getByRole("button", { name: "Play clip001", exact: true });
   await expect(play).toBeAttached();
@@ -105,14 +105,12 @@ test("keyboard playback and seeking work without hover; placeholders are honest"
   await expect.poll(async () => Number(await seek.inputValue())).toBeGreaterThan(before);
   await expect(page.getByRole("button", { name: "Shuffle unavailable" })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Repeat unavailable" })).toBeDisabled();
-  await page.screenshot({ path: testInfo.outputPath("search-player.png"), fullPage: true });
   await page.goto("/user/1");
   await expect(page.getByText("smokeuser", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("9,000", { exact: true })).toHaveCount(0);
   await page.goto("/playlist/10");
   await expect(page.getByRole("heading", { name: "favorites", exact: true })).toBeVisible();
   await expect(page.getByText("9,000", { exact: true })).toHaveCount(0);
-  await page.screenshot({ path: testInfo.outputPath("playlist.png"), fullPage: true });
 });
 
 test("missing session returns the visitor to login", async ({ page }) => {
