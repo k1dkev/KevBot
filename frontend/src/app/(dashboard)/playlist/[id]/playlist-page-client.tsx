@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api-browser-client";
 import { LibrarySearchPanel } from "@/components/library-search-panel";
 import { useSearchContext } from "@/lib/contexts/search-context";
 import { useUserName } from "@/lib/hooks/useUserName";
-import { ApiPlaylist, ApiTrack } from "@/lib/types";
+import { ApiPlaylist } from "@/lib/types";
+import { searchHref } from "@/lib/search/search-navigation";
 
 // Server caps `limit` at 100 (api/src/config/config.ts: maxResultsPerPage).
 const TRACK_FETCH_LIMIT = 100;
@@ -30,19 +31,19 @@ function formatCreated(iso: string): string {
 
 export default function PlaylistPageClient({ playlist }: PlaylistPageClientProps) {
   const router = useRouter();
-  const { query } = useSearchContext();
+  const searchParams = useSearchParams();
+  const { query, sort, order, includeDeleted } = useSearchContext();
   const ownerName = useUserName(playlist.user_id);
 
-  const [tracks, setTracks] = useState<ApiTrack[]>([]);
-  const [tracksTotal, setTracksTotal] = useState(0);
+  const [tracksTotal, setTracksTotal] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    setTracksTotal(null);
     (async () => {
       try {
         const res = await api.tracks.fetch({ playlist_id: playlist.id, limit: TRACK_FETCH_LIMIT });
         if (cancelled) return;
-        setTracks(res.data);
         setTracksTotal(res.pagination.total);
       } catch (err) {
         console.error("Failed to load playlist tracks", err);
@@ -52,10 +53,6 @@ export default function PlaylistPageClient({ playlist }: PlaylistPageClientProps
       cancelled = true;
     };
   }, [playlist.id]);
-
-  // TODO(api): tracks endpoint caps at 100 per request — for very large playlists
-  // this under-counts total plays. Same caveat as the user page.
-  const totalPlays = tracks.reduce((sum, t) => sum + t.total_play_count, 0);
 
   const handleNavigateUser = useCallback(
     (user: { id: number; displayName?: string | null; discordId: string }) => {
@@ -67,12 +64,18 @@ export default function PlaylistPageClient({ playlist }: PlaylistPageClientProps
   const initial = playlist.name[0]?.toUpperCase() ?? "?";
   const ownerLabel = ownerName ?? `User #${playlist.user_id}`;
 
+  const handleClearPlaylist = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("playlist_id");
+    router.replace(searchHref("/search", params, { query, type: "tracks", sort, order, includeDeleted }));
+  };
+
   return (
     <>
       <div className="kb-profile-hero">
         <div className="kb-profile-avatar">{initial}</div>
         <div>
-          <div className="kb-profile-name">{playlist.name}</div>
+          <h1 className="kb-profile-name">{playlist.name}</h1>
           <div className="kb-profile-sub">
             Created {formatCreated(playlist.created_at)} · by{" "}
             <Link href={`/user/${playlist.user_id}`} className="kb-tr-uploader">
@@ -84,12 +87,8 @@ export default function PlaylistPageClient({ playlist }: PlaylistPageClientProps
 
       <div className="kb-stats-row">
         <div className="kb-stat-card">
-          <div className="kb-stat-num">{tracksTotal.toLocaleString()}</div>
+          <div className="kb-stat-num">{tracksTotal?.toLocaleString() ?? "—"}</div>
           <div className="kb-stat-lbl">Tracks</div>
-        </div>
-        <div className="kb-stat-card">
-          <div className="kb-stat-num">{totalPlays.toLocaleString()}</div>
-          <div className="kb-stat-lbl">Total Plays</div>
         </div>
       </div>
 
@@ -99,7 +98,7 @@ export default function PlaylistPageClient({ playlist }: PlaylistPageClientProps
         lockedFilter="tracks"
         playlistContext={{ id: playlist.id, name: playlist.name }}
         onNavigateToUser={handleNavigateUser}
-        onClearPlaylist={() => router.replace("/search?type=tracks")}
+        onClearPlaylist={handleClearPlaylist}
       />
     </>
   );

@@ -1,6 +1,5 @@
 "use client";
 
-import { MouseEvent as ReactMouseEvent, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useMusicPlayer } from "@/lib/contexts/music-player-context";
 
@@ -23,17 +22,9 @@ export function PlayBar() {
     seekTo,
     setVolume,
   } = useMusicPlayer();
-  const [shuffle, setShuffle] = useState(false);
-  const [repeat, setRepeat] = useState(false);
-
-  const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
-
-  const handleSeek = (e: ReactMouseEvent<HTMLDivElement>) => {
-    if (!duration) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    seekTo(ratio * duration);
-  };
+  const seekDuration = Number.isFinite(duration) && duration > 0 ? duration : 0;
+  const seekTime = Number.isFinite(currentTime) ? Math.max(0, Math.min(currentTime, seekDuration)) : 0;
+  const pct = seekDuration > 0 ? (seekTime / seekDuration) * 100 : 0;
 
   const playDisabled = !currentTrack || isLoading;
 
@@ -55,10 +46,10 @@ export function PlayBar() {
         <div className="kb-player-btns">
           <button
             type="button"
-            className={`kb-ctrl-btn${shuffle ? " kb-ctrl-active" : ""}`}
-            onClick={() => setShuffle((s) => !s)}
-            title="Shuffle"
-            aria-label="Shuffle"
+            className="kb-ctrl-btn"
+            disabled
+            title="Shuffle unavailable"
+            aria-label="Shuffle unavailable"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
@@ -74,7 +65,8 @@ export function PlayBar() {
             className="kb-play-btn"
             onClick={togglePlayPause}
             disabled={playDisabled}
-            aria-label={isPlaying ? "Pause" : "Play"}
+            aria-label={isLoading ? "Loading track" : isPlaying ? "Pause" : "Play"}
+            aria-busy={isLoading}
           >
             {isLoading ? (
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -95,10 +87,10 @@ export function PlayBar() {
           </button>
           <button
             type="button"
-            className={`kb-ctrl-btn${repeat ? " kb-ctrl-active" : ""}`}
-            onClick={() => setRepeat((r) => !r)}
-            title="Repeat"
-            aria-label="Repeat"
+            className="kb-ctrl-btn"
+            disabled
+            title="Repeat unavailable"
+            aria-label="Repeat unavailable"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M17 1l4 4-4 4" />
@@ -108,12 +100,24 @@ export function PlayBar() {
           </button>
         </div>
         <div className="kb-player-progress">
-          <span className="kb-time-label">{fmtTime(currentTime)}</span>
-          <div className="kb-scrubber" onClick={handleSeek}>
+          <span className="kb-time-label">{fmtTime(seekTime)}</span>
+          <div className="kb-scrubber">
             <div className="kb-scrubber-fill" style={{ width: `${pct}%` }} />
             <div className="kb-scrubber-thumb" style={{ left: `${pct}%` }} />
+            <input
+              type="range"
+              min={0}
+              max={seekDuration}
+              step={0.1}
+              value={seekTime}
+              disabled={!currentTrack || isLoading || seekDuration === 0}
+              onChange={(event) => seekTo(Number(event.target.value))}
+              aria-label="Seek"
+              aria-valuetext={`${fmtTime(seekTime)} of ${fmtTime(seekDuration)}`}
+              className="absolute left-0 top-1/2 m-0 h-5 w-full -translate-y-1/2 cursor-pointer opacity-0 disabled:cursor-default"
+            />
           </div>
-          <span className="kb-time-label">{fmtTime(duration)}</span>
+          <span className="kb-time-label">{fmtTime(seekDuration)}</span>
         </div>
       </div>
 

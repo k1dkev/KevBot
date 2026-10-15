@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ReactNode } from "react";
 import { AudioLines, Disc3, Loader2, Pause, Play } from "lucide-react";
 import { ColumnDef } from "@/components/ui/data-table";
 
@@ -20,7 +21,7 @@ export interface TrackColumnsOptions {
   showCreated?: boolean;
   showRelevance?: boolean;
   // "plain": # cell shows the row index; trailing action cell is the play surface (legacy user-tracks-table behaviour).
-  // "play-on-hover": # cell shows index by default, hover swaps for play/pause, AudioLines icon when current+playing.
+  // "play-on-hover": mounted button shows index by default, hover/focus shows play/pause.
   numCellMode?: "plain" | "play-on-hover";
   trailingActionCell?: boolean;
   // Player state — required when numCellMode === "play-on-hover" or trailingActionCell === true.
@@ -47,6 +48,7 @@ function PlayButton({
   isCurrentPlaying,
   isCurrentLoading,
   onPlay,
+  idleContent,
 }: {
   row: TrackRow;
   variant: "num" | "trailing";
@@ -54,8 +56,10 @@ function PlayButton({
   isCurrentPlaying: boolean;
   isCurrentLoading: boolean;
   onPlay?: (row: TrackRow) => void;
+  idleContent?: ReactNode;
 }) {
   const className = variant === "num" ? "kb-tr-play kb-tr-play-num" : "kb-tr-play";
+  const label = `${isCurrentLoading ? "Loading" : isCurrentPlaying ? "Pause" : "Play"} ${row.name}`;
   return (
     <button
       type="button"
@@ -65,15 +69,25 @@ function PlayButton({
         e.stopPropagation();
         onPlay?.(row);
       }}
-      title={isCurrentPlaying ? "Pause" : "Play"}
+      disabled={!onPlay || isCurrentLoading}
+      aria-label={label}
+      aria-busy={isCurrentLoading}
+      title={label}
     >
-      {isCurrentLoading ? (
-        <Loader2 className="h-3 w-3 animate-spin" />
-      ) : isCurrentPlaying ? (
-        <Pause className="h-3 w-3" />
-      ) : (
-        <Play className="h-3 w-3" />
+      {idleContent != null && (
+        <span className="group-hover:hidden group-focus-within:hidden" style={{ color: "var(--kb-text3)" }} aria-hidden="true">
+          {idleContent}
+        </span>
       )}
+      <span className={idleContent != null ? "hidden group-hover:inline-flex group-focus-within:inline-flex" : "inline-flex"} aria-hidden="true">
+        {isCurrentLoading ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : isCurrentPlaying ? (
+          <Pause className="h-3 w-3" />
+        ) : (
+          <Play className="h-3 w-3" />
+        )}
+      </span>
     </button>
   );
 }
@@ -103,21 +117,21 @@ export function trackColumns(opts: TrackColumnsOptions): ColumnDef<TrackRow>[] {
     render: (row, ctx) => {
       if (numCellMode === "play-on-hover") {
         const isCurrent = currentTrackId === row.id;
-        if (ctx.isHovered) {
-          return (
-            <PlayButton
-              row={row}
-              variant="num"
-              isCurrent={isCurrent}
-              isCurrentPlaying={isCurrent && isPlaying}
-              isCurrentLoading={isCurrent && isLoading}
-              onPlay={onPlay}
-            />
-          );
-        }
-        if (isCurrent && isPlaying) {
-          return <AudioLines className="kb-tr-playing-icon h-3 w-3" />;
-        }
+        return (
+          <PlayButton
+            row={row}
+            variant="num"
+            isCurrent={isCurrent}
+            isCurrentPlaying={isCurrent && isPlaying}
+            isCurrentLoading={isCurrent && isLoading}
+            onPlay={onPlay}
+            idleContent={isCurrent && isLoading ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : isCurrent && isPlaying ? (
+              <AudioLines className="kb-tr-playing-icon h-3 w-3" />
+            ) : ctx.index + 1}
+          />
+        );
       }
       return ctx.index + 1;
     },
@@ -140,7 +154,7 @@ export function trackColumns(opts: TrackColumnsOptions): ColumnDef<TrackRow>[] {
     id: "name",
     header: "Name",
     className: "kb-cell-name",
-    render: (row, ctx) => {
+    render: (row) => {
       const isCurrent = currentTrackId === row.id;
       const owner = ownerLabel ? ownerLabel(row) : (row.user.display_name ?? `User #${row.user.id}`);
       return (
@@ -153,7 +167,6 @@ export function trackColumns(opts: TrackColumnsOptions): ColumnDef<TrackRow>[] {
           </div>
         </div>
       );
-      void ctx; // silence unused
     },
   });
 

@@ -7,11 +7,11 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { SearchFilter } from "@/lib/types";
+import { SearchFilter, SearchOrder, SearchSort } from "@/lib/types";
+import { canonicalSearchHref, normalizeSearchSort, readSearchDraft, SearchDraft, searchHref } from "@/lib/search/search-navigation";
 
 interface SearchContextValue {
   // Live, uncommitted search input state — driven by the NavBar input.
@@ -19,59 +19,71 @@ interface SearchContextValue {
   setQuery: (q: string) => void;
   type: SearchFilter;
   setType: (t: SearchFilter) => void;
+  sort: SearchSort;
+  setSort: (sort: SearchSort) => void;
+  order: SearchOrder;
+  setOrder: (order: SearchOrder) => void;
+  includeDeleted: boolean;
+  setIncludeDeleted: (includeDeleted: boolean) => void;
   // Push the current live state into the URL (committed, shareable).
-  // For /search this is `/search?q=...&type=...`; for other pages it's a
-  // navigation to /search with those params.
+  // Keep a search panel's route scope; other pages navigate to /search.
   commitToUrl: () => void;
 }
 
 const SearchContext = createContext<SearchContextValue | null>(null);
-
-const VALID_TYPES: ReadonlyArray<SearchFilter> = ["all", "tracks", "playlists", "users"];
-
-function parseType(raw: string | null | undefined): SearchFilter {
-  if (raw && (VALID_TYPES as ReadonlyArray<string>).includes(raw)) {
-    return raw as SearchFilter;
-  }
-  return "tracks";
-}
 
 export function SearchProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Seed live state from the URL on mount and whenever the pathname changes
-  // (i.e. the user navigated to a different route — e.g. clicked a link, hit
-  // back/forward, or pasted a URL). Live edits within the same pathname are
-  // not echoed back from the URL because we never write to the URL while
-  // typing.
-  const initialQuery = searchParams?.get("q") ?? "";
-  const initialType = parseType(searchParams?.get("type"));
-  const [query, setQuery] = useState(initialQuery);
-  const [type, setType] = useState<SearchFilter>(initialType);
+  const paramsString = searchParams.toString();
+  const location = `${pathname}?${paramsString}`;
+  const [state, setState] = useState(() => ({
+    location,
+    draft: readSearchDraft(pathname, new URLSearchParams(paramsString)),
+  }));
+  // Reconcile before children render, including same-path links and history
+  // navigation. Ordinary typing never changes location, so drafts stay live.
+  let draft = state.draft;
+  if (state.location !== location) {
+    draft = readSearchDraft(pathname, new URLSearchParams(paramsString));
+    setState({ location, draft });
+  }
 
-  const lastPathnameRef = useRef(pathname);
+  // There is no mixed-results tab. Make unsupported incoming types explicit
+  // in the URL as well as in the input, active tab and API request.
   useEffect(() => {
-    if (pathname === lastPathnameRef.current) return;
-    lastPathnameRef.current = pathname;
-    setQuery(searchParams?.get("q") ?? "");
-    setType(parseType(searchParams?.get("type")));
-  }, [pathname, searchParams]);
+    const target = canonicalSearchHref(pathname, new URLSearchParams(paramsString));
+    if (target) router.replace(target, { scroll: false });
+  }, [paramsString, pathname, router]);
+
+  const setQuery = useCallback((query: string) => {
+    setState((previous) => ({ ...previous, draft: { ...previous.draft, query } }));
+  }, []);
+
+  const updateOptions = useCallback((options: Partial<SearchDraft>) => {
+    const href = searchHref(pathname, new URLSearchParams(paramsString), { ...draft, ...options });
+    const next = readSearchDraft(href.split("?")[0], new URLSearchParams(href.split("?")[1]));
+    setState({ location, draft: next });
+    router.push(href, { scroll: false });
+  }, [draft, location, paramsString, pathname, router]);
+
+  const setType = useCallback((type: SearchFilter) => updateOptions({ type }), [updateOptions]);
+  const setSort = useCallback((sort: SearchSort) => updateOptions({ sort }), [updateOptions]);
+  const setOrder = useCallback((order: SearchOrder) => updateOptions({ order }), [updateOptions]);
+  const setIncludeDeleted = useCallback((includeDeleted: boolean) => updateOptions({ includeDeleted }), [updateOptions]);
 
   const commitToUrl = useCallback(() => {
-    const trimmed = query.trim();
-    const params = new URLSearchParams();
-    if (trimmed) params.set("q", trimmed);
-    if (type !== "all") params.set("type", type);
-    const qs = params.toString();
-    const target = `/search${qs ? `?${qs}` : ""}`;
-    router.replace(target);
-  }, [query, router, type]);
+    updateOptions({});
+  }, [updateOptions]);
+
+  const { query, type, order, includeDeleted } = draft;
+  const sort = normalizeSearchSort(draft.sort, query, type);
 
   const value = useMemo<SearchContextValue>(
-    () => ({ query, setQuery, type, setType, commitToUrl }),
-    [commitToUrl, query, type]
+    () => ({ query, setQuery, type, setType, sort, setSort, order, setOrder, includeDeleted, setIncludeDeleted, commitToUrl }),
+    [commitToUrl, query, setQuery, type, setType, sort, setSort, order, setOrder, includeDeleted, setIncludeDeleted]
   );
 
   return <SearchContext.Provider value={value}>{children}</SearchContext.Provider>;

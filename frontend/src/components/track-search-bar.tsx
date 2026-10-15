@@ -2,6 +2,7 @@
 
 import { ArrowDown, ArrowUp, Trash2 } from "lucide-react";
 import { SearchFilter, SearchOrder, SearchSort } from "@/lib/types";
+import { normalizeSearchType } from "@/lib/search/search-navigation";
 
 interface LibrarySearchBarProps {
   selectedFilter: SearchFilter;
@@ -45,7 +46,9 @@ export function LibrarySearchBar({
   activePlaylistLabel,
   onClearPlaylist,
 }: LibrarySearchBarProps) {
-  const isFilterLocked = lockedFilter !== null && lockedFilter !== undefined;
+  const activeFilter = normalizeSearchType(selectedFilter);
+  const normalizedLock = lockedFilter == null ? null : normalizeSearchType(lockedFilter);
+  const isFilterLocked = normalizedLock !== null;
   const orderLabel = order === "asc" ? "Asc" : "Desc";
   const OrderIcon = order === "asc" ? ArrowUp : ArrowDown;
 
@@ -53,8 +56,8 @@ export function LibrarySearchBar({
     <div className="kb-search-form">
       <div className="kb-search-controls" style={{ justifyContent: "flex-start" }}>
         {FILTER_OPTIONS.map((option) => {
-          const isActive = selectedFilter === option.value;
-          const lockedOut = isFilterLocked && lockedFilter !== option.value;
+          const isActive = activeFilter === option.value;
+          const lockedOut = isFilterLocked && normalizedLock !== option.value;
           const usersDisabled = option.value === "users" && disableUsersFilter;
           const disabled = lockedOut || usersDisabled;
           return (
@@ -62,6 +65,7 @@ export function LibrarySearchBar({
               key={option.value}
               type="button"
               disabled={disabled}
+              aria-pressed={isActive}
               title={usersDisabled ? "Clear the user filter to browse users" : undefined}
               className={`kb-filter-tab${isActive ? " kb-filter-active" : ""}`}
               onClick={() => onFilterChange(option.value)}

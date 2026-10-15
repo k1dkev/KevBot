@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { api } from "@/lib/api-browser-client";
 import { LibrarySearchBar } from "@/components/track-search-bar";
@@ -11,8 +12,6 @@ import { userColumns, UserRow } from "@/components/data-table/user-columns";
 import {
   ApiTrack,
   SearchFilter,
-  SearchOrder,
-  SearchSort,
   UnifiedSearchResult,
   UnifiedSearchResultPlaylist,
   UnifiedSearchResultTrack,
@@ -20,7 +19,9 @@ import {
 } from "@/lib/types";
 import { useLibraryFilters } from "@/lib/contexts/library-filters-context";
 import { useMusicPlayer } from "@/lib/contexts/music-player-context";
-import { useInfiniteScroll } from "@/lib/hooks/useInfiniteScroll";
+import { useSearchPagination } from "@/lib/search/use-search-pagination";
+import { useSearchContext } from "@/lib/contexts/search-context";
+import { isSearchRoute, normalizeSearchType, searchHref, searchScopeId } from "@/lib/search/search-navigation";
 
 const PAGE_SIZE = 25;
 
@@ -60,12 +61,13 @@ export function LibrarySearchPanel({
   onNavigateToUser,
   onClearPlaylist,
 }: LibrarySearchPanelProps) {
-  const defaultFilter: SearchFilter = lockedFilter ?? initialFilter ?? "tracks";
-  const [query, setQuery] = useState(initialQuery);
-  const [filter, setFilter] = useState<SearchFilter>(defaultFilter);
-  const [sort, setSort] = useState<SearchSort>(initialQuery ? "relevance" : "name");
-  const [order, setOrder] = useState<SearchOrder>("desc");
-  const [includeDeleted, setIncludeDeleted] = useState(false);
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const search = useSearchContext();
+  const { sort, setSort: handleSortChange, order, setOrder, includeDeleted, setIncludeDeleted } = search;
+  const filter = normalizeSearchType(lockedFilter ?? (isSearchRoute(pathname) ? search.type : initialFilter ?? search.type));
+  const query = initialQuery.trim();
   const [results, setResults] = useState<UnifiedSearchResult[]>([]);
   const [pagination, setPagination] = useState<PaginationState>({
     total: 0,
@@ -74,18 +76,10 @@ export function LibrarySearchPanel({
     has_next: false,
     has_prev: false,
   });
-  const [isFetchingMore, setIsFetchingMore] = useState(false);
+  const [fetchingMoreGeneration, setFetchingMoreGeneration] = useState<object | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Track which fetch parameter set last produced the currently-rendered
-  // results. Comparing this against the current fetch key during render lets
-  // us derive an accurate "is fetching" without waiting for a useEffect to
-  // flip a flag — that one-render gap is what was flashing "No results".
-  const [lastFetchedKey, setLastFetchedKey] = useState<string | null>(null);
-
-  // Track whether the user has manually picked a sort. If they haven't, we
-  // auto-default sort based on whether there's a query (name when empty,
-  // relevance when something is typed).
-  const userPickedSortRef = useRef(false);
+  // Data belongs to one request generation, including revisits to the same key.
+  const [lastFetchedGeneration, setLastFetchedGeneration] = useState<object | null>(null);
 
   const { currentTrack, isPlaying, isLoading, playTrack, togglePlayPause } = useMusicPlayer();
   const {
@@ -97,17 +91,26 @@ export function LibrarySearchPanel({
     clearSelectedUser,
   } = useLibraryFilters();
 
-  const hasMore = results.length < pagination.total;
-  const playlistLabel = selectedPlaylist?.name ?? null;
+  // Route props take precedence on the first render, before badge effects run.
+  const playlistId = filter === "tracks"
+    ? playlistContext?.id ?? searchScopeId(searchParams.get("playlist_id")) ?? selectedPlaylist?.id
+    : undefined;
+  const userId = filter !== "users"
+    ? userContext?.id ?? searchScopeId(searchParams.get("user_id")) ?? selectedUser?.id
+    : undefined;
+  const playlistLabel = playlistContext?.name ?? selectedPlaylist?.name ?? (playlistId ? `Playlist #${playlistId}` : null);
   const canClearPlaylistSelection = !!playlistLabel;
 
   const handleClearPlaylistBadge = useCallback(() => {
     clearSelectedPlaylist();
-    onClearPlaylist?.();
-  }, [clearSelectedPlaylist, onClearPlaylist]);
-
-  useEffect(() => setQuery(initialQuery), [initialQuery]);
-  useEffect(() => setFilter(lockedFilter ?? initialFilter ?? "tracks"), [initialFilter, lockedFilter]);
+    if (onClearPlaylist) {
+      onClearPlaylist();
+    } else if (searchParams.has("playlist_id")) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("playlist_id");
+      router.push(searchHref(pathname, params, { query, type: filter, sort, order, includeDeleted }), { scroll: false });
+    }
+  }, [clearSelectedPlaylist, filter, includeDeleted, onClearPlaylist, order, pathname, query, router, searchParams, sort]);
 
   useEffect(() => {
     // Only manage the playlist selection when a context is explicitly
@@ -134,22 +137,8 @@ export function LibrarySearchPanel({
   // auto-switch here, because setting selectedUser via userContext (e.g. on
   // /user/<id>/playlists) would otherwise force-flip the filter to "tracks".
 
-  // The query arrives already-debounced from the NavBar (it owns the input
-  // and debounces URL navigation). A second debounce here just adds latency
-  // and keeps stale results onscreen longer than necessary.
+  // The input is live; only explicit navigation commits it to the URL.
   const debouncedQuery = query;
-
-  // Auto-switch sort default based on query presence (only if user hasn't
-  // explicitly chosen a sort).
-  useEffect(() => {
-    if (userPickedSortRef.current) return;
-    setSort(debouncedQuery.trim() ? "relevance" : "name");
-  }, [debouncedQuery]);
-
-  const handleSortChange = useCallback((next: SearchSort) => {
-    userPickedSortRef.current = true;
-    setSort(next);
-  }, []);
 
   const hasQuery = debouncedQuery.trim().length > 0;
 
@@ -163,28 +152,34 @@ export function LibrarySearchPanel({
 
   const skipFetch = isRelevanceWithoutQuery || isUnsupportedSort;
 
-  // Stable identity for the current set of fetch parameters. We use this both
-  // to gate the fetch effect and (critically) to derive `isFetching` during
-  // render — comparing it against the last successfully-fetched key tells us
-  // whether the on-screen results are stale, with no one-render lag.
+  // Include every request parameter so scope, sort and tab changes invalidate
+  // pending requests just like query changes do.
   const fetchKey = useMemo(
     () =>
       skipFetch
         ? "__skip__"
-        : [
+        : JSON.stringify([
             debouncedQuery.trim(),
             filter,
             sort,
             order,
             includeDeleted ? "1" : "0",
-            selectedPlaylist?.id ?? "",
-            selectedUser?.id ?? "",
-          ].join("|"),
-    [debouncedQuery, filter, includeDeleted, order, sort, skipFetch, selectedPlaylist?.id, selectedUser?.id],
+            playlistId,
+            userId,
+          ]),
+    [debouncedQuery, filter, includeDeleted, order, sort, skipFetch, playlistId, userId],
   );
 
-  const isFetching = !skipFetch && lastFetchedKey !== fetchKey;
-  const hasSettled = lastFetchedKey !== null;
+  // A -> B -> A must create three distinct generations, even when keys repeat.
+  const generation = useMemo(() => ({ key: fetchKey }), [fetchKey]);
+  const activeGeneration = useRef<object | null>(generation);
+  activeGeneration.current = generation;
+  const moreRequest = useRef<object | null>(null);
+  const isFetching = !skipFetch && lastFetchedGeneration !== generation;
+  const hasSettled = lastFetchedGeneration === generation;
+  const isFetchingMore = fetchingMoreGeneration === generation;
+  const hasMore = !skipFetch && hasSettled && pagination.has_next && results.length < pagination.total;
+  const visibleResults = useMemo(() => hasSettled && !skipFetch ? results : [], [hasSettled, results, skipFetch]);
 
   const fetchPage = useCallback(
     async (offset: number) =>
@@ -194,20 +189,23 @@ export function LibrarySearchPanel({
         sort,
         order,
         include_deleted: includeDeleted || undefined,
-        playlistId: selectedPlaylist?.id ?? undefined,
-        userId: selectedUser?.id ?? undefined,
+        playlistId,
+        userId,
         limit: PAGE_SIZE,
         offset,
       }),
-    [debouncedQuery, filter, includeDeleted, order, sort, selectedPlaylist?.id, selectedUser?.id],
+    [debouncedQuery, filter, includeDeleted, order, sort, playlistId, userId],
   );
 
   useEffect(() => {
+    activeGeneration.current = generation;
+    moreRequest.current = null;
+    setFetchingMoreGeneration(null);
     if (skipFetch) {
       setResults([]);
       setPagination({ total: 0, limit: PAGE_SIZE, offset: 0, has_next: false, has_prev: false });
       setError(null);
-      setLastFetchedKey(fetchKey);
+      setLastFetchedGeneration(generation);
       return;
     }
     let cancelled = false;
@@ -215,59 +213,66 @@ export function LibrarySearchPanel({
     (async () => {
       try {
         const response = await fetchPage(0);
-        if (cancelled) return;
+        if (cancelled || activeGeneration.current !== generation) return;
         setResults(response.data);
         setPagination(response.pagination);
-        setLastFetchedKey(fetchKey);
+        setLastFetchedGeneration(generation);
       } catch (err) {
-        console.error("Search failed", err);
-        if (!cancelled) {
+        if (!cancelled && activeGeneration.current === generation) {
+          console.error("Search failed", err);
           setError("Unable to perform search. Please try again.");
           setResults([]);
           setPagination({ total: 0, limit: PAGE_SIZE, offset: 0, has_next: false, has_prev: false });
-          setLastFetchedKey(fetchKey);
+          setLastFetchedGeneration(generation);
         }
       }
     })();
     return () => {
       cancelled = true;
+      if (activeGeneration.current === generation) activeGeneration.current = null;
     };
-  }, [fetchKey, fetchPage, skipFetch]);
+  }, [fetchKey, fetchPage, generation, skipFetch]);
 
   const loadMore = useCallback(async () => {
     if (!hasMore || isFetching || isFetchingMore) return;
-    setIsFetchingMore(true);
+    // A synchronous guard also covers repeated observer callbacks before React
+    // has rendered the loading flag.
+    if (moreRequest.current || activeGeneration.current !== generation) return;
+    const request = {};
+    moreRequest.current = request;
+    setFetchingMoreGeneration(generation);
+    const isCurrent = () => activeGeneration.current === generation && moreRequest.current === request;
     try {
       const response = await fetchPage(results.length);
+      if (!isCurrent()) return;
       setResults((prev) => [...prev, ...response.data]);
       setPagination(response.pagination);
+      setError(null);
     } catch (err) {
+      if (!isCurrent()) return;
       console.error("Failed to load additional results", err);
       setError("Unable to load more results. Try again.");
     } finally {
-      setIsFetchingMore(false);
+      if (isCurrent()) {
+        moreRequest.current = null;
+        setFetchingMoreGeneration(null);
+      }
     }
-  }, [fetchPage, hasMore, isFetchingMore, isFetching, results.length]);
+  }, [fetchPage, generation, hasMore, isFetchingMore, isFetching, results.length]);
 
-  const { targetRef } = useInfiniteScroll(loadMore, {
-    disabled: isFetching || isFetchingMore || !hasMore,
-  });
+  const targetRef = useSearchPagination(loadMore, isFetching || isFetchingMore || !hasMore);
 
   const handleFilterChange = useCallback(
     (next: SearchFilter) => {
       if (lockedFilter && next !== lockedFilter) return;
       if (filter === next) return;
-      // Switching to the playlists filter while a playlist is selected is
-      // contradictory ("show me a list of playlists, scoped to one
-      // playlist") and the API rejects type=playlists + playlist_id. Clear
-      // the playlist selection on the way in.
-      if (next === "playlists" && selectedPlaylist) {
+      // playlist_id is valid only for tracks.
+      if (next !== "tracks" && selectedPlaylist) {
         clearSelectedPlaylist();
       }
-      setFilter(next);
-      onFilterChangeExternal?.(next);
+      (onFilterChangeExternal ?? search.setType)(next);
     },
-    [clearSelectedPlaylist, filter, lockedFilter, onFilterChangeExternal, selectedPlaylist],
+    [clearSelectedPlaylist, filter, lockedFilter, onFilterChangeExternal, search.setType, selectedPlaylist],
   );
 
   const handlePlaylistRowClick = useCallback(
@@ -331,14 +336,14 @@ export function LibrarySearchPanel({
   );
 
   const trackResults = useMemo(
-    () => results.filter((r): r is UnifiedSearchResultTrack => r.type === "track"),
-    [results],
+    () => visibleResults.filter((r): r is UnifiedSearchResultTrack => r.type === "track"),
+    [visibleResults],
   );
   const playlistResults = useMemo(
-    () => results.filter((r): r is UnifiedSearchResultPlaylist => r.type === "playlist"),
-    [results],
+    () => visibleResults.filter((r): r is UnifiedSearchResultPlaylist => r.type === "playlist"),
+    [visibleResults],
   );
-  const userResults = useMemo(() => results.filter((r): r is UnifiedSearchResultUser => r.type === "user"), [results]);
+  const userResults = useMemo(() => visibleResults.filter((r): r is UnifiedSearchResultUser => r.type === "user"), [visibleResults]);
 
   // Adapt search results → DataTable row shapes used by the column factories.
   const trackRows = useMemo<TrackRow[]>(
@@ -428,7 +433,7 @@ export function LibrarySearchPanel({
           includeDeleted={includeDeleted}
           onIncludeDeletedChange={setIncludeDeleted}
           lockedFilter={lockedFilter}
-          disableUsersFilter={!!selectedUser}
+          disableUsersFilter={!!userId}
           activePlaylistLabel={playlistLabel}
           onClearPlaylist={canClearPlaylistSelection ? handleClearPlaylistBadge : undefined}
         />
@@ -467,7 +472,7 @@ export function LibrarySearchPanel({
       </div>
 
       <div className="kb-view-fill-scroll">
-        {error && (
+        {hasSettled && error && (
           <div
             style={{
               color: "hsl(var(--destructive))",
@@ -573,7 +578,7 @@ export function LibrarySearchPanel({
           </div>
         )}
         {hasMore && !isFetchingMore && <div ref={targetRef} style={{ height: 32 }} />}
-        {!hasMore && results.length > 0 && (
+        {hasSettled && !skipFetch && !hasMore && results.length > 0 && (
           <div className="kb-empty-state" style={{ padding: 16, fontSize: 11 }}>
             No more results to load
           </div>

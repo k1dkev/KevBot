@@ -14,6 +14,7 @@ export interface PlaylistRow {
 
 export interface PlaylistColumnsOptions {
   showTrackCount?: boolean;
+  // Retained for callers; playlist play counts are unavailable and never displayed.
   showPlays?: boolean;
   showCreated?: boolean;
   showRelevance?: boolean;
@@ -24,9 +25,6 @@ export interface PlaylistColumnsOptions {
   // search panel's rendering; harmless when omitted).
   trailingActionCell?: boolean;
 }
-
-// TODO(api): no per-playlist play_count yet — placeholder until backend exposes it.
-const PLAYS_PLACEHOLDER = 9000;
 
 function formatDateLocale(iso: string): string {
   try {
@@ -39,7 +37,6 @@ function formatDateLocale(iso: string): string {
 export function playlistColumns(opts: PlaylistColumnsOptions = {}): ColumnDef<PlaylistRow>[] {
   const {
     showTrackCount = false,
-    showPlays = false,
     showCreated = true,
     showRelevance = false,
     creatorLabel,
@@ -88,16 +85,7 @@ export function playlistColumns(opts: PlaylistColumnsOptions = {}): ColumnDef<Pl
       id: "tracks",
       header: "Tracks",
       className: "kb-cell-meta",
-      render: (row) => (row.track_count ?? 0).toLocaleString(),
-    });
-  }
-
-  if (showPlays) {
-    cols.push({
-      id: "plays",
-      header: "Plays",
-      className: "kb-cell-meta",
-      render: () => PLAYS_PLACEHOLDER.toLocaleString(),
+      render: (row) => row.track_count != null ? row.track_count.toLocaleString() : "—",
     });
   }
 

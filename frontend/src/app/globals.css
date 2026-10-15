@@ -505,8 +505,18 @@ code,
   .kb-table tbody tr.kb-row-selected:hover {
     background: var(--kb-accent-dim) !important;
   }
-  .kb-table tbody tr:hover .kb-tr-play {
+  .kb-table tbody tr:hover .kb-tr-play,
+  .kb-table tbody tr:focus-within .kb-tr-play {
     opacity: 1;
+  }
+  .kb-table :is(tr, button, a):focus-visible,
+  .kb-player :is(button, input):focus-visible,
+  .kb-icon-toggle:focus-visible {
+    outline: 2px solid var(--kb-accent);
+    outline-offset: 2px;
+  }
+  .kb-table tr:focus-visible {
+    outline-offset: -2px;
   }
   .kb-table tbody td {
     padding: 5px 6px;
@@ -983,8 +993,13 @@ code,
     position: relative;
     transition: height 0.1s;
   }
-  .kb-scrubber:hover {
+  .kb-scrubber:hover,
+  .kb-scrubber:focus-within {
     height: 5px;
+  }
+  .kb-scrubber:focus-within {
+    outline: 2px solid var(--kb-accent);
+    outline-offset: 4px;
   }
   .kb-scrubber-fill {
     height: 100%;
@@ -1002,7 +1017,8 @@ code,
     opacity: 0;
     transition: opacity 0.12s;
   }
-  .kb-scrubber:hover .kb-scrubber-thumb {
+  .kb-scrubber:hover .kb-scrubber-thumb,
+  .kb-scrubber:focus-within .kb-scrubber-thumb {
     opacity: 1;
   }
   .kb-player-right {

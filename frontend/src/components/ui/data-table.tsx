@@ -56,7 +56,7 @@ export function DataTable<T>({
           <TableHeader>
             <TableRow>
               {columns.map((col) => (
-                <TableHead key={col.id} className={col.className}>
+                <TableHead key={col.id} scope="col" className={col.className}>
                   {col.header}
                 </TableHead>
               ))}
@@ -76,11 +76,31 @@ export function DataTable<T>({
               return (
                 <TableRow
                   key={key}
-                  className={rowClassName}
+                  className={cn("group", rowClassName)}
+                  tabIndex={onRowClick || onRowDoubleClick ? 0 : undefined}
+                  aria-current={isCurrent ? "true" : undefined}
+                  aria-keyshortcuts={onRowClick || onRowDoubleClick ? "Enter Space" : undefined}
                   onMouseEnter={() => setHoveredKey(key)}
                   onMouseLeave={() => setHoveredKey((prev) => (prev === key ? null : prev))}
-                  onClick={onRowClick ? () => onRowClick(row) : undefined}
-                  onDoubleClick={onRowDoubleClick ? () => onRowDoubleClick(row) : undefined}
+                  onClick={onRowClick ? (event) => {
+                    if (!(event.target as HTMLElement).closest("a, button, input, select, textarea, [role='button']")) {
+                      onRowClick(row);
+                    }
+                  } : undefined}
+                  onDoubleClick={onRowDoubleClick ? (event) => {
+                    if (!(event.target as HTMLElement).closest("a, button, input, select, textarea, [role='button']")) {
+                      onRowDoubleClick(row);
+                    }
+                  } : undefined}
+                  onKeyDown={(event) => {
+                    const activate = onRowClick ?? onRowDoubleClick;
+                    // Nested links, buttons and inputs keep their native keyboard behavior.
+                    if (!activate || event.target !== event.currentTarget) return;
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      if (!event.repeat) activate(row);
+                    }
+                  }}
                   style={onRowClick ? { cursor: "pointer" } : undefined}
                 >
                   {columns.map((col) => (

@@ -143,15 +143,10 @@ export default function UserPageClient({ user }: UserPageClientProps) {
     [tracks],
   );
 
-  // Top playlists by newest. No play-count signal on ApiPlaylist yet.
-  const topPlaylists = useMemo(
+  const latestPlaylists = useMemo(
     () => [...playlists].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, TOP_LIMIT),
     [playlists],
   );
-
-  // TODO(api): no per-user total-plays endpoint exists. Summing the first
-  // page of tracks would under-count any user with > TRACK_FETCH_LIMIT uploads.
-  const totalPlays = null as number | null;
 
   const displayName = user.discord_username ?? `User #${user.id}`;
   const initial = displayName[0]?.toUpperCase() ?? "?";
@@ -177,7 +172,7 @@ export default function UserPageClient({ user }: UserPageClientProps) {
       <div className="kb-profile-hero">
         <div className="kb-profile-avatar">{initial}</div>
         <div>
-          <div className="kb-profile-name">{displayName}</div>
+          <h1 className="kb-profile-name">{displayName}</h1>
           <div className="kb-profile-sub">
             Joined {formatJoined(user.created_at)} · ID <code>#{user.id}</code>
           </div>
@@ -186,10 +181,6 @@ export default function UserPageClient({ user }: UserPageClientProps) {
           <div className="kb-stat-card">
             <div className="kb-stat-num">{tracksTotal.toLocaleString()}</div>
             <div className="kb-stat-lbl">Uploads</div>
-          </div>
-          <div className="kb-stat-card">
-            <div className="kb-stat-num">{totalPlays !== null ? totalPlays.toLocaleString() : "—"}</div>
-            <div className="kb-stat-lbl">Total Plays</div>
           </div>
           <div className="kb-stat-card">
             <div className="kb-stat-num">{playlists.length.toLocaleString()}</div>
@@ -201,24 +192,28 @@ export default function UserPageClient({ user }: UserPageClientProps) {
       <div className="kb-grid-2col">
         <div>
           <div className="kb-section-header">
-            <div className="kb-section-title">Top Tracks</div>
+            <div className="kb-section-title">Most Played Tracks</div>
             <Link href={`/user/${user.id}/search?type=tracks`} className="kb-link-btn">
               See all →
             </Link>
           </div>
+          {tracksTotal > tracks.length && (
+            <p className="kb-muted" style={{ fontSize: 12, marginBottom: 8 }}>
+              Among the latest {tracks.length.toLocaleString()} of {tracksTotal.toLocaleString()} uploads.
+            </p>
+          )}
           <UserTracksTable tracks={topUploads} showPlays showCreated={false} showDuration={false} />
         </div>
         <div>
           <div className="kb-section-header">
-            <div className="kb-section-title">Top Playlists</div>
+            <div className="kb-section-title">Latest Playlists</div>
             <Link href={`/user/${user.id}/search?type=playlists`} className="kb-link-btn">
               See all →
             </Link>
           </div>
           <UserPlaylistsTable
-            playlists={topPlaylists}
+            playlists={latestPlaylists}
             creatorName={user.discord_username ?? null}
-            showPlays
             showCreated={false}
           />
         </div>
@@ -270,6 +265,7 @@ function GreetingFarewellCard({ entity }: { entity: ResolvedRef | null }) {
   const isCurrent = !!playable && currentTrack?.id === playable.id;
   const isCurrentPlaying = isCurrent && isPlaying;
   const isCurrentLoading = isCurrent && playerLoading;
+  const playLabel = !playable ? "No playable track" : `${isCurrentLoading ? "Loading" : isCurrentPlaying ? "Pause" : "Play"} ${entity.kind === "playlist" ? `first track of ${label}` : label}`;
 
   const handlePlay = () => {
     if (!playable) return;
@@ -286,9 +282,10 @@ function GreetingFarewellCard({ entity }: { entity: ResolvedRef | null }) {
         type="button"
         className="kb-icon-toggle"
         onClick={handlePlay}
-        disabled={!playable}
-        title={!playable ? "No playable track" : isCurrentPlaying ? "Pause" : "Play"}
-        aria-label={isCurrentPlaying ? "Pause" : "Play"}
+        disabled={!playable || isCurrentLoading}
+        title={playLabel}
+        aria-label={playLabel}
+        aria-busy={isCurrentLoading}
         style={{ width: 36, height: 36, padding: 0, justifyContent: "center", flexShrink: 0 }}
       >
         {isCurrentLoading ? (
@@ -301,7 +298,7 @@ function GreetingFarewellCard({ entity }: { entity: ResolvedRef | null }) {
       </button>
       <div style={{ minWidth: 0, flex: 1 }}>
         <div className="kb-stat-lbl" style={{ marginBottom: 2 }}>
-          {entity.kind === "track" ? "Track" : "Playlist"}
+          {entity.kind === "track" ? "Track" : "Playlist · plays first track only"}
         </div>
         {entity.kind === "playlist" ? (
           <Link
