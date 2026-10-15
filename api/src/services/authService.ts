@@ -78,7 +78,7 @@ async function exchangeDiscordCodeForToken(
   code: string,
   clientId: string,
   clientSecret: string,
-  redirectUri: string
+  redirectUri: string,
 ): Promise<string> {
   const formData = new URLSearchParams();
   formData.append("client_id", clientId);
@@ -139,7 +139,7 @@ export async function createSession(
   executor: DbExecutor,
   config: Config,
   userId: number,
-  metadata: SessionMetadata
+  metadata: SessionMetadata,
 ): Promise<SessionInfo> {
   const sessionId = randomUUID();
   const now = Date.now();
@@ -162,7 +162,7 @@ async function slideSession(
   executor: DbExecutor,
   config: Config,
   sessionId: string,
-  metadata: SessionMetadata
+  metadata: SessionMetadata,
 ): Promise<SessionInfo> {
   const now = Date.now();
   const newExpiry = new Date(now + config.authRefreshTokenTtlDays * 24 * 60 * 60 * 1000);
@@ -183,7 +183,7 @@ export function computeAccessToken(
   secrets: Secrets,
   role: AuthRole,
   userId?: number,
-  sessionId?: string
+  sessionId?: string,
 ): AccessTokenBundle {
   const expiresInSeconds = config.authAccessTokenTtlMinutes * 60;
 
@@ -198,7 +198,7 @@ export function computeAccessToken(
       audience: config.authJwtAudience,
       issuer: config.authJwtIssuer,
       subject: role === "bot" ? "bot" : String(userId),
-    }
+    },
   );
 
   return {
@@ -214,7 +214,7 @@ export function authServiceFactory(config: Config, secrets: Secrets, db: KevbotD
       code,
       secrets.DISCORD_OAUTH2_CLIENT_ID,
       secrets.DISCORD_OAUTH2_CLIENT_SECRET,
-      secrets.DISCORD_OAUTH2_REDIRECT_URI
+      secrets.DISCORD_OAUTH2_REDIRECT_URI,
     );
     return await exchangeDiscord(accessToken, metadata);
   };

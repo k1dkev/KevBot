@@ -128,7 +128,7 @@ function runSecondPass(
     input_lra: string;
     input_thresh: string;
     target_offset: string;
-  }
+  },
 ): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     const loudnormFilter = [
@@ -162,12 +162,12 @@ export async function verifyLoudnessNormalization(normalizedPath: string, accept
   const loudnessLowRange = INTEGRATED_LOUDNESS_TARGET - acceptableIntegratedLoudnessBand;
   if (loudnessData.i > loudnessHighRange || loudnessData.i < loudnessLowRange) {
     throw new Error(
-      `Failed to normalize audio. Integrated loudness out of range. Actual: ${loudnessData.i}, Range: [${loudnessLowRange}, ${loudnessHighRange}]`
+      `Failed to normalize audio. Integrated loudness out of range. Actual: ${loudnessData.i}, Range: [${loudnessLowRange}, ${loudnessHighRange}]`,
     );
   }
   if (loudnessData.tp > MAX_TRUE_PEAK) {
     throw new Error(
-      `Failed to normalize audio. True Peak exceeds max. Actual: ${loudnessData.tp}, Max: ${MAX_TRUE_PEAK}`
+      `Failed to normalize audio. True Peak exceeds max. Actual: ${loudnessData.tp}, Max: ${MAX_TRUE_PEAK}`,
     );
   }
 }

@@ -51,7 +51,13 @@ export function DataTable<T>({
 
   return (
     <>
-      <div className={cn("kb-table", variant === "condensed" && "kb-table-condensed", stickyHead && "kb-table-sticky-head")}>
+      <div
+        className={cn(
+          "kb-table",
+          variant === "condensed" && "kb-table-condensed",
+          stickyHead && "kb-table-sticky-head",
+        )}
+      >
         <Table>
           <TableHeader>
             <TableRow>
@@ -82,16 +88,32 @@ export function DataTable<T>({
                   aria-keyshortcuts={onRowClick || onRowDoubleClick ? "Enter Space" : undefined}
                   onMouseEnter={() => setHoveredKey(key)}
                   onMouseLeave={() => setHoveredKey((prev) => (prev === key ? null : prev))}
-                  onClick={onRowClick ? (event) => {
-                    if (!(event.target as HTMLElement).closest("a, button, input, select, textarea, [role='button']")) {
-                      onRowClick(row);
-                    }
-                  } : undefined}
-                  onDoubleClick={onRowDoubleClick ? (event) => {
-                    if (!(event.target as HTMLElement).closest("a, button, input, select, textarea, [role='button']")) {
-                      onRowDoubleClick(row);
-                    }
-                  } : undefined}
+                  onClick={
+                    onRowClick
+                      ? (event) => {
+                          if (
+                            !(event.target as HTMLElement).closest(
+                              "a, button, input, select, textarea, [role='button']",
+                            )
+                          ) {
+                            onRowClick(row);
+                          }
+                        }
+                      : undefined
+                  }
+                  onDoubleClick={
+                    onRowDoubleClick
+                      ? (event) => {
+                          if (
+                            !(event.target as HTMLElement).closest(
+                              "a, button, input, select, textarea, [role='button']",
+                            )
+                          ) {
+                            onRowDoubleClick(row);
+                          }
+                        }
+                      : undefined
+                  }
                   onKeyDown={(event) => {
                     const activate = onRowClick ?? onRowDoubleClick;
                     // Nested links, buttons and inputs keep their native keyboard behavior.

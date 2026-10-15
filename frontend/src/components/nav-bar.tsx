@@ -54,11 +54,7 @@ export function NavBar() {
         </button>
         {isAuthenticated && user ? (
           <>
-            <button
-              type="button"
-              className="kb-user-pill"
-              onClick={() => router.push(`/user/${user.id}`)}
-            >
+            <button type="button" className="kb-user-pill" onClick={() => router.push(`/user/${user.id}`)}>
               <span className="kb-user-dot" />
               {user.discordUsername}
             </button>

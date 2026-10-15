@@ -26,14 +26,11 @@ export async function i32IdCheck(requestBuilder: any) {
 
 export async function getLoginTokenAndTestResult(
   user: { user_id?: number; discord_id?: string } | undefined,
-  app: Express
+  app: Express,
 ) {
   const devAuthSecret = process.env.DEV_AUTH_SECRET ?? "TEST_DEV_AUTH_SECRET";
   const requestBody = user?.discord_id ? { discord_id: user.discord_id } : { user_id: user?.user_id ?? 1 };
-  const res = await request(app)
-    .post("/v1/dev/sessions")
-    .set("x-dev-auth-secret", devAuthSecret)
-    .send(requestBody);
+  const res = await request(app).post("/v1/dev/sessions").set("x-dev-auth-secret", devAuthSecret).send(requestBody);
   expect(res.status).toBe(201);
   expect(res.body).toEqual({
     access_token: expect.any(String),

@@ -25,10 +25,14 @@ test("search URLs, tab changes, scope and history reproduce visible state", asyn
 
 test("an old pagination response cannot append into a newer search", async ({ page }) => {
   let release!: () => void;
-  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
   let held = false;
   let finished!: () => void;
-  const fulfilled = new Promise<void>((resolve) => { finished = resolve; });
+  const fulfilled = new Promise<void>((resolve) => {
+    finished = resolve;
+  });
   await page.route("**/v1/search?**", async (route) => {
     const url = new URL(route.request().url());
     if (url.searchParams.get("q") === "alpha" && Number(url.searchParams.get("offset")) > 0) {
@@ -42,24 +46,34 @@ test("an old pagination response cannot append into a newer search", async ({ pa
   try {
     await page.goto("/search?q=alpha&type=tracks");
     await expect(page.getByText("alpha001", { exact: true })).toBeVisible();
-    await page.locator(".kb-view-fill-scroll").evaluate((el) => { el.scrollTop = el.scrollHeight; });
+    await page.locator(".kb-view-fill-scroll").evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
     await expect.poll(() => held).toBe(true);
     await page.getByRole("textbox", { name: "Global search" }).fill("beta");
     await expect(page.getByText("beta001", { exact: true })).toBeVisible();
     release();
     await fulfilled;
-    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    await page.evaluate(
+      () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+    );
     await expect(page.getByText(/alpha\d+/)).toHaveCount(0);
     await expect(page.getByText("Showing 3 of 3 results")).toBeVisible();
-  } finally { release(); }
+  } finally {
+    release();
+  }
 });
 
 test("an earlier first page cannot replace a newer A-to-B-to-A search", async ({ page }) => {
   let release!: () => void;
-  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
   let held = false;
   let finished!: () => void;
-  const fulfilled = new Promise<void>((resolve) => { finished = resolve; });
+  const fulfilled = new Promise<void>((resolve) => {
+    finished = resolve;
+  });
   await page.route("**/v1/search?**", async (route) => {
     const url = new URL(route.request().url());
     if (!held && url.searchParams.get("q") === "alpha" && Number(url.searchParams.get("offset")) === 0) {
@@ -83,10 +97,14 @@ test("an earlier first page cannot replace a newer A-to-B-to-A search", async ({
     await expect(page.getByText("alpha001", { exact: true })).toBeVisible();
     release();
     await fulfilled;
-    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    await page.evaluate(
+      () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+    );
     await expect(page.getByText("obsoleteinitial", { exact: true })).toHaveCount(0);
     await expect(page.getByText("alpha001", { exact: true })).toBeVisible();
-  } finally { release(); }
+  } finally {
+    release();
+  }
 });
 
 test("keyboard playback and seeking work without hover; placeholders are honest", async ({ page }) => {
@@ -114,7 +132,9 @@ test("keyboard playback and seeking work without hover; placeholders are honest"
 });
 
 test("missing session returns the visitor to login", async ({ page }) => {
-  await page.route("**/v1/auth/refresh", (route) => route.fulfill({ status: 401, contentType: "application/json", body: '{}' }));
+  await page.route("**/v1/auth/refresh", (route) =>
+    route.fulfill({ status: 401, contentType: "application/json", body: "{}" }),
+  );
   await page.goto("/search");
   await expect(page).toHaveURL(/\/login/);
   await expect(page.getByRole("button", { name: /Discord/i })).toBeVisible();

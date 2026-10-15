@@ -4,8 +4,18 @@ import { fileURLToPath } from "node:url";
 
 const prettier = fileURLToPath(new URL("../node_modules/prettier/bin/prettier.cjs", import.meta.url));
 const cases = [
-  { command: process.execPath, prefix: [prettier], flags: ["--stdin-filepath", "format-check.js"], input: "const example={value:1};\n" },
-  { command: "ruff", prefix: ["format"], flags: ["--stdin-filename", "format_check.py", "-"], input: "example={ 'value':1}\n" },
+  {
+    command: process.execPath,
+    prefix: [prettier],
+    flags: ["--stdin-filepath", "format-check.js"],
+    input: "const example={value:1};\n",
+  },
+  {
+    command: "ruff",
+    prefix: ["format"],
+    flags: ["--stdin-filename", "format_check.py", "-"],
+    input: "example={ 'value':1}\n",
+  },
 ];
 
 for (const { command, prefix, flags, input } of cases) {

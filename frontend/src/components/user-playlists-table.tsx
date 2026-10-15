@@ -48,7 +48,11 @@ export function UserPlaylistsTable({
       onRowClick={(row) => router.push(`/playlist/${row.id}`)}
       variant="condensed"
       stickyHead={stickyHead}
-      emptyState={<div className="kb-empty-state" style={{ padding: 24 }}>No playlists yet.</div>}
+      emptyState={
+        <div className="kb-empty-state" style={{ padding: 24 }}>
+          No playlists yet.
+        </div>
+      }
     />
   );
 }

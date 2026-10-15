@@ -72,7 +72,7 @@ export function LibraryFiltersProvider({ children }: LibraryFiltersProviderProps
       setSelectedUser,
       clearSelectedUser,
       resetAll,
-    ]
+    ],
   );
 
   return <LibraryFiltersContext.Provider value={value}>{children}</LibraryFiltersContext.Provider>;
@@ -85,4 +85,3 @@ export function useLibraryFilters() {
   }
   return context;
 }
-

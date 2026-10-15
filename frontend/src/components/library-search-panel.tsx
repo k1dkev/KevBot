@@ -66,7 +66,9 @@ export function LibrarySearchPanel({
   const searchParams = useSearchParams();
   const search = useSearchContext();
   const { sort, setSort: handleSortChange, order, setOrder, includeDeleted, setIncludeDeleted } = search;
-  const filter = normalizeSearchType(lockedFilter ?? (isSearchRoute(pathname) ? search.type : initialFilter ?? search.type));
+  const filter = normalizeSearchType(
+    lockedFilter ?? (isSearchRoute(pathname) ? search.type : (initialFilter ?? search.type)),
+  );
   const query = initialQuery.trim();
   const [results, setResults] = useState<UnifiedSearchResult[]>([]);
   const [pagination, setPagination] = useState<PaginationState>({
@@ -92,13 +94,16 @@ export function LibrarySearchPanel({
   } = useLibraryFilters();
 
   // Route props take precedence on the first render, before badge effects run.
-  const playlistId = filter === "tracks"
-    ? playlistContext?.id ?? searchScopeId(searchParams.get("playlist_id")) ?? selectedPlaylist?.id
-    : undefined;
-  const userId = filter !== "users"
-    ? userContext?.id ?? searchScopeId(searchParams.get("user_id")) ?? selectedUser?.id
-    : undefined;
-  const playlistLabel = playlistContext?.name ?? selectedPlaylist?.name ?? (playlistId ? `Playlist #${playlistId}` : null);
+  const playlistId =
+    filter === "tracks"
+      ? (playlistContext?.id ?? searchScopeId(searchParams.get("playlist_id")) ?? selectedPlaylist?.id)
+      : undefined;
+  const userId =
+    filter !== "users"
+      ? (userContext?.id ?? searchScopeId(searchParams.get("user_id")) ?? selectedUser?.id)
+      : undefined;
+  const playlistLabel =
+    playlistContext?.name ?? selectedPlaylist?.name ?? (playlistId ? `Playlist #${playlistId}` : null);
   const canClearPlaylistSelection = !!playlistLabel;
 
   const handleClearPlaylistBadge = useCallback(() => {
@@ -108,9 +113,22 @@ export function LibrarySearchPanel({
     } else if (searchParams.has("playlist_id")) {
       const params = new URLSearchParams(searchParams.toString());
       params.delete("playlist_id");
-      router.push(searchHref(pathname, params, { query, type: filter, sort, order, includeDeleted }), { scroll: false });
+      router.push(searchHref(pathname, params, { query, type: filter, sort, order, includeDeleted }), {
+        scroll: false,
+      });
     }
-  }, [clearSelectedPlaylist, filter, includeDeleted, onClearPlaylist, order, pathname, query, router, searchParams, sort]);
+  }, [
+    clearSelectedPlaylist,
+    filter,
+    includeDeleted,
+    onClearPlaylist,
+    order,
+    pathname,
+    query,
+    router,
+    searchParams,
+    sort,
+  ]);
 
   useEffect(() => {
     // Only manage the playlist selection when a context is explicitly
@@ -158,15 +176,7 @@ export function LibrarySearchPanel({
     () =>
       skipFetch
         ? "__skip__"
-        : JSON.stringify([
-            debouncedQuery.trim(),
-            filter,
-            sort,
-            order,
-            includeDeleted ? "1" : "0",
-            playlistId,
-            userId,
-          ]),
+        : JSON.stringify([debouncedQuery.trim(), filter, sort, order, includeDeleted ? "1" : "0", playlistId, userId]),
     [debouncedQuery, filter, includeDeleted, order, sort, skipFetch, playlistId, userId],
   );
 
@@ -179,7 +189,7 @@ export function LibrarySearchPanel({
   const hasSettled = lastFetchedGeneration === generation;
   const isFetchingMore = fetchingMoreGeneration === generation;
   const hasMore = !skipFetch && hasSettled && pagination.has_next && results.length < pagination.total;
-  const visibleResults = useMemo(() => hasSettled && !skipFetch ? results : [], [hasSettled, results, skipFetch]);
+  const visibleResults = useMemo(() => (hasSettled && !skipFetch ? results : []), [hasSettled, results, skipFetch]);
 
   const fetchPage = useCallback(
     async (offset: number) =>
@@ -343,7 +353,10 @@ export function LibrarySearchPanel({
     () => visibleResults.filter((r): r is UnifiedSearchResultPlaylist => r.type === "playlist"),
     [visibleResults],
   );
-  const userResults = useMemo(() => visibleResults.filter((r): r is UnifiedSearchResultUser => r.type === "user"), [visibleResults]);
+  const userResults = useMemo(
+    () => visibleResults.filter((r): r is UnifiedSearchResultUser => r.type === "user"),
+    [visibleResults],
+  );
 
   // Adapt search results → DataTable row shapes used by the column factories.
   const trackRows = useMemo<TrackRow[]>(
@@ -384,11 +397,7 @@ export function LibrarySearchPanel({
 
   const ownerLabelOverride = useCallback(
     (row: TrackRow): string => {
-      if (
-        selectedUser &&
-        selectedUser.id === row.user.id &&
-        (selectedUser.displayName || selectedUser.discordId)
-      ) {
+      if (selectedUser && selectedUser.id === row.user.id && (selectedUser.displayName || selectedUser.discordId)) {
         return selectedUser.displayName ?? selectedUser.discordId ?? `User #${selectedUser.id}`;
       }
       return row.user.display_name ?? `User #${row.user.id}`;

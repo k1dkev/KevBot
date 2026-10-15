@@ -364,7 +364,7 @@ async function greetingFarewellChecks(type: "greeting" | "farewell", endpoint: s
   const sendAndCheckInvalidSalutationPutRequest = async (
     salutation: { track_id: any; playlist_id: any },
     statusCode: 400 | 404,
-    errorRegex: RegExp
+    errorRegex: RegExp,
   ) => {
     const jwtToken = await getDevAccessTokenForUserAndTestResult(AUTH_USER_ID);
     let res = await request(app)
@@ -396,7 +396,7 @@ async function greetingFarewellChecks(type: "greeting" | "farewell", endpoint: s
     await sendAndCheckInvalidSalutationPutRequest(
       { track_id: "hello", playlist_id: null },
       400,
-      new RegExp(`validation error.*string.*${type}_track_id`, "i")
+      new RegExp(`validation error.*string.*${type}_track_id`, "i"),
     );
   });
 
@@ -404,7 +404,7 @@ async function greetingFarewellChecks(type: "greeting" | "farewell", endpoint: s
     await sendAndCheckInvalidSalutationPutRequest(
       { track_id: null, playlist_id: "hello" },
       400,
-      new RegExp(`validation error.*string.*${type}_playlist_id`, "i")
+      new RegExp(`validation error.*string.*${type}_playlist_id`, "i"),
     );
   });
 
@@ -412,7 +412,7 @@ async function greetingFarewellChecks(type: "greeting" | "farewell", endpoint: s
     await sendAndCheckInvalidSalutationPutRequest(
       { track_id: 1, playlist_id: 1 },
       400,
-      new RegExp(`validation error.*only one ${type} id`, "i")
+      new RegExp(`validation error.*only one ${type} id`, "i"),
     );
   });
 

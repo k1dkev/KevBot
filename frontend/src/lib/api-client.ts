@@ -1,4 +1,11 @@
-import { ApiPlaylist, ApiTrack, ApiUser, PaginatedResponse, UnifiedSearchRequest, UnifiedSearchResponse } from "./types";
+import {
+  ApiPlaylist,
+  ApiTrack,
+  ApiUser,
+  PaginatedResponse,
+  UnifiedSearchRequest,
+  UnifiedSearchResponse,
+} from "./types";
 
 export type FetchLike = (input: RequestInfo, init?: RequestInit) => Promise<Response>;
 

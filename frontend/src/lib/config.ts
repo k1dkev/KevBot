@@ -15,7 +15,7 @@ const frontendConfigSchema = z.object({
       },
       {
         message: "NEXT_PUBLIC_API_URL must be a valid URL.",
-      }
+      },
     ),
   frontendUrl: z
     .string()
@@ -31,7 +31,7 @@ const frontendConfigSchema = z.object({
       },
       {
         message: "NEXT_PUBLIC_FRONTEND_URL must be a valid URL.",
-      }
+      },
     ),
   discordOAuth2ClientId: z.string().min(1),
   discordOAuth2AuthUrl: z
@@ -48,7 +48,7 @@ const frontendConfigSchema = z.object({
       },
       {
         message: "NEXT_PUBLIC_DISCORD_OAUTH2_AUTH_URL must be a valid URL.",
-      }
+      },
     ),
 });
 

@@ -17,7 +17,7 @@ const initTaskSchedules = async (config: Config, db: KevbotDb) => {
     },
     {
       timezone: "UTC",
-    }
+    },
   );
 
   console.log("Scheduled play count aggregation to run every hour.");

@@ -84,14 +84,12 @@ export function searchSchemasFactory(config: Config) {
         });
       }
     })
-    .transform(
-      (raw): UnifiedSearchQuery => ({
-        ...raw,
-        // default of sort is based on query presence
-        sort: raw.sort ?? (raw.q ? "relevance" : "name"),
-        order: raw.order ?? (raw.q ? "desc" : "asc"),
-      }),
-    );
+    .transform((raw): UnifiedSearchQuery => ({
+      ...raw,
+      // default of sort is based on query presence
+      sort: raw.sort ?? (raw.q ? "relevance" : "name"),
+      order: raw.order ?? (raw.q ? "desc" : "asc"),
+    }));
 
   return {
     searchQuerySchema,

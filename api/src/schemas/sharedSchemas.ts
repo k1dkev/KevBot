@@ -15,7 +15,7 @@ export const trackNameValidationFactory = (config: Config) =>
     "Track name",
     config.maxTrackNameLength,
     /^[a-z\d]+$/g,
-    "Track name must contain only lower-case letters and numbers."
+    "Track name must contain only lower-case letters and numbers.",
   );
 
 export const playlistNameValidationFactory = (config: Config) =>
@@ -23,7 +23,7 @@ export const playlistNameValidationFactory = (config: Config) =>
     "Playlist name",
     config.maxPlaylistNameLength,
     /^[a-z\d]+$/g,
-    "Playlist name must contain only lower-case letters and numbers."
+    "Playlist name must contain only lower-case letters and numbers.",
   );
 
 export const i32IdSchema = z.object({

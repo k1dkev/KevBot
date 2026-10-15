@@ -123,7 +123,7 @@ export function playlistsServiceFactory(db: KevbotDb, config: Config) {
         .execute();
       const inPlaylistTrackIdSet = new Set(inPlaylistTrackIds.map((track) => track.track_id));
       const notInPlaylistTrackIds = Array.from(validTrackIdSet).filter(
-        (track_id) => !inPlaylistTrackIdSet.has(track_id)
+        (track_id) => !inPlaylistTrackIdSet.has(track_id),
       );
 
       if (notInPlaylistTrackIds.length > 0) {
@@ -134,7 +134,7 @@ export function playlistsServiceFactory(db: KevbotDb, config: Config) {
               track_id,
               playlist_id: id,
               user_id: req_user_id,
-            }))
+            })),
           )
           .execute();
       }
@@ -163,7 +163,7 @@ export function playlistsServiceFactory(db: KevbotDb, config: Config) {
             .where("playlist_id", "=", id)
             .where("track_id", "in", Array.from(trackIdSet))
             .execute()
-        ).map((result) => result.track_id)
+        ).map((result) => result.track_id),
       );
 
       await trx

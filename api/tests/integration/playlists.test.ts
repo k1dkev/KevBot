@@ -538,7 +538,7 @@ describe("GET /v1/playlists/:id/tracks", () => {
   it("should get tracks from playlist", async () => {
     const res = await request(app).get("/v1/playlists/788/tracks").expect(200);
     expect(res.body).toEqual(
-      expect.arrayContaining([expect.objectContaining({ id: 23 }), expect.objectContaining({ id: 40 })])
+      expect.arrayContaining([expect.objectContaining({ id: 23 }), expect.objectContaining({ id: 40 })]),
     );
   });
 

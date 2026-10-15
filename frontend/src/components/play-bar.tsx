@@ -11,17 +11,8 @@ function fmtTime(seconds: number): string {
 }
 
 export function PlayBar() {
-  const {
-    currentTrack,
-    isPlaying,
-    currentTime,
-    duration,
-    volume,
-    isLoading,
-    togglePlayPause,
-    seekTo,
-    setVolume,
-  } = useMusicPlayer();
+  const { currentTrack, isPlaying, currentTime, duration, volume, isLoading, togglePlayPause, seekTo, setVolume } =
+    useMusicPlayer();
   const seekDuration = Number.isFinite(duration) && duration > 0 ? duration : 0;
   const seekTime = Number.isFinite(currentTime) ? Math.max(0, Math.min(currentTime, seekDuration)) : 0;
   const pct = seekDuration > 0 ? (seekTime / seekDuration) * 100 : 0;
@@ -33,12 +24,8 @@ export function PlayBar() {
       <div className="kb-player-track-info">
         <div className="kb-player-art">{currentTrack ? "♪" : ""}</div>
         <div className="kb-player-meta">
-          <div className="kb-player-name">
-            {currentTrack?.name ?? <span className="kb-muted">—</span>}
-          </div>
-          <div className="kb-player-sub">
-            {currentTrack?.user_display_name ?? ""}
-          </div>
+          <div className="kb-player-name">{currentTrack?.name ?? <span className="kb-muted">—</span>}</div>
+          <div className="kb-player-sub">{currentTrack?.user_display_name ?? ""}</div>
         </div>
       </div>
 

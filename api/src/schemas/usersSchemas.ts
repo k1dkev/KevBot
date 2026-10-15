@@ -28,7 +28,7 @@ export function usersSchemasFactory() {
       },
       {
         message: "Only one greeting id entity can be provided, the other(s) must be null.",
-      }
+      },
     );
 
   const putFarewellBodySchema = z
@@ -44,7 +44,7 @@ export function usersSchemasFactory() {
       },
       {
         message: "Only one farewell id entity can be provided, the other(s) must be null.",
-      }
+      },
     );
 
   return {

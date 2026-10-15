@@ -109,7 +109,7 @@ export function tracksControllerFactory(config: Config, tracksService: TracksSer
       const parsedPath = path.parse(file.path);
       if (!config.supportedTrackExtensions.includes(parsedPath.ext)) {
         throw Boom.badRequest(
-          `Invalid file extension '${parsedPath.ext}'. Supported extensions: ${config.supportedTrackExtensions}`
+          `Invalid file extension '${parsedPath.ext}'. Supported extensions: ${config.supportedTrackExtensions}`,
         );
       }
 
@@ -148,7 +148,7 @@ export function tracksControllerFactory(config: Config, tracksService: TracksSer
         config.acceptableDurationChangeInSeconds
       ) {
         throw Boom.internal(
-          `Normalized duration does not match original. Original: ${metadata.format.duration}, Normalized: ${normalizedMetadata.format.duration}`
+          `Normalized duration does not match original. Original: ${metadata.format.duration}, Normalized: ${normalizedMetadata.format.duration}`,
         );
       }
 
@@ -166,7 +166,7 @@ export function tracksControllerFactory(config: Config, tracksService: TracksSer
         normalizedPath,
         name,
         normalizedMetadata.format.duration,
-        user.id
+        user.id,
       );
       res.status(StatusCodes.CREATED).json(track);
     } finally {
