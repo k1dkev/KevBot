@@ -4,6 +4,8 @@ Use one formatter per language: **Prettier 3.9.10** for active JS/TS/TSX and
 **Ruff 0.17.0 stable** for Python. Versions are pinned in the root npm lockfile
 and `requirements-format.txt`; `ruff.toml` also rejects a mismatched Ruff version.
 These repository tools do not replace service-local npm dependency installs.
+The frontend explicitly keeps its output-file tracing root at `frontend/` so
+the new repository lockfile does not change the application's packaging boundary.
 
 ## Setup and commands
 
