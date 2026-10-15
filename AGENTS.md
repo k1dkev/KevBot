@@ -30,7 +30,7 @@
 
 ## Testing
 - API: Jest + Testcontainers against disposable databases.
-- Frontend: add Playwright or RTL when ready; colocate specs and register scripts in `package.json`.
+- Frontend: `npm run test:unit` checks search contracts; `npm run test:e2e` runs Playwright against a production build and synthetic API/audio fixtures (see `frontend/README.md`).
 - DB: run migrations against the compose database before PRs and capture findings in review notes.
 - Bot: plan to stub Discord APIs and reuse the API testing stack.
 
