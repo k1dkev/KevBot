@@ -1,8 +1,10 @@
 # Discord bot v2 — legacy parity
 
-Status: **Draft**. Inventoried on 2026-10-08; decisions below must be resolved
-before accepting the contract. This describes intended compatibility, not an
-implemented `bot/` service.
+Status: **Proposed — owner review required**. Inventoried on 2026-10-08 and
+reviewed against the sources on 2026-10-14. The explicit
+[decision proposal and acceptance cases](bot-parity-decisions.md) resolves the
+inventory's open questions for review; none is Accepted merely by being written
+down. This describes intended compatibility, not an implemented `bot/` service.
 
 The first usable v2 release must support the legacy bot's full command set.
 See [ROADMAP.md](../ROADMAP.md) for delivery order and release gates.
@@ -122,6 +124,11 @@ belong to the bot adapter. No business operation should require bot database/GCS
 credentials.
 
 ## Decisions required for acceptance
+
+Review the numbered proposals in [bot-parity-decisions.md](bot-parity-decisions.md)
+as a set. That document records concrete boundaries, permission rules, API gaps,
+test cases, and implementation work. The table below retains the original
+questions so a reviewer can see which legacy/API disagreements prompted them.
 
 | Decision | Evidence / proposed direction |
 | --- | --- |
