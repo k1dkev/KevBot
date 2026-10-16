@@ -45,7 +45,7 @@ export function appFactory(config: Config, secrets: Secrets, db: Kysely<Database
   const auth = authMiddlewareFactory(services.authService);
   app.use("/v1/docs", docsRoutesFactory(path.join(__dirname, "docs", "openapi.yml")));
   app.use("/v1/auth", authRoutesFactory(config, services.authService, services.usersService, auth));
-  app.use("/v1/bot", botRoutesFactory(config, services.authService, services.usersService));
+  app.use("/v1/bot", botRoutesFactory(config, services.authService, services.usersService, auth));
   app.use("/v1/users", usersRoutesFactory(auth, services.usersService));
   app.use("/v1/tracks", tracksRoutesFactory(config, auth, services.tracksService));
   app.use("/v1/playlists", playlistsRoutesFactory(config, auth, services.playlistsService));

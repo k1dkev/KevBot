@@ -5,6 +5,65 @@ info:
 servers:
   - url: http://localhost:3000/v1
 paths:
+  /bot/auth:
+    post:
+      summary: Authenticate the trusted bot service (not an acting user).
+      parameters:
+        - in: header
+          name: x-bot-key
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Short-lived service Bearer token; cannot mutate actor resources.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /bot/actors/resolve:
+    post:
+      summary: Resolve or provision an acting Discord user (bot service only).
+      description: Website and delegated actor tokens are forbidden. Snowflakes are strings, never numbers. The resulting bot actor token is usable on ordinary authenticated endpoints and creates no refresh cookie/session.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [discord_id]
+              properties:
+                discord_id:
+                  type: string
+                  pattern: '^[1-9]\d{16,19}$'
+      responses:
+        "200":
+          description: Resolved user and signed acting-user access token.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [access_token, token_type, expires_in, role, user]
+                properties:
+                  access_token:
+                    type: string
+                  token_type:
+                    type: string
+                    enum: [Bearer]
+                  expires_in:
+                    type: integer
+                  role:
+                    type: string
+                    enum: [bot]
+                  user:
+                    $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
   /auth/login:
     post:
       summary: Login a user and return a JWT token
@@ -711,6 +770,7 @@ paths:
           $ref: "#/components/responses/BadRequest"
     post:
       summary: Create a new playlist.
+      description: Any authenticated actor. Lowercase ASCII letters/digits, maximum 45 characters; reserved virtual pool names are protected.
       security:
         - bearerAuth: []
       requestBody:
@@ -793,6 +853,7 @@ paths:
           $ref: "#/components/responses/NotFound"
     delete:
       summary: Soft delete a playlist.
+      description: Creator or configured master only. The playlist must have no memberships (409 otherwise); reserved virtual names are immutable.
       security:
         - bearerAuth: []
       parameters:
@@ -849,6 +910,7 @@ paths:
   /playlists/{id}/tracks:
     post:
       summary: Add tracks to a playlist.
+      description: Any authenticated actor may add nondeleted tracks to an active, nonreserved playlist.
       security:
         - bearerAuth: []
       parameters:
@@ -912,6 +974,7 @@ paths:
           $ref: "#/components/responses/NotFound"
     delete:
       summary: Remove tracks from a playlist.
+      description: Creator or configured master only; active, nonreserved playlists only.
       security:
         - bearerAuth: []
       parameters:

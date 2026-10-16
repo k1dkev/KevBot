@@ -57,6 +57,14 @@ end-to-end storage or OAuth test. The runner is trusted test code with access to
 the local Docker daemon through the mounted socket. On Docker Desktop, enable
 host networking for the Linux/CI-equivalent `--network host` command above.
 
+## Bot actors and shared library permissions
+
+See [the bot API contract](docs/BOT_API.md) for the service-token/acting-user
+exchange, shared category rules and compatibility changes. `MASTER_DISCORD_ID`
+is an optional, exact Discord snowflake string; unset means no master override.
+Forward it explicitly to the API container. Do not give the bot database or GCS
+credentials, or place `BOT_AUTH_API_KEY` in browser configuration.
+
 ## Prerequisites
 
 This application depends on FFmpeg being installed on your system.

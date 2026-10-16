@@ -70,10 +70,14 @@ export function usersServiceFactory(
     const user = await getUserById(id); // ensures user exits
     userPermissionCheck(user, req_user_id);
     if (greeting_track_id) {
-      await tracksService.getTrackById(greeting_track_id); // ensures track exists
+      const track = await tracksService.getTrackById(greeting_track_id);
+      if (track.deleted_at) throw Boom.notFound("Track not found");
     }
     if (greeting_playlist_id) {
-      await playlistsService.getPlaylistById(greeting_playlist_id); // ensures playlist exists
+      const playlist = await playlistsService.getPlaylistById(greeting_playlist_id);
+      if (playlist.deleted_at) throw Boom.notFound("Playlist not found");
+      if (!(await playlistsService.getPlaylistTracks(greeting_playlist_id)).length)
+        throw Boom.badRequest("Greeting playlist must not be empty");
     }
     await db
       .insertInto("user_greetings")
@@ -98,10 +102,16 @@ export function usersServiceFactory(
     const user = await getUserById(id); // ensures user exits
     userPermissionCheck(user, req_user_id);
     if (farewell_track_id) {
-      await tracksService.getTrackById(farewell_track_id); // ensures track exists
+      const track = await tracksService.getTrackById(farewell_track_id);
+      if (track.deleted_at) throw Boom.notFound("Track not found");
+      if (track.duration >= 4) throw Boom.badRequest("Farewell duration must be less than 4 seconds");
     }
     if (farewell_playlist_id) {
-      await playlistsService.getPlaylistById(farewell_playlist_id); // ensures playlist exists
+      const playlist = await playlistsService.getPlaylistById(farewell_playlist_id);
+      if (playlist.deleted_at) throw Boom.notFound("Playlist not found");
+      const tracks = await playlistsService.getPlaylistTracks(farewell_playlist_id);
+      if (!tracks.length || tracks.some((track) => track.duration >= 4))
+        throw Boom.badRequest("Farewell playlist must contain only tracks less than 4 seconds");
     }
     await db
       .insertInto("user_farewells")

@@ -9,7 +9,7 @@ interface AuthenticatedUserContext {
 }
 
 export const getAuthenticatedUser = (req: Request): AuthenticatedUserContext => {
-  if (!req.auth) {
+  if (!req.auth?.userId) {
     throw Boom.unauthorized("User not authenticated");
   }
   return { id: req.auth.userId, role: req.auth.role, sessionId: req.auth.sessionId };

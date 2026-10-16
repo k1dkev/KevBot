@@ -5,6 +5,7 @@ import { authSchemaFactory } from "../schemas/authSchemas";
 import { Config } from "../config/config";
 import { UsersService } from "../services/usersService";
 import Boom from "@hapi/boom";
+import { getAuthenticatedUser } from "../utils/getAuthenticatedUser";
 
 function readCookie(req: Request, name: string): string | undefined {
   const header = req.headers["cookie"];
@@ -107,7 +108,7 @@ export function authControllerFactory(config: Config, authService: AuthService, 
     if (!req.auth) {
       throw Boom.unauthorized("Not authenticated");
     }
-    const user = await usersService.getUserById(req.auth.userId);
+    const user = await usersService.getUserById(getAuthenticatedUser(req).id);
     res.status(StatusCodes.OK).json({
       user,
       role: req.auth.role,
