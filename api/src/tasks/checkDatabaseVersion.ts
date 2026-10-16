@@ -7,7 +7,7 @@ export const checkDatabaseVersion = async (config: Config, db: KevbotDb) => {
   const dbVersion = data[0].version;
   if (dbVersion !== config.expectedDbVersion) {
     throw new Error(
-      `Database version mismatch: expected ${config.expectedDbVersion}, but found ${dbVersion}. Please update database or API accordingly.`
+      `Database version mismatch: expected ${config.expectedDbVersion}, but found ${dbVersion}. Please update database or API accordingly.`,
     );
   }
   console.log(`Database at version: ${config.expectedDbVersion}.`);

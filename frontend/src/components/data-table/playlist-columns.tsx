@@ -68,9 +68,7 @@ export function playlistColumns(opts: PlaylistColumnsOptions = {}): ColumnDef<Pl
     header: "Name",
     className: "kb-cell-name",
     render: (row, ctx) => {
-      const sub = creatorLabel
-        ? creatorLabel(row)
-        : (row.user.display_name ?? `User #${row.user.id}`);
+      const sub = creatorLabel ? creatorLabel(row) : (row.user.display_name ?? `User #${row.user.id}`);
       return (
         <div className="kb-tr-info">
           <div className={`kb-tr-name${ctx.isSelected ? " kb-tr-current-name" : ""}`}>{row.name}</div>
@@ -85,7 +83,7 @@ export function playlistColumns(opts: PlaylistColumnsOptions = {}): ColumnDef<Pl
       id: "tracks",
       header: "Tracks",
       className: "kb-cell-meta",
-      render: (row) => row.track_count != null ? row.track_count.toLocaleString() : "—",
+      render: (row) => (row.track_count != null ? row.track_count.toLocaleString() : "—"),
     });
   }
 

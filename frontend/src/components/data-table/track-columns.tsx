@@ -75,11 +75,20 @@ function PlayButton({
       title={label}
     >
       {idleContent != null && (
-        <span className="group-hover:hidden group-focus-within:hidden" style={{ color: "var(--kb-text3)" }} aria-hidden="true">
+        <span
+          className="group-hover:hidden group-focus-within:hidden"
+          style={{ color: "var(--kb-text3)" }}
+          aria-hidden="true"
+        >
           {idleContent}
         </span>
       )}
-      <span className={idleContent != null ? "hidden group-hover:inline-flex group-focus-within:inline-flex" : "inline-flex"} aria-hidden="true">
+      <span
+        className={
+          idleContent != null ? "hidden group-hover:inline-flex group-focus-within:inline-flex" : "inline-flex"
+        }
+        aria-hidden="true"
+      >
         {isCurrentLoading ? (
           <Loader2 className="h-3 w-3 animate-spin" />
         ) : isCurrentPlaying ? (
@@ -125,11 +134,15 @@ export function trackColumns(opts: TrackColumnsOptions): ColumnDef<TrackRow>[] {
             isCurrentPlaying={isCurrent && isPlaying}
             isCurrentLoading={isCurrent && isLoading}
             onPlay={onPlay}
-            idleContent={isCurrent && isLoading ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : isCurrent && isPlaying ? (
-              <AudioLines className="kb-tr-playing-icon h-3 w-3" />
-            ) : ctx.index + 1}
+            idleContent={
+              isCurrent && isLoading ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : isCurrent && isPlaying ? (
+                <AudioLines className="kb-tr-playing-icon h-3 w-3" />
+              ) : (
+                ctx.index + 1
+              )
+            }
           />
         );
       }

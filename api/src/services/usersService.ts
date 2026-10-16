@@ -23,7 +23,7 @@ export function usersServiceFactory(
   db: KevbotDb,
   config: Config,
   tracksService: TracksService,
-  playlistsService: PlaylistsService
+  playlistsService: PlaylistsService,
 ) {
   const validateDiscordIdIsUnique = async (discordId: string) => {
     const user = await db
@@ -62,7 +62,7 @@ export function usersServiceFactory(
     id: number,
     greeting_track_id: number | null,
     greeting_playlist_id: number | null,
-    req_user_id: number
+    req_user_id: number,
   ) => {
     if (Number.isInteger(greeting_track_id) && Number.isInteger(greeting_playlist_id)) {
       throw Boom.badRequest("Only a greeting track OR a playlist can be provided, not both");
@@ -90,7 +90,7 @@ export function usersServiceFactory(
     id: number,
     farewell_track_id: number | null,
     farewell_playlist_id: number | null,
-    req_user_id: number
+    req_user_id: number,
   ) => {
     if (Number.isInteger(farewell_track_id) && Number.isInteger(farewell_playlist_id)) {
       throw Boom.badRequest("Only a farewell track OR a playlist can be provided, not both");

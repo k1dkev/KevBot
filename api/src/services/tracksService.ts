@@ -55,9 +55,9 @@ export function tracksServiceFactory(db: KevbotDb, tracksBucket: Bucket, config:
               .selectFrom("playlist_tracks as pt")
               .select("pt.track_id")
               .where("pt.playlist_id", "=", playlist_id!)
-              .whereRef("pt.track_id", "=", "t.id")
-          )
-        )
+              .whereRef("pt.track_id", "=", "t.id"),
+          ),
+        ),
       )
       .select(({ fn }) => [
         "t.id",
@@ -148,7 +148,7 @@ export function tracksServiceFactory(db: KevbotDb, tracksBucket: Bucket, config:
     normalizedFilepath: string,
     name: string,
     duration: number,
-    req_user_id: number
+    req_user_id: number,
   ) => {
     await validateTrackNameIsUnique(name);
     return await db.transaction().execute(async (trx) => {

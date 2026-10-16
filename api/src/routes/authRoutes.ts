@@ -9,7 +9,7 @@ export function authRoutesFactory(
   config: Config,
   authService: AuthService,
   usersService: UsersService,
-  auth: AuthMiddleware
+  auth: AuthMiddleware,
 ) {
   const authController = authControllerFactory(config, authService, usersService);
   const router = express.Router();

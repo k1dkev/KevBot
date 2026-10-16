@@ -35,16 +35,30 @@ test("unsupported tabs, invalid sorts and conflicting scopes normalize consisten
 
 test("committed search preserves scope/options and omits false deleted and stale offsets", () => {
   const href = navigation.searchHref("/user/7/search", new URLSearchParams("user_id=7&offset=25"), {
-    query: " beat ", type: "playlists", sort: "created_at", order: "asc", includeDeleted: false,
+    query: " beat ",
+    type: "playlists",
+    sort: "created_at",
+    order: "asc",
+    includeDeleted: false,
   });
   const url = new URL(href, "https://example.test");
   assert.equal(url.pathname, "/user/7/search");
   assert.deepEqual(Object.fromEntries(url.searchParams), {
-    user_id: "7", q: "beat", type: "playlists", sort: "created_at", order: "asc",
+    user_id: "7",
+    q: "beat",
+    type: "playlists",
+    sort: "created_at",
+    order: "asc",
   });
-  const global = new URL(navigation.searchHref("/user/7", new URLSearchParams("user_id=7"), {
-    query: "new", type: "users", order: "desc", includeDeleted: true,
-  }), "https://example.test");
+  const global = new URL(
+    navigation.searchHref("/user/7", new URLSearchParams("user_id=7"), {
+      query: "new",
+      type: "users",
+      order: "desc",
+      includeDeleted: true,
+    }),
+    "https://example.test",
+  );
   assert.equal(global.pathname, "/search");
   assert.equal(global.searchParams.has("user_id"), false);
   assert.equal(global.searchParams.get("include_deleted"), "true");
@@ -55,5 +69,6 @@ test("canonicalization avoids navigation loops and validates numeric scope ident
   assert.equal(navigation.canonicalSearchHref("/login", new URLSearchParams("type=all")), null);
   assert.equal(navigation.canonicalSearchHref("/search", new URLSearchParams("include_deleted=false")), "/search");
   assert.equal(navigation.searchScopeId("7"), 7);
-  for (const value of ["", "0", "-1", "nope", "9007199254740992"]) assert.equal(navigation.searchScopeId(value), undefined);
+  for (const value of ["", "0", "-1", "nope", "9007199254740992"])
+    assert.equal(navigation.searchScopeId(value), undefined);
 });

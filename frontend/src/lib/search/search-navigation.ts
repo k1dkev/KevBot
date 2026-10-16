@@ -33,14 +33,17 @@ export function normalizeSearchSort(sort: SearchSort | undefined, query: string,
 export function routeSearchType(pathname: string, params: URLSearchParams, raw: string | null): SearchFilter {
   const type = normalizeSearchType(raw);
   if (/^\/playlist\/\d+$/.test(pathname) || searchScopeId(params.get("playlist_id"))) return "tracks";
-  if (type === "users" && (/^\/user\/\d+\/search$/.test(pathname) || searchScopeId(params.get("user_id")))) return "tracks";
+  if (type === "users" && (/^\/user\/\d+\/search$/.test(pathname) || searchScopeId(params.get("user_id"))))
+    return "tracks";
   return type;
 }
 
 export function readSearchDraft(pathname: string, params: URLSearchParams): SearchDraft {
   const rawSort = params.get("sort");
-  const sort = rawSort === "relevance" || rawSort === "name" || rawSort === "created_at" || rawSort === "play_count"
-    ? rawSort : undefined;
+  const sort =
+    rawSort === "relevance" || rawSort === "name" || rawSort === "created_at" || rawSort === "play_count"
+      ? rawSort
+      : undefined;
   const query = params.get("q") ?? "";
   const type = routeSearchType(pathname, params, params.get("type"));
   return {

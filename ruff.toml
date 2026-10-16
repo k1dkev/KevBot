@@ -1,0 +1,11 @@
+required-version = "==0.17.0"
+target-version = "py312"
+line-length = 88
+preview = false
+force-exclude = true
+extend-exclude = ["v1", ".venv-format", "node_modules", "dist", ".next", "coverage", "test-results", "gcloud/data"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"

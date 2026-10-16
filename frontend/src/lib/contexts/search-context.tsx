@@ -1,17 +1,15 @@
 "use client";
 
-import {
-  createContext,
-  ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { SearchFilter, SearchOrder, SearchSort } from "@/lib/types";
-import { canonicalSearchHref, normalizeSearchSort, readSearchDraft, SearchDraft, searchHref } from "@/lib/search/search-navigation";
+import {
+  canonicalSearchHref,
+  normalizeSearchSort,
+  readSearchDraft,
+  SearchDraft,
+  searchHref,
+} from "@/lib/search/search-navigation";
 
 interface SearchContextValue {
   // Live, uncommitted search input state — driven by the NavBar input.
@@ -62,17 +60,23 @@ export function SearchProvider({ children }: { children: ReactNode }) {
     setState((previous) => ({ ...previous, draft: { ...previous.draft, query } }));
   }, []);
 
-  const updateOptions = useCallback((options: Partial<SearchDraft>) => {
-    const href = searchHref(pathname, new URLSearchParams(paramsString), { ...draft, ...options });
-    const next = readSearchDraft(href.split("?")[0], new URLSearchParams(href.split("?")[1]));
-    setState({ location, draft: next });
-    router.push(href, { scroll: false });
-  }, [draft, location, paramsString, pathname, router]);
+  const updateOptions = useCallback(
+    (options: Partial<SearchDraft>) => {
+      const href = searchHref(pathname, new URLSearchParams(paramsString), { ...draft, ...options });
+      const next = readSearchDraft(href.split("?")[0], new URLSearchParams(href.split("?")[1]));
+      setState({ location, draft: next });
+      router.push(href, { scroll: false });
+    },
+    [draft, location, paramsString, pathname, router],
+  );
 
   const setType = useCallback((type: SearchFilter) => updateOptions({ type }), [updateOptions]);
   const setSort = useCallback((sort: SearchSort) => updateOptions({ sort }), [updateOptions]);
   const setOrder = useCallback((order: SearchOrder) => updateOptions({ order }), [updateOptions]);
-  const setIncludeDeleted = useCallback((includeDeleted: boolean) => updateOptions({ includeDeleted }), [updateOptions]);
+  const setIncludeDeleted = useCallback(
+    (includeDeleted: boolean) => updateOptions({ includeDeleted }),
+    [updateOptions],
+  );
 
   const commitToUrl = useCallback(() => {
     updateOptions({});
@@ -82,8 +86,20 @@ export function SearchProvider({ children }: { children: ReactNode }) {
   const sort = normalizeSearchSort(draft.sort, query, type);
 
   const value = useMemo<SearchContextValue>(
-    () => ({ query, setQuery, type, setType, sort, setSort, order, setOrder, includeDeleted, setIncludeDeleted, commitToUrl }),
-    [commitToUrl, query, setQuery, type, setType, sort, setSort, order, setOrder, includeDeleted, setIncludeDeleted]
+    () => ({
+      query,
+      setQuery,
+      type,
+      setType,
+      sort,
+      setSort,
+      order,
+      setOrder,
+      includeDeleted,
+      setIncludeDeleted,
+      commitToUrl,
+    }),
+    [commitToUrl, query, setQuery, type, setType, sort, setSort, order, setOrder, includeDeleted, setIncludeDeleted],
   );
 
   return <SearchContext.Provider value={value}>{children}</SearchContext.Provider>;

@@ -11,10 +11,14 @@ node_modules
 !.env.example
 
 # ignore vscode settings
-.vscode
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 
 # python
 **/.venv/
+.venv-format/
+.ruff_cache/
 __pycache__/
 *.py[cod]
 *$py.class

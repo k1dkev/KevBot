@@ -349,14 +349,7 @@ describe("GET /v1/search — pagination", () => {
     expect(page2.body.pagination.has_next).toBe(false);
     expect(page2.body.pagination.has_prev).toBe(true);
     const allNames = [...page1.body.data, ...page2.body.data].map((i: any) => i.name);
-    expect(allNames).toEqual([
-      "bestclips",
-      "discord_seed_user",
-      "greatclips",
-      "happynewyear",
-      "mr_anderson",
-      "yes",
-    ]);
+    expect(allNames).toEqual(["bestclips", "discord_seed_user", "greatclips", "happynewyear", "mr_anderson", "yes"]);
   });
 });
 

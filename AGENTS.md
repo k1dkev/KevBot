@@ -23,13 +23,14 @@
 
 ## Coding Practices
 - Prefer TypeScript and shared contracts (`api/src/`, `frontend/src/lib/types.ts`); keep modules small and reusable.
-- Frontend linting runs through `npm run lint`. Add backend ESLint/Prettier only when standards converge and record the commands.
+- From the repository root, use `npm run format:check` with the formatting Python environment activated. Prettier covers active JS/TS/TSX at 120 columns; Ruff formats Python at 88 columns targeting 3.12. See `docs/FORMATTING.md` for setup and exclusions.
+- Frontend correctness/framework linting remains `cd frontend && npm run lint`. Formatting CI does not enable Ruff lint/import fixes or add backend ESLint rules.
 - SQL migrations stay forward-only and named `<version>__slug.sql`; keep generated seeds out of version control.
 - Place reusable scripts in `tools/` with execute bits and README notes.
 
 ## Testing
 - API: Jest + Testcontainers against disposable databases.
-- Frontend: add Playwright or RTL when ready; colocate specs and register scripts in `package.json`.
+- Frontend: `npm run test:unit` checks search contracts; `npm run test:e2e` runs Playwright against a production build and synthetic API/audio fixtures (see `frontend/README.md`).
 - DB: run migrations against the compose database before PRs and capture findings in review notes.
 - Bot: plan to stub Discord APIs and reuse the API testing stack.
 

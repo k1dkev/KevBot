@@ -73,7 +73,7 @@ describe("POST /v1/plays/tracks", () => {
         id: 23,
         raw_total_play_count: 12,
         total_play_count: 6,
-      })
+      }),
     );
   });
 

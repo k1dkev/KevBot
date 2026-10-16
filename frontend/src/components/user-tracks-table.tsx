@@ -66,7 +66,11 @@ export function UserTracksTable({
       onRowDoubleClick={handlePlay}
       variant="condensed"
       stickyHead={stickyHead}
-      emptyState={<div className="kb-empty-state" style={{ padding: 24 }}>No tracks yet.</div>}
+      emptyState={
+        <div className="kb-empty-state" style={{ padding: 24 }}>
+          No tracks yet.
+        </div>
+      }
     />
   );
 }

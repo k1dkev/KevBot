@@ -8,7 +8,7 @@ interface UseInfiniteScrollOptions {
 
 export function useInfiniteScroll(
   onIntersect: () => Promise<void>,
-  { threshold, rootMargin, disabled }: UseInfiniteScrollOptions = {}
+  { threshold, rootMargin, disabled }: UseInfiniteScrollOptions = {},
 ) {
   const targetRef = useRef<HTMLDivElement | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -28,7 +28,7 @@ export function useInfiniteScroll(
         loadingRef.current = false;
       }
     },
-    [onIntersect, disabled]
+    [onIntersect, disabled],
   );
 
   // Create observer and attach to target in ONE effect
@@ -64,7 +64,7 @@ export function useInfiniteScroll(
         observerRef.current.observe(node);
       }
     },
-    [disabled]
+    [disabled],
   );
 
   return { targetRef: setTarget, isLoadingRef: loadingRef };

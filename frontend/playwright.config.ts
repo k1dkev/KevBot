@@ -15,6 +15,10 @@ export default defineConfig({
   },
   webServer: [
     { command: "node tests/fixtures/api-server.mjs", url: "http://127.0.0.1:4301/health", reuseExistingServer: false },
-    { command: "npm run start -- --hostname 127.0.0.1 --port 4300", url: "http://127.0.0.1:4300/login", reuseExistingServer: false },
+    {
+      command: "npm run start -- --hostname 127.0.0.1 --port 4300",
+      url: "http://127.0.0.1:4300/login",
+      reuseExistingServer: false,
+    },
   ],
 });

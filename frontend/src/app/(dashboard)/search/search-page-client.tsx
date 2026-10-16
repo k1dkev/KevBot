@@ -13,14 +13,14 @@ export default function SearchPageClient() {
     (playlist: { id: number; name: string }) => {
       router.push(`/playlist/${playlist.id}`);
     },
-    [router]
+    [router],
   );
 
   const handleNavigateUser = useCallback(
     (user: { id: number; displayName?: string | null; discordId: string }) => {
       router.push(`/user/${user.id}`);
     },
-    [router]
+    [router],
   );
 
   // The panel still owns its filter UI; we hand it the live filter from the

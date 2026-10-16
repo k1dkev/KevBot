@@ -141,9 +141,15 @@ class MySQLClient:
             self.password = unquote(parsed.password or "")
             self.port = parsed.port or 3306
             self.database = unquote(parsed.path.lstrip("/"))
-            if parsed.scheme != "mysql" or not all([self.host, self.user, self.database]):
+            if parsed.scheme != "mysql" or not all(
+                [self.host, self.user, self.database]
+            ):
                 raise ValueError()
-            if parsed.query or parsed.fragment or not re.fullmatch(r"[A-Za-z0-9_$-]+", self.database):
+            if (
+                parsed.query
+                or parsed.fragment
+                or not re.fullmatch(r"[A-Za-z0-9_$-]+", self.database)
+            ):
                 raise ValueError()
         except ValueError:
             raise MigrationManagerError(
@@ -152,21 +158,41 @@ class MySQLClient:
             ) from None
         self.ssl_ca = os.getenv("MYSQL_SSL_CA")
         if self.ssl_ca and not Path(self.ssl_ca).is_file():
-            raise MigrationManagerError("MYSQL_SSL_CA must point to a readable CA certificate file.")
+            raise MigrationManagerError(
+                "MYSQL_SSL_CA must point to a readable CA certificate file."
+            )
 
     def run_sql_command(self, sql_cmd):
         # Keep passwords out of process arguments and preserve spaces/URL-encoded characters.
-        password = self.password.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\r", "\\r")
+        password = (
+            self.password.replace("\\", "\\\\")
+            .replace('"', '\\"')
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+        )
         with tempfile.NamedTemporaryFile(mode="w", suffix=".cnf") as options:
             options.write(f'[client]\npassword="{password}"\n')
             options.flush()
             cmd = [
-                "mysql", f"--defaults-extra-file={options.name}", "--protocol=TCP",
-                "--host", self.host, "--user", self.user,
-                "--database", self.database, "--port", str(self.port),
+                "mysql",
+                f"--defaults-extra-file={options.name}",
+                "--protocol=TCP",
+                "--host",
+                self.host,
+                "--user",
+                self.user,
+                "--database",
+                self.database,
+                "--port",
+                str(self.port),
             ]
             if self.ssl_ca:
-                cmd.extend([f"--ssl-ca={Path(self.ssl_ca).resolve()}", "--ssl-verify-server-cert"])
+                cmd.extend(
+                    [
+                        f"--ssl-ca={Path(self.ssl_ca).resolve()}",
+                        "--ssl-verify-server-cert",
+                    ]
+                )
             result = subprocess.run(cmd, capture_output=True, text=True, input=sql_cmd)
         if result.returncode != 0:
             raise MigrationManagerError(f"SQL command failed!\n{result.stderr}")
@@ -224,9 +250,11 @@ def passes_schema_state_and_version_filter(
             lambda s: s.version <= target_version and s.type != ScriptType.BASELINE
         ),
         SchemaState.VERSIONED: (
-            lambda s: s.version <= target_version
-            and s.type != ScriptType.BASELINE
-            and schema_status.version < s.version
+            lambda s: (
+                s.version <= target_version
+                and s.type != ScriptType.BASELINE
+                and schema_status.version < s.version
+            )
         ),
     }
     return filter_conditions[schema_status.state](script)
@@ -301,7 +329,9 @@ def perform_action(env_vars: EnvVars, args):
         schema_status = get_schema_status(client)
         print(schema_status.describe())
         if not Path(args.scripts_directory).is_dir():
-            raise MigrationManagerError("Scripts directory does not exist or is not a directory.")
+            raise MigrationManagerError(
+                "Scripts directory does not exist or is not a directory."
+            )
         all_scripts = [
             script
             for f in Path(args.scripts_directory).rglob("*")
@@ -313,7 +343,9 @@ def perform_action(env_vars: EnvVars, args):
             target_version = max(s.version for s in all_scripts)
         else:
             if not re.fullmatch(r"\d+\.\d+\.\d+", args.version):
-                raise MigrationManagerError("Target version must be 'latest' or major.minor.patch.")
+                raise MigrationManagerError(
+                    "Target version must be 'latest' or major.minor.patch."
+                )
             target_version = parse_version(args.version)
         print(f"Target version: {target_version}")
         if schema_status.version:
@@ -463,7 +495,7 @@ def apply_scripts(
                 else:
                     create_version_table(script, client)
                     is_versioned = True
-        print(f"{"DONE":<{status_width}}")
+        print(f"{'DONE':<{status_width}}")
     print("")
 
 
@@ -474,7 +506,9 @@ def main():
         perform_action(env_vars, args)
         return 0
     except MigrationManagerError as e:
-        print(f"\nMigration failed with the following error: {e.message}", file=sys.stderr)
+        print(
+            f"\nMigration failed with the following error: {e.message}", file=sys.stderr
+        )
         return 1
     except (OSError, InvalidVersion, ValueError) as e:
         print(f"\nMigration failed: {type(e).__name__}", file=sys.stderr)

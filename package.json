@@ -1,0 +1,16 @@
+{
+  "name": "kevbot-repository-checks",
+  "private": true,
+  "scripts": {
+    "format": "npm run format:js && npm run format:python",
+    "format:js": "prettier --write \"**/*.{js,cjs,mjs,ts,tsx}\"",
+    "format:python": "ruff format .",
+    "format:check": "npm run format:check:js && npm run format:check:python",
+    "format:check:js": "prettier --check \"**/*.{js,cjs,mjs,ts,tsx}\"",
+    "format:check:python": "ruff format --check .",
+    "format:verify": "node tools/check-formatting.mjs"
+  },
+  "devDependencies": {
+    "prettier": "3.9.10"
+  }
+}

@@ -244,7 +244,6 @@ export default function UserPageClient({ user }: UserPageClientProps) {
           </div>
         </div>
       </div>
-
     </>
   );
 }
@@ -265,7 +264,9 @@ function GreetingFarewellCard({ entity }: { entity: ResolvedRef | null }) {
   const isCurrent = !!playable && currentTrack?.id === playable.id;
   const isCurrentPlaying = isCurrent && isPlaying;
   const isCurrentLoading = isCurrent && playerLoading;
-  const playLabel = !playable ? "No playable track" : `${isCurrentLoading ? "Loading" : isCurrentPlaying ? "Pause" : "Play"} ${entity.kind === "playlist" ? `first track of ${label}` : label}`;
+  const playLabel = !playable
+    ? "No playable track"
+    : `${isCurrentLoading ? "Loading" : isCurrentPlaying ? "Pause" : "Play"} ${entity.kind === "playlist" ? `first track of ${label}` : label}`;
 
   const handlePlay = () => {
     if (!playable) return;
@@ -277,7 +278,10 @@ function GreetingFarewellCard({ entity }: { entity: ResolvedRef | null }) {
   };
 
   return (
-    <div className="kb-stat-card" style={{ textAlign: "left", padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+    <div
+      className="kb-stat-card"
+      style={{ textAlign: "left", padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}
+    >
       <button
         type="button"
         className="kb-icon-toggle"
@@ -304,12 +308,27 @@ function GreetingFarewellCard({ entity }: { entity: ResolvedRef | null }) {
           <Link
             href={`/playlist/${entity.id}`}
             className="kb-tr-uploader"
-            style={{ fontSize: 14, fontWeight: 500, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+            style={{
+              fontSize: 14,
+              fontWeight: 500,
+              display: "block",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
           >
             {label}
           </Link>
         ) : (
-          <div style={{ fontSize: 14, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <div
+            style={{
+              fontSize: 14,
+              fontWeight: 500,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
             {label}
           </div>
         )}

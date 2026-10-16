@@ -351,7 +351,7 @@ describe("GET /v1/tracks/:id/download", () => {
     try {
       await verifyLoudnessNormalization(
         fixturePath("boysareback.mp3"),
-        appConfig.config.acceptableIntegratedLoudnessBand
+        appConfig.config.acceptableIntegratedLoudnessBand,
       );
     } catch (err) {
       originalFileIsNotNormalized = true;
@@ -364,7 +364,7 @@ describe("GET /v1/tracks/:id/download", () => {
     try {
       await verifyLoudnessNormalization(
         tmpPath("boysareback_download.mp3"),
-        appConfig.config.acceptableIntegratedLoudnessBand
+        appConfig.config.acceptableIntegratedLoudnessBand,
       );
     } catch (err) {
       downloadedFileIsNormalized = false;
