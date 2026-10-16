@@ -7,8 +7,10 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = ["packaging", "python-dotenv"]
 
-# [project.optional-dependencies]
-# dev = ["pytest"]
+[tool.uv]
+required-version = "==0.13.1"
+# Keep the existing source-tree CLI; distribution is a separate change.
+package = false
 
 [build-system]
 requires = ["setuptools>=42", "wheel"]

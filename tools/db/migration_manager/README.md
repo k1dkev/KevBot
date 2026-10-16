@@ -38,26 +38,88 @@ and must not be assumed rolled back. Baseline inference, cross-runner locking,
 checksums and recovery rehearsal remain separate cutover work. Workflow
 concurrency serializes runs for one environment, not arbitrary external clients.
 
-## Migration-manager checks
+## Local Python environment
 
-From `tools/db/migration_manager`, install `requirements.txt` into Python 3.12+
-and run unit tests with:
+Use Python 3.12 and **uv 0.13.1**, the same uv version pinned in both Dockerfiles,
+CI and `pyproject.toml`. Install uv with the [official installer](https://docs.astral.sh/uv/getting-started/installation/):
 
 ```bash
-python -m unittest discover -s tests -p test_cli.py
+curl -LsSf https://astral.sh/uv/0.13.1/install.sh | sh
+```
+
+From the repository root:
+
+```bash
+cd tools/db/migration_manager
+uv sync --locked
+uv run --locked python -m migration_manager --help
+uv run --locked python -m migration_manager migrate --help
+```
+
+`.python-version` selects Python 3.12; uv can install it locally if needed.
+Images and CI use their existing Python 3.12 and disable Python downloads.
+`tool.uv.package = false` preserves execution directly from the source tree,
+without building/installing a distribution. To use the existing plain Python
+commands, activate `.venv` with `source .venv/bin/activate` first (Windows:
+`.venv\Scripts\activate`).
+
+Actual migrations also require a MariaDB-compatible `mysql` executable on `PATH`
+(Debian/Ubuntu: `default-mysql-client`). Python dependencies do not supply the
+MySQL CLI. Both images already include this client, including the verified-TLS
+flags described above. Use `DB_CONNECTION_STRING` or `--env-file` as before.
+
+### Lockfile maintenance
+
+`pyproject.toml` is the dependency source of truth and `uv.lock` is the only
+migration-manager lock. The initial lock retains `packaging==24.1` and
+`python-dotenv==1.0.1` from the former requirements file. All consumers now use
+uv, so migration-manager's `requirements.txt` and pip-compile workflow are
+removed. The separate `rename_to_id` tool retains its pip requirements workflow.
+
+Normal setup/builds use `--locked` to fail on missing or stale locks without
+rewriting them. To intentionally change dependencies:
+
+```bash
+# Edit dependencies in pyproject.toml, then regenerate the lock:
+uv lock
+# Or intentionally upgrade one dependency (or use uv lock --upgrade for all):
+uv lock --upgrade-package packaging
+uv sync --locked
+uv lock --check
+```
+
+Review and commit `pyproject.toml` and `uv.lock` together. When updating uv,
+update its exact pin in `pyproject.toml`, both Dockerfiles, CI and this guide
+together. See [uv's lock and sync behavior](https://docs.astral.sh/uv/concepts/projects/sync/).
+
+## Migration-manager checks
+
+From `tools/db/migration_manager`, after the locked sync above:
+
+```bash
+uv lock --check
+uv run --locked python -m unittest discover -s tests -p test_cli.py
+uv run --locked python -m unittest discover -s tests -p test_uv.py
 ```
 
 For the opt-in integration check, Docker and OpenSSL must be installed:
 
 ```bash
 docker build -t migration-manager:check .
-python -m unittest discover -s tests -p test_integration.py
+uv run --locked python -m unittest discover -s tests -p test_integration.py
 ```
 
 The integration check generates an ephemeral TLS certificate and disposable
 MySQL database. It verifies dry-run non-mutation, explicit/latest targets,
 already-current behavior, invalid/downgrade targets, SQL-failure exit codes,
 and CA/hostname-verified TLS. It never uses production credentials/data.
+The uv checks install into fresh temporary directories, check CLI help, and
+verify missing/stale locks fail without being created or rewritten. CI also
+builds the shared tools image and checks both Python tool invocations and the
+MySQL client. The API CI job builds the same standalone Dockerfile for its
+Testcontainers search suite; see [API test commands](../../../api/README.md#run-tests-locally).
+Both test harnesses accept `MIGRATION_TEST_IMAGE` to select a locally built image
+without replacing the default image tag (pass it into the API test container).
 
 ## CLI Help
 
@@ -65,7 +127,7 @@ and CA/hostname-verified TLS. It never uses production credentials/data.
 > Run help command yourself to ensure you have latest usage details
 
 ```txt
-$ python migration_manager -h
+$ uv run --locked python migration_manager -h
 
 usage: migration_manager [-h] {migrate} ...
 
@@ -80,7 +142,7 @@ options:
 ```
 
 ```txt
-$ python migration_manager migrate -h
+$ uv run --locked python migration_manager migrate -h
 
 usage: migration_manager migrate [-h] [--env-file ENV_FILE]
                                  [--version VERSION] [--dry-run]
@@ -130,7 +192,7 @@ docker build -t migration-manager .
 ## Example Calls
 
 ```bash
-python -m migration_manager migrate -e ../../../.env ../../../db/migration/
+uv run --locked python -m migration_manager migrate -e ../../../.env ../../../db/migration/
 ```
 
 ## Running from Docker
@@ -138,3 +200,20 @@ python -m migration_manager migrate -e ../../../.env ../../../db/migration/
 ```bash
 docker run --rm --env-file .env -v ./db/migration:/app/migration migration-manager migrate migration
 ```
+
+The standalone entrypoint remains `python /app/migration_manager`, now using
+the uv environment on `PATH`. The shared tools image retains the explicit
+interpreter path used by existing consumers:
+
+```bash
+# From the repository root:
+docker build --target production -t kevbot_tools tools
+docker run --rm --env-file .env \
+  -v "$PWD/db/migration:/migration:ro" \
+  -w /tools/db/migration_manager kevbot_tools \
+  /opt/migration_manager/.venv/bin/python migration_manager migrate /migration
+```
+
+Both build contexts exclude host virtual environments, env files and key files.
+Neither invocation runs uv or resolves dependencies at container startup; CLI
+arguments and nonzero failure statuses pass through unchanged.
