@@ -5,6 +5,9 @@ deliberately replaces the legacy name-based pool convention: a playlist name is
 never interpreted as a special operation, and special sources are never
 represented by fake playlist names or IDs.
 
+For the bot-facing play-kind and request/reporting flow, see
+[`playback-api-proposal.md`](playback-api-proposal.md).
+
 ## Pool sources
 
 List a source with GET /v1/library/pools and select a random track with
