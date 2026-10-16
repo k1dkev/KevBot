@@ -20,3 +20,15 @@ export const logRandomPlaylistsPlayBodySchema = z
     playlist_id: z.number().int(),
   })
   .strict();
+
+export const playbackEventBodySchema = logTracksPlayBodySchema
+  .extend({
+    event_id: z
+      .string()
+      .uuid()
+      .transform((value) => value.toLowerCase()),
+    track_id: z.number().int().positive(),
+    playlist_id: z.number().int().positive().optional(),
+    playback_started: z.literal(true),
+  })
+  .strict();

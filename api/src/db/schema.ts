@@ -13,6 +13,7 @@ export interface Database {
   user_greetings: UserGreetingsTable;
   users: UsersTable;
   sessions: SessionsTable;
+  playback_events: PlaybackEventsTable;
 }
 
 export interface SchemaVersionTable {
@@ -150,3 +151,12 @@ export interface SessionsTable {
 export type Session = Selectable<SessionsTable>;
 export type NewSession = Insertable<SessionsTable>;
 export type SessionUpdate = Updateable<SessionsTable>;
+
+export interface PlaybackEventsTable {
+  event_id: string;
+  user_id: number;
+  track_id: number;
+  play_type: number;
+  playlist_id: number | null;
+  created_at: Generated<Date>;
+}
