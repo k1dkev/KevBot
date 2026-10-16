@@ -1,6 +1,6 @@
 # Repository command runner investigation
 
-Recommendation, 2026-10-15: **defer adopting `just`**. Complete the setup-command
+Recommendation, 2026-10-16: **defer adopting `just`**. Complete the setup-command
 reconciliation in [#145](https://github.com/k1dkev/KevBot/issues/145) and rebase
 the Python command map after [uv PR #170](https://github.com/k1dkev/KevBot/pull/170)
 lands. Then consider the bounded, optional developer-only follow-up below.
@@ -10,14 +10,14 @@ workflow migration, deployment, or production execution.
 
 ## Evidence and choice
 
-Reviewed `origin/main` at `41a221b`, the [roadmap](../ROADMAP.md), the historical
+Reviewed `origin/main` at `789bfc4`, the [roadmap](../ROADMAP.md), the historical
 [planning audit](PLANNING_AUDIT.md), current scripts/Compose/CI, and #168 in full.
 Audit findings are historical: production packaging, frontend checks, migration
 failure exits, and formatting now have implementations on this main snapshot.
 PR #170 is still open: main uses migration-manager `requirements.txt`, not uv.
-The owner has accepted the bot contract; [PR #169](https://github.com/k1dkev/KevBot/pull/169)
-records that acceptance but is not merged. Neither its older draft label on main
-nor a command runner changes that acceptance; there is still no `bot/` service.
+The owner-accepted bot contract was merged by
+[PR #169](https://github.com/k1dkev/KevBot/pull/169); there is still no `bot/`
+service. A command runner does not alter that accepted scope.
 
 | Repeated command surface | Current source and concrete friction |
 | --- | --- |
@@ -66,7 +66,7 @@ container tests are separate explicit actions, never hidden check dependencies.
 | `api-test *args` | `npm --prefix api test -- ARGS` | Disposable Testcontainers; prebuilt `migration-manager:latest` |
 | `api-smoke` | `npm --prefix api run test:production` | Disposable actual production-image test; see image prerequisites below |
 | `frontend-test kind` | `unit` → `npm --prefix frontend run test:unit`; `browser` → `npm --prefix frontend run test:e2e` | Browser mode explicitly requires synthetic production build/browser install |
-| `migration-check kind` | In `tools/db/migration_manager`: configured Python → `-m unittest discover -s tests -p test_cli.py` or `test_integration.py` | Unit check or explicitly selected disposable integration; Python adapter follows merged #170 |
+| `migration-check kind` | In `tools/db/migration_manager`: after #170 merges, use `uv run --locked python -m unittest discover -s tests -p test_cli.py` or `test_integration.py` | Unit check or explicitly selected disposable integration; #170 is currently open |
 
 Keep image preparation explicit. API tests need
 `docker build -t migration-manager tools/db/migration_manager`; API smoke also
@@ -102,7 +102,7 @@ Do not overwrite shared image tags silently as a prerequisite of `check`.
   Ruff **0.17.0**, plus root Prettier **3.9.10**. One host Node version is not a
   validated universal setup. Prefer the existing API containers or separate
   per-service Node environments. Do not change runtime versions in this ticket.
-- Install npm dependencies separately at root/API/frontend. On reviewed main,
+- Install npm dependencies separately at root/API/frontend. On this main snapshot,
   install migration `requirements.txt` into a Python 3.12 venv; bare host
   `python3` may select another version without dotenv. After #170 merges, the
   adapter should use its documented `uv sync --locked` setup and
