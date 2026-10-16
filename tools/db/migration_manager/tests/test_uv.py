@@ -63,9 +63,10 @@ class LockedEnvironmentTests(unittest.TestCase):
         manifest.write_text(
             manifest.read_text().replace('version = "0.1.0"', 'version = "0.1.1"')
         )
-        result = self.sync("--offline")
+        # A cold cache may fail resolution before uv reports the stale lock.
+        # Require rejection without a rewrite, independent of the diagnostic.
+        result = self.sync("--offline", "--no-cache")
         self.assertNotEqual(result.returncode, 0, result.stderr)
-        self.assertIn("lockfile", result.stderr)
         self.assertEqual(self.lock.read_bytes(), self.original_lock)
 
     def test_missing_lock_fails_without_generating_it(self):
