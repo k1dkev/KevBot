@@ -77,6 +77,21 @@ function safeText(value: string, secrets: readonly string[]): string {
   );
 }
 
+function hasSqlErrorDetails(value: unknown, seen = new WeakSet<object>(), depth = 0): boolean {
+  if (!value || typeof value !== "object" || seen.has(value) || depth > 8) return false;
+  seen.add(value);
+  if ("sql" in value || "sqlMessage" in value || "sqlState" in value) return true;
+  const error = value as Record<string, unknown>;
+  if (typeof error.code === "string" && /^(?:ER_|SQLITE_|[0-9]{2}[A-Z0-9]{3}$)/.test(error.code)) return true;
+  // ORM wrappers and aggregate errors can repeat a driver's SQL values in their prose.
+  return ["cause", "original", "parent", "driverError", "properties", "data", "errors"].some((key) => {
+    const nested = error[key];
+    return Array.isArray(nested)
+      ? nested.slice(0, 100).some((item) => hasSqlErrorDetails(item, seen, depth + 1))
+      : hasSqlErrorDetails(nested, seen, depth + 1);
+  });
+}
+
 export function sanitize(
   value: unknown,
   secrets: readonly string[] = [],
@@ -91,15 +106,26 @@ export function sanitize(
   if (seen.has(value)) return "[CIRCULAR]";
   seen.add(value);
   const descend = (item: unknown) => sanitize(item, secrets, seen, depth + 1);
-  if (value instanceof Error) {
-    const error = value as Error & { code?: unknown; cause?: unknown; errors?: unknown[]; data?: { cause?: unknown } };
+  const sqlError = hasSqlErrorDetails(value);
+  if (value instanceof Error || (sqlError && ("message" in value || "stack" in value))) {
+    const error = value as Error & {
+      type?: unknown;
+      code?: unknown;
+      cause?: unknown;
+      original?: unknown;
+      parent?: unknown;
+      driverError?: unknown;
+      errors?: unknown[];
+      data?: { cause?: unknown };
+    };
     // Do not copy arbitrary error properties (SQL, request bodies, response headers, etc.).
+    // Driver messages/stacks can quote SQL values even after sql/sqlMessage are removed.
     return {
-      type: descend(error.name),
-      message: descend(error.message),
-      stack: descend(error.stack),
+      type: descend(error.name ?? error.type ?? "Error"),
+      message: sqlError ? "Database error details omitted" : descend(error.message),
+      stack: sqlError ? redacted : descend(error.stack),
       errorCode: descend(error.code),
-      cause: descend(error.cause ?? error.data?.cause),
+      cause: descend(error.cause ?? error.data?.cause ?? error.original ?? error.parent ?? error.driverError),
       errors: descend(error.errors),
     };
   }

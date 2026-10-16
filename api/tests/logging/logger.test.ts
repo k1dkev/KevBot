@@ -54,11 +54,61 @@ test("redaction covers nested keys, strings, URLs, encodings, error causes and c
   const output = JSON.stringify(records);
   expect(output).not.toMatch(/canary|known-secret-in-prose/);
   expect(records[0].err.type).toBe("Error");
-  expect(records[0].err.stack).toContain("logger.test.ts");
+  expect(records[0].err.stack).toBe("[REDACTED]");
   expect(records[0].err.cause.type).toBe("Error");
   expect(records[0].cycle).toEqual({ keep: 7, self: "[CIRCULAR]" });
   expect(fields.nested[0].Authorization).toBe("header-canary");
   delete process.env.KEVBOT_API_JWT_SECRET;
+});
+
+test.each([
+  { sql: "SELECT 'sql-canary'" },
+  { sqlMessage: "Duplicate value sql-canary" },
+  { code: "ER_DUP_ENTRY" },
+  { properties: { sql: "SELECT 'sql-canary'" } },
+  { code: "23505" },
+])("SQL-bearing errors omit message/stack and arbitrary properties: %o", (properties) => {
+  const { log, records } = capture();
+  const cause = new Error("connection closed token=cause-canary");
+  const err = Object.assign(new Error("Duplicate entry sql-canary", { cause }), {
+    name: "QueryError",
+    privateDetails: "properties-canary",
+    ...properties,
+  });
+  log.error({ nested: [{ err }] }, "database.failed");
+  const output = records[0].nested[0].err;
+  expect(output).toMatchObject({ type: "QueryError", message: "Database error details omitted", stack: "[REDACTED]" });
+  expect(output.errorCode).toBe(properties.code);
+  expect(output.cause.type).toBe("Error");
+  expect(JSON.stringify(records)).not.toContain("canary");
+  expect(err.message).toContain("sql-canary");
+});
+
+test("SQL wrappers, serialized causes and aggregate prose fail closed", () => {
+  const driver = {
+    name: "QueryError",
+    message: "row sql-canary already exists",
+    stack: "sql-canary",
+    code: "ER_DUP_ENTRY",
+  };
+  const sqlError = new Error("Failed query sql-canary", { cause: driver });
+  const { log, records } = capture();
+  log.error({ err: new AggregateError([sqlError], "aggregate sql-canary") }, "database.failed");
+  const output = records[0].err;
+  expect(output.message).toBe("Database error details omitted");
+  expect(output.errors[0].cause).toMatchObject({ type: "QueryError", errorCode: "ER_DUP_ENTRY", stack: "[REDACTED]" });
+  expect(JSON.stringify(records)).not.toContain("canary");
+});
+
+test("ordinary errors retain sanitized diagnostic prose and stack", () => {
+  const output = sanitize(
+    new Error("operation failed token=ordinary-canary", { cause: new Error("connection closed") }),
+  ) as any;
+  expect(output.type).toBe("Error");
+  expect(output.message).toContain("operation failed");
+  expect(output.stack).toContain("logger.test.ts");
+  expect(output.cause.message).toBe("connection closed");
+  expect(JSON.stringify(output)).not.toContain("ordinary-canary");
 });
 
 test("logging and hostile getters cannot break operations", () => {

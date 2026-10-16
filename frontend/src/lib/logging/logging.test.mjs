@@ -117,6 +117,22 @@ test("browser sanitization handles encoded embedded secrets, opaque objects and 
   assert.throws(() => safety.parseLogLevel("invalid-canary", "warn"), /^Error: LOG_LEVEL must be/);
 });
 
+test("SQL-bearing errors and nested wrapper prose fail closed in the portable adapter", () => {
+  const driver = Object.assign(new Error("Duplicate entry sql-canary"), {
+    code: "ER_DUP_ENTRY",
+    sql: "SELECT 'sql-canary'",
+    sqlMessage: "sql-canary",
+    properties: { detail: "sql-canary" },
+  });
+  const value = safety.sanitize({ nested: [{ err: new Error("query sql-canary", { cause: driver }) }] });
+  const err = value.nested[0].err;
+  assert.equal(err.message, "Database error details omitted");
+  assert.equal(err.stack, "[REDACTED]");
+  assert.equal(err.cause.type, "Error");
+  assert.equal(err.cause.errorCode, "ER_DUP_ENTRY");
+  assert.doesNotMatch(JSON.stringify(value), /canary/);
+});
+
 test(
   "compiled browser chunks contain no Node logger implementation",
   { skip: !process.env.CHECK_LOGGING_BUNDLE },

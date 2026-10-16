@@ -80,9 +80,15 @@ dumps, bodies, headers, queries and file/audio buffers. Opaque objects (includin
 DOM events, streams and Headers) are omitted. Request/response bodies and upload
 contents must never be passed to logging.
 
-Errors retain type, message, stack, error code and bounded/cycle-safe causes
-(including Boom's `data.cause`); arbitrary driver properties such as SQL,
-parameters, response bodies and headers are not copied. Text sanitization strips
+Ordinary errors retain sanitized type, message, stack, error code and bounded,
+cycle-safe causes (including Boom's `data.cause`). Recognized SQL-bearing driver
+errors replace message and stack with generic text, since either may quote SQL
+values. Recognition covers `sql`/`sqlMessage`/`sqlState`, MySQL `ER_` codes, SQLite
+codes and PostgreSQL SQLSTATE codes, including nested ORM properties/driver errors,
+causes and aggregates. Wrappers containing those errors also suppress their own
+prose. Type/code and sanitized causes remain useful; arbitrary driver properties
+such as SQL, parameters, response bodies and headers are not copied. Serialized
+SQL error objects with message/stack receive the same treatment. Text sanitization strips
 URL query/fragment values (also relative/encoded URLs), credential URLs, Bearer/
 Basic credentials, JWTs and credential assignment lines. Server adapters also
 replace known secret environment values in otherwise unlabelled prose. Config
