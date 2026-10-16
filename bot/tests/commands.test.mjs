@@ -31,12 +31,12 @@ test("registry contains exactly all 18 accepted names; help derives actual imple
   assert.equal(commandRegistry.size, 18);
   assert.deepEqual(
     commands.filter((item) => item.execute).map((item) => item.name),
-    ["help"],
+    ["p", "pr", "raid", "help"],
   );
   const help = renderHelp("prefix");
   for (const entry of commands)
     assert.ok(help.includes(`${entry.name} — ${entry.execute ? "implemented" : "not implemented"}`));
-  assert.ok(help.includes("allcats is an ordinary category"));
+  assert.ok(help.includes("allcats or all are ordinary names"));
 });
 
 for (const [command, tokens] of Object.entries(examples)) {
@@ -49,65 +49,81 @@ for (const [command, tokens] of Object.entries(examples)) {
     const { log, records } = logs();
     const api = {
       request() {
-        throw new Error("No command API operation is implemented");
+        throw new Error("No API operation should run in this parser test");
+      },
+    };
+    const calls = [];
+    const playback = {
+      async play(request) {
+        calls.push(request);
+        return "Playback completed.";
       },
     };
     for (const guildId of [null, "3334567890123456789"]) {
       const replies = new PrivateReplies(cfg, log);
-      const dispatcher = new Dispatcher(cfg, api, replies, log);
+      const dispatcher = new Dispatcher(cfg, api, replies, log, undefined, Date.now, playback);
       const event = message(`kb${command}!${tokens.join(" ")}`, { guildId });
       await dispatcher.handle(event.event);
       const response = event.dms.map((payload) => payload.content).join("");
-      if (command === "help") assert.match(response, /Only help is implemented/);
+      if (command === "help") assert.match(response, /Playback commands are implemented/);
       else if (!guildId && ["p", "pr", "raid"].includes(command)) assert.match(response, /requires a guild/);
+      else if (["p", "pr", "raid"].includes(command)) assert.equal(response, "Playback completed.");
       else assert.match(response, /registered but not implemented/);
       assert.equal(event.publicReplies.length, 0);
       dispatcher.close();
       replies.close();
     }
-    assert.equal(records.filter((entry) => entry.event === "command.completed" && command !== "help").length, 0);
+    assert.equal(
+      records.filter((entry) => entry.event === "command.completed" && command !== "help").length,
+      ["p", "pr", "raid"].includes(command) ? 1 : 0,
+    );
+    assert.equal(calls.length, ["p", "pr", "raid"].includes(command) ? 1 : 0);
   });
 }
 
-test("all help selectors and greeting/pool aliases normalize; allcats stays an ordinary name", () => {
+test("typed sources cannot shadow playlist names, and allcats/all remain ordinary names", () => {
   for (const selector of helpSelectors) assert.doesNotThrow(() => commandRegistry.get("help").validate([selector]));
   for (const [alias, type] of Object.entries(greetingTypes))
     assert.equal(commandRegistry.get("setgreeting").validate(["clip", alias]).greetingType, type);
-  for (const pool of [
-    "all",
-    "categories",
-    "cats",
-    "emptycats",
-    "mostplayed",
-    "myuploads",
-    "playhistory",
-    "uploadhistory",
-    "ordinary",
-    "allcats",
-  ]) {
-    const parsed = commandRegistry.get("list").validate([pool]);
-    assert.equal(parsed.pool, pool === "cats" ? "categories" : pool);
-    assert.equal(parsed.limit, ["mostplayed", "playhistory", "uploadhistory"].includes(pool) ? 25 : undefined);
-  }
-  assert.equal(commandRegistry.get("pr").validate(["mostplayed", "100"]).limit, 100);
+  for (const name of ["all", "allcats", "mostplayed", "playhistory", "uploadhistory"])
+    assert.deepEqual(commandRegistry.get("pr").validate([name]).pool, { type: "playlist", name });
+  assert.deepEqual(commandRegistry.get("pr").validate([]).pool, { type: "all_tracks" });
+  assert.deepEqual(commandRegistry.get("pr").validate(["source:most_played"]).pool, { type: "most_played" });
+  assert.equal(commandRegistry.get("pr").validate(["source:most_played", "100"]).limit, 100);
+  assert.deepEqual(commandRegistry.get("pr").validate(["playlist:allcats"]).pool, {
+    type: "playlist",
+    name: "allcats",
+  });
   assert.doesNotThrow(() => commandRegistry.get("newcategory").validate(["allcats"]));
 });
 
-test("pending playback commands do not require voice-state data before playback is implemented", async () => {
+test("playback commands pass voice context to the playback service", async () => {
   const cfg = config();
   const { log } = logs();
   const replies = new PrivateReplies(cfg, log);
-  const dispatcher = new Dispatcher(cfg, {}, replies, log);
-  for (const command of ["p", "pr"]) {
-    const event = message(`kb${command}!clip`, { event: { member: {} } });
-    await dispatcher.handle(event.event);
-    assert.match(event.dms[0].content, /registered but not implemented/);
-  }
+  const calls = [];
+  const playback = {
+    async play(request) {
+      calls.push(request);
+      return "Finished playing clip.";
+    },
+  };
+  const dispatcher = new Dispatcher(cfg, {}, replies, log, undefined, Date.now, playback);
+  const exact = message("kbp!clip");
+  await dispatcher.handle(exact.event);
+  assert.match(exact.dms[0].content, /Finished playing/);
+  assert.deepEqual(calls[0], {
+    kind: "play",
+    trackName: "clip",
+    actorDiscordId: exact.event.author.id,
+    guildId: exact.event.guildId,
+    voiceChannelId: exact.event.member.voice.channelId,
+  });
   dispatcher.close();
   replies.close();
 });
 
-test("missing/extra/malformed arguments, invalid lengths and protected category names give usage", async () => {
+test("missing/extra/malformed arguments and unsupported typed sources give usage", async () => {
   for (const entry of commands) {
     const args = examples[entry.name];
     if (args.length) assert.throws(() => entry.validate([]));
@@ -116,27 +132,17 @@ test("missing/extra/malformed arguments, invalid lengths and protected category 
   for (const text of ["kbhelp", "kbhelp!kb!extra", "kb!kb", "kbhelp!".padEnd(2001, "x")])
     assert.throws(() => parseCommand(text, "kb"));
   for (const tokens of [
-    ["mostplayed", "0"],
-    ["playhistory", "101"],
-    ["uploadhistory", "1.5"],
-    ["mostplayed", "-1"],
-    ["all", "2"],
+    ["source:most_played", "0"],
+    ["source:play_history", "101"],
+    ["source:upload_history", "1.5"],
+    ["source:most_played", "-1"],
+    ["source:all_tracks", "2"],
+    ["source:categories"],
+    ["playlist:"],
   ])
     assert.throws(() => commandRegistry.get("list").validate(tokens));
-  for (const pool of ["cats", "categories", "emptycats"])
-    assert.throws(() => commandRegistry.get("pr").validate([pool]));
-  for (const pool of [
-    "categories",
-    "cats",
-    "emptycats",
-    "all",
-    "mostplayed",
-    "myuploads",
-    "playhistory",
-    "uploadhistory",
-  ])
-    assert.throws(() => commandRegistry.get("delcategory").validate([pool]));
   assert.throws(() => commandRegistry.get("setgreeting").validate(["clip", "other"]));
+  assert.throws(() => commandRegistry.get("setgreeting").validate(["clip", "category"]));
   assert.throws(() => commandRegistry.get("raid").validate(["clip", "0"]));
   assert.doesNotThrow(() => commandRegistry.get("newcategory").validate(["a".repeat(45)]));
   assert.throws(() => commandRegistry.get("newcategory").validate(["a".repeat(46)]));

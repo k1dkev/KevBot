@@ -71,7 +71,7 @@ test("offline help/config CLI cannot log in and does not print configuration sec
     });
   const help = invoke(["--help"]);
   assert.equal(help.status, 0, help.stderr);
-  assert.match(help.stdout, /Only help is implemented/);
+  assert.match(help.stdout, /Playback commands are implemented/);
   const valid = invoke(["--check-config"], {
     DISCORD_BOT_TOKEN: "synthetic-canary",
     BOT_AUTH_API_KEY: "api-canary",
@@ -98,12 +98,12 @@ class StubGateway extends EventEmitter {
     this.destroys++;
   }
 }
-test("gateway uses minimal prefix/DM intents, no voice intent, and gateway stubs dispatch help", async () => {
+test("gateway requests prefix/DM/voice-state intents and stubs dispatch help", async () => {
   const cfg = config();
   const actual = createDiscordClient(cfg);
   assert.ok(actual.options.intents.has(GatewayIntentBits.MessageContent));
   assert.ok(actual.options.intents.has(GatewayIntentBits.DirectMessages));
-  assert.equal(actual.options.intents.has(GatewayIntentBits.GuildVoiceStates), false);
+  assert.equal(actual.options.intents.has(GatewayIntentBits.GuildVoiceStates), true);
   assert.ok(actual.options.partials.includes(Partials.Channel));
   assert.equal(actual.options.rest.retries, 0);
   await actual.destroy();

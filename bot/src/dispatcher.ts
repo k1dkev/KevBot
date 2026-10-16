@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { ApiClientError, apiUserMessage, BotApiClient, discordIdSchema } from "./api-client.js";
 import { commandRegistry, parseCommand, UsageError, type CommandDefinition } from "./commands.js";
+import { PlaybackError, playbackUserMessage, type PlaybackService } from "./playback.js";
 import type { BotConfig } from "./config.js";
 import type { BotLogger } from "./logging.js";
 import { PrivateReplies, type CommandMessage } from "./replies.js";
@@ -18,6 +19,7 @@ export class Dispatcher {
     private readonly log: BotLogger,
     private readonly registry: ReadonlyMap<string, CommandDefinition> = commandRegistry,
     private readonly now = Date.now,
+    private readonly playback?: PlaybackService,
   ) {}
   close() {
     this.stopped = true;
@@ -68,7 +70,9 @@ export class Dispatcher {
           args,
           authorDiscordId: user,
           guildId: message.guildId,
+          voiceChannelId: message.member?.voice.channelId ?? null,
           api: this.api,
+          playback: this.playback,
         });
         log.info({ command: definition.name }, "command.completed");
       }
@@ -79,8 +83,20 @@ export class Dispatcher {
         response =
           error instanceof ApiClientError
             ? apiUserMessage(error)
-            : "The command could not be completed. Please try again later.";
-        log.warn({ reason: error instanceof ApiClientError ? error.kind : "unexpected_failure" }, "command.failed");
+            : error instanceof PlaybackError
+              ? playbackUserMessage(error)
+              : "The command could not be completed. Please try again later.";
+        log.warn(
+          {
+            reason:
+              error instanceof ApiClientError
+                ? error.kind
+                : error instanceof PlaybackError
+                  ? error.reason
+                  : "unexpected_failure",
+          },
+          "command.failed",
+        );
       }
     }
     // Reply delivery owns its errors; never attempt a second private reply from a catch.
