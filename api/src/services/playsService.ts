@@ -4,7 +4,6 @@ import { TracksService } from "./tracksService";
 import { Transaction } from "kysely";
 import { Database } from "../db/schema";
 import * as Boom from "@hapi/boom";
-import { assertMutablePlaylistName } from "./libraryPolicy";
 
 export const PLAY_TYPE = {
   PLAY: 0,
@@ -12,10 +11,21 @@ export const PLAY_TYPE = {
   GREETING: 2,
   RAID: 3,
   FAREWELL: 4,
-  CATEGORY_GREETING: 5,
+  PLAYLIST_GREETING: 5,
 } as const;
 
 export type PlayType = (typeof PLAY_TYPE)[keyof typeof PLAY_TYPE];
+
+export const PLAYBACK_KIND_TO_TYPE = {
+  play: PLAY_TYPE.PLAY,
+  random: PLAY_TYPE.PLAY_RANDOM,
+  greeting: PLAY_TYPE.GREETING,
+  raid: PLAY_TYPE.RAID,
+  farewell: PLAY_TYPE.FAREWELL,
+  playlist_greeting: PLAY_TYPE.PLAYLIST_GREETING,
+} as const;
+
+export type PlaybackKind = keyof typeof PLAYBACK_KIND_TO_TYPE;
 
 export const PLAY_TYPES_OF_TOTAL_PLAY_COUNT: PlayType[] = [PLAY_TYPE.PLAY, PLAY_TYPE.RAID, PLAY_TYPE.PLAY_RANDOM];
 
@@ -81,6 +91,7 @@ export function playsServiceFactory(db: KevbotDb, tracksService: TracksService, 
     event_id: string;
     track_id: number;
     play_type: PlayType;
+    source_type: string;
     playlist_id?: number;
   }
   const reportPlayback = async (event: PlaybackEvent, userId: number) => {
@@ -88,17 +99,27 @@ export function playsServiceFactory(db: KevbotDb, tracksService: TracksService, 
       event_id: event.event_id,
       track_id: event.track_id,
       play_type: event.play_type,
+      source_type: event.source_type,
       playlist_id: event.playlist_id ?? null,
       user_id: userId,
     };
     const checkPrior = (
-      prior: { user_id: number; track_id: number; play_type: number; playlist_id: number | null } | undefined,
+      prior:
+        | {
+            user_id: number;
+            track_id: number;
+            play_type: number;
+            source_type: string;
+            playlist_id: number | null;
+          }
+        | undefined,
     ) => {
       if (
         !prior ||
         prior.user_id !== userId ||
         prior.track_id !== event.track_id ||
         prior.play_type !== event.play_type ||
+        prior.source_type !== event.source_type ||
         prior.playlist_id !== (event.playlist_id ?? null)
       )
         throw Boom.conflict("Playback event identity was already used for a different report");
@@ -116,8 +137,8 @@ export function playsServiceFactory(db: KevbotDb, tracksService: TracksService, 
         if (track.deleted_at) throw Boom.notFound("Track not found");
         if (event.play_type === PLAY_TYPE.FAREWELL && track.duration >= 4)
           throw Boom.badRequest("Farewell duration must be less than 4 seconds");
-        if (event.play_type === PLAY_TYPE.CATEGORY_GREETING && event.playlist_id === undefined)
-          throw Boom.badRequest("Category greeting requires a real playlist selection");
+        if (event.play_type === PLAY_TYPE.PLAYLIST_GREETING && event.playlist_id === undefined)
+          throw Boom.badRequest("Playlist greeting requires a playlist selection");
         if (event.playlist_id !== undefined) {
           const playlist = await trx
             .selectFrom("playlists")
@@ -126,9 +147,8 @@ export function playsServiceFactory(db: KevbotDb, tracksService: TracksService, 
             .where("deleted_at", "is", null)
             .executeTakeFirst();
           if (!playlist) throw Boom.notFound("Playlist not found");
-          assertMutablePlaylistName(playlist.name);
-          if (event.play_type !== PLAY_TYPE.PLAY_RANDOM && event.play_type !== PLAY_TYPE.CATEGORY_GREETING)
-            throw Boom.badRequest("Only random/category-greeting events may report a real playlist selection");
+          if (event.play_type !== PLAY_TYPE.PLAY_RANDOM && event.play_type !== PLAY_TYPE.PLAYLIST_GREETING)
+            throw Boom.badRequest("Only random and playlist-greeting events may report a playlist selection");
           const member = await trx
             .selectFrom("playlist_tracks")
             .select("track_id")

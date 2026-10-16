@@ -3,7 +3,6 @@ import * as Boom from "@hapi/boom";
 import { Playlist } from "../db/schema";
 import { KevbotDb } from "../db/connection";
 import { Config } from "../config/config";
-import { assertMutablePlaylistName } from "./libraryPolicy";
 
 export function playlistsServiceFactory(db: KevbotDb, config: Config) {
   interface PlaylistOptions {
@@ -60,8 +59,6 @@ export function playlistsServiceFactory(db: KevbotDb, config: Config) {
 
   const patchPlaylist = async (id: number, name: string, req_user_id: number) => {
     const playlist = await getPlaylistById(id);
-    assertMutablePlaylistName(playlist.name);
-    assertMutablePlaylistName(name);
     playlistPermissionCheck(playlist, req_user_id);
     await validatePlaylistNameIsUnique(name, id);
     if (playlist.name === name) {
@@ -80,7 +77,6 @@ export function playlistsServiceFactory(db: KevbotDb, config: Config) {
         .forUpdate()
         .executeTakeFirst();
       if (!playlist) throw Boom.notFound("Playlist not found");
-      assertMutablePlaylistName(playlist.name);
       await removalPermissionCheck(playlist, req_user_id);
       const member = await trx
         .selectFrom("playlist_tracks")
@@ -107,7 +103,6 @@ export function playlistsServiceFactory(db: KevbotDb, config: Config) {
   };
 
   const postPlaylist = async (name: string, req_user_id: number) => {
-    assertMutablePlaylistName(name);
     return await db.transaction().execute(async (trx) => {
       await validatePlaylistNameIsUnique(name);
       const { insertId } = await trx
@@ -156,7 +151,6 @@ export function playlistsServiceFactory(db: KevbotDb, config: Config) {
         .forUpdate()
         .executeTakeFirst();
       if (!playlist || playlist.deleted_at) throw Boom.notFound("Playlist not found");
-      assertMutablePlaylistName(playlist.name);
       const inPlaylistTrackIds = await trx
         .selectFrom("playlist_tracks")
         .select("track_id")
@@ -201,7 +195,6 @@ export function playlistsServiceFactory(db: KevbotDb, config: Config) {
         .forUpdate()
         .executeTakeFirst();
       if (!playlist || playlist.deleted_at) throw Boom.notFound("Playlist not found");
-      assertMutablePlaylistName(playlist.name);
       await removalPermissionCheck(playlist, req_user_id);
       const trackIdSet = new Set(track_ids);
       const inPlaylistTrackIdSet = new Set(

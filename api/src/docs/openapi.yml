@@ -5,18 +5,23 @@ info:
 servers:
   - url: http://localhost:3000/v1
 paths:
-  /library/pools/{name}:
+  /library/pools:
     get:
-      summary: List a global library pool or category.
-      description: Pagination defaults to 25 entries (maximum 100). `all`, ordinary categories and `myuploads` can be paged through in full. `playhistory` is a global event feed and preserves repeats; unavailable references remain visible with an explanation. `myuploads` requires a resolved actor. Public read access follows the current API routes.
+      summary: List entries from an explicitly typed library source.
+      description: Pagination defaults to 25 entries (maximum 100). Playlist sources use playlist_id, never a playlist name. all_tracks and my_uploads can be paged through in full. play_history preserves repeated events; unavailable references remain visible with an explanation. my_uploads requires a resolved actor.
       parameters:
-        - in: path
-          name: name
+        - in: query
+          name: source
           required: true
           schema:
             type: string
-            minLength: 1
-            maxLength: 45
+            enum: [all_tracks, playlist, most_played, my_uploads, play_history, upload_history]
+          description: Source type. Use playlist_id when source is playlist.
+        - in: query
+          name: playlist_id
+          schema:
+            type: integer
+            minimum: 1
         - in: query
           name: limit
           schema:
@@ -39,18 +44,23 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-  /library/pools/{name}/random:
+  /library/pools/random:
     get:
-      summary: Select one random eligible track from a pool.
-      description: Filters availability and tracks shorter than max_duration before random selection. `mostplayed`, `playhistory`, and `uploadhistory` first apply their requested window (default 25, maximum 100); other pools use their complete eligible set. Category-list pools are not playable. Real category selections include playlist_id; virtual pools never use a fake playlist ID.
+      summary: Select one random eligible track from an explicitly typed source.
+      description: Filters availability and tracks shorter than max_duration before random selection. most_played, play_history, and upload_history first apply their requested window (default 25, maximum 100); other sources use their complete eligible set. Playlist selection is by playlist_id, so names never collide with special source types. The response returns the exact source object to forward when reporting playback.
       parameters:
-        - in: path
-          name: name
+        - in: query
+          name: source
           required: true
           schema:
             type: string
-            minLength: 1
-            maxLength: 45
+            enum: [all_tracks, playlist, most_played, my_uploads, play_history, upload_history]
+          description: Source type. Use playlist_id when source is playlist.
+        - in: query
+          name: playlist_id
+          schema:
+            type: integer
+            minimum: 1
         - in: query
           name: limit
           schema:
@@ -65,7 +75,7 @@ paths:
             maximum: 15
       responses:
         "200":
-          description: A selected track and optional history/real-category reference.
+          description: A selected track, explicit source, and optional play-history event reference.
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -74,8 +84,8 @@ paths:
           $ref: "#/components/responses/NotFound"
   /plays/events:
     post:
-      summary: Report a successfully started bot playback event idempotently.
-      description: Requires a delegated bot actor and playback_started=true. event_id is generated once per attempted playback and reused for retries. Track and optional real playlist selection logs/counters commit atomically; the API cannot verify the Discord player's state and trusts the authenticated bot process to report only after Playing.
+      summary: Report a successfully started bot playback idempotently.
+      description: Requires a delegated bot actor and playback_started=true. Generate event_id once per attempted playback and reuse it for retries. Use a named play_type and, for random selection, forward the source returned by the random-pool endpoint. playlist_greeting requires a playlist source. The event record, track history/counters, and optional playlist-play record commit atomically. The API trusts the authenticated bot to report only after Playing.
       security:
         - bearerAuth: []
       requestBody:
@@ -94,11 +104,27 @@ paths:
                   type: integer
                   minimum: 1
                 play_type:
-                  type: integer
-                  enum: [0, 1, 2, 3, 4, 5]
-                playlist_id:
-                  type: integer
-                  minimum: 1
+                  type: string
+                  enum: [play, random, greeting, raid, farewell, playlist_greeting]
+                source:
+                  oneOf:
+                    - type: object
+                      additionalProperties: false
+                      required: [type]
+                      properties:
+                        type:
+                          type: string
+                          enum: [all_tracks, most_played, my_uploads, play_history, upload_history]
+                    - type: object
+                      additionalProperties: false
+                      required: [type, playlist_id]
+                      properties:
+                        type:
+                          type: string
+                          enum: [playlist]
+                        playlist_id:
+                          type: integer
+                          minimum: 1
                 playback_started:
                   type: boolean
                   enum: [true]
@@ -970,7 +996,7 @@ paths:
           $ref: "#/components/responses/BadRequest"
     post:
       summary: Create a new playlist.
-      description: Any authenticated actor. Lowercase ASCII letters/digits, maximum 45 characters; reserved virtual pool names are protected.
+      description: Any authenticated actor. Lowercase ASCII letters/digits, maximum 45 characters. Playlist names are independent of library source types; no names are reserved.
       security:
         - bearerAuth: []
       requestBody:
@@ -1053,7 +1079,7 @@ paths:
           $ref: "#/components/responses/NotFound"
     delete:
       summary: Soft delete a playlist.
-      description: Creator or configured master only. The playlist must have no memberships (409 otherwise); reserved virtual names are immutable.
+      description: Creator or configured master only. The playlist must have no memberships (409 otherwise).
       security:
         - bearerAuth: []
       parameters:
@@ -1110,7 +1136,7 @@ paths:
   /playlists/{id}/tracks:
     post:
       summary: Add tracks to a playlist.
-      description: Any authenticated actor may add nondeleted tracks to an active, nonreserved playlist.
+      description: Any authenticated actor may add nondeleted tracks to an active playlist.
       security:
         - bearerAuth: []
       parameters:
@@ -1174,7 +1200,7 @@ paths:
           $ref: "#/components/responses/NotFound"
     delete:
       summary: Remove tracks from a playlist.
-      description: Creator or configured master only; active, nonreserved playlists only.
+      description: Creator or configured master only; active playlists only.
       security:
         - bearerAuth: []
       parameters:

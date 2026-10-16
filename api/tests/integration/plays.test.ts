@@ -58,7 +58,7 @@ describe("POST /v1/plays/tracks", () => {
       PLAY_TYPE.GREETING,
       PLAY_TYPE.RAID,
       PLAY_TYPE.FAREWELL,
-      PLAY_TYPE.CATEGORY_GREETING,
+      PLAY_TYPE.PLAYLIST_GREETING,
     ];
     for (const playType of typesToTry) {
       await testLogTrack(playType, false);

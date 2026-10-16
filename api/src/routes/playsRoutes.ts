@@ -14,7 +14,7 @@ export function playsRoutesFactory(auth: AuthMiddleware, playsService: PlaysServ
   router.post("/events", auth.requireAuth, async (req, res) => {
     const actor = getAuthenticatedUser(req);
     if (actor.role !== "bot") throw Boom.forbidden("Playback event reports require a delegated bot actor");
-    const { playback_started, ...event } = playbackEventBodySchema.parse(req.body);
+    const event = playbackEventBodySchema.parse(req.body);
     const result = await playsService.reportPlayback(event, actor.id);
     res.status(result.duplicate ? 200 : 201).json(result);
   });

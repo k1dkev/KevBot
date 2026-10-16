@@ -9,7 +9,6 @@ import { seedUsers } from "../seeds/seedUsers";
 import { seedTracks } from "../seeds/seedTracks";
 import { seedPlaylists } from "../seeds/seedPlaylists";
 import { getLoginTokenAndTestResult } from "../utils";
-import { RESERVED_POOL_NAMES } from "../../src/services/libraryPolicy";
 
 let app: Express;
 let db: KevbotDb;
@@ -105,7 +104,7 @@ describe("bot actor boundary", () => {
   });
 });
 
-describe("shared category policy", () => {
+describe("shared playlist policy", () => {
   it("allows shared additions, creator/master removals, and only empty deletion", async () => {
     const playlist = (
       await request(app)
@@ -173,34 +172,12 @@ describe("shared category policy", () => {
       .send({ track_ids: [23] })
       .expect(403);
   });
-  it("protects all virtual names, including legacy conflicting rows, with no master bypass", async () => {
-    for (const name of RESERVED_POOL_NAMES) {
-      await request(app).post("/v1/playlists").auth(master, { type: "bearer" }).send({ name }).expect(400);
+  it("allows ordinary playlist names that overlap former pool words", async () => {
+    for (const name of ["all", "allcats", "mostplayed", "playhistory", "uploadhistory"]) {
+      await request(app).post("/v1/playlists").auth(owner, { type: "bearer" }).send({ name }).expect(201);
     }
-    const { insertId } = await db
-      .insertInto("playlists")
-      .values({ name: "all", user_id: 1337 })
-      .executeTakeFirstOrThrow();
-    for (const action of ["delete", "patch"] as const) {
-      await request(app)
-        [action](`/v1/playlists/${insertId}`)
-        .auth(master, { type: "bearer" })
-        .send({ name: "ordinary" })
-        .expect(400);
-    }
-    await request(app)
-      .post(`/v1/playlists/${insertId}/tracks`)
-      .auth(master, { type: "bearer" })
-      .send({ track_ids: [40] })
-      .expect(400);
-    await request(app)
-      .delete(`/v1/playlists/${insertId}/tracks`)
-      .auth(master, { type: "bearer" })
-      .send({ track_ids: [40] })
-      .expect(400);
-    await request(app).post("/v1/playlists").auth(owner, { type: "bearer" }).send({ name: "allcats" }).expect(201);
   });
-  it("supports 45-character category names without widening track names or truncating legacy data", async () => {
+  it("supports 45-character playlist names without widening track names or truncating legacy data", async () => {
     const longName = "a".repeat(45);
     const created = await request(app)
       .post("/v1/playlists")
@@ -218,6 +195,7 @@ describe("shared category policy", () => {
       .auth(owner, { type: "bearer" })
       .send({ name: "a".repeat(16) })
       .expect(400);
+    await request(app).patch("/v1/tracks/40").auth(owner, { type: "bearer" }).send({ name: "allcats" }).expect(200);
   });
 });
 
@@ -238,7 +216,7 @@ describe("preference validation", () => {
         .send({ farewell_track_id: Number(insertId), farewell_playlist_id: null })
         .expect(status);
   });
-  it("rejects deleted tracks/categories and empty greeting categories", async () => {
+  it("rejects deleted tracks/playlists and empty greeting playlists", async () => {
     await request(app)
       .put("/v1/users/@me/greeting")
       .auth(owner, { type: "bearer" })

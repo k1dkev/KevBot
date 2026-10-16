@@ -4,6 +4,7 @@ CREATE TABLE playback_events (
   user_id INT NOT NULL,
   track_id INT NOT NULL,
   play_type INT NOT NULL,
+  source_type VARCHAR(24) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   playlist_id INT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (event_id),

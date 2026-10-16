@@ -157,6 +157,7 @@ export interface PlaybackEventsTable {
   user_id: number;
   track_id: number;
   play_type: number;
+  source_type: string;
   playlist_id: number | null;
   created_at: Generated<Date>;
 }
