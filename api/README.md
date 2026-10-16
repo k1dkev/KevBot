@@ -20,7 +20,62 @@ identity and payload is idempotent; reusing it for a different actor or payload
 returns 409. Virtual pools do not create synthetic playlist selections. The
 server trusts the authenticated bot process for the playback-state assertion.
 See [OpenAPI](src/docs/openapi.yml) and the [accepted bot contract](../specs/bot-parity-decisions.md).
+## Standalone audio normalization
 
+`POST /v1/audio/normalize` accepts one multipart `file` and returns normalized
+MP3 bytes directly. It uses the same `auth.requireAuth` bearer policy as track
+upload; supply the authenticated user's access token. No track name, playlist,
+database record, playback event, or permanent storage object is created.
+
+```bash
+curl --fail --show-error \
+  --header "Authorization: Bearer $ACCESS_TOKEN" \
+  --form "file=@clip.mp3;type=audio/mpeg" \
+  http://localhost:3000/v1/audio/normalize \
+  --output clip-normalized.mp3
+```
+
+Supported input is actual MP3 audio with a case-sensitive `.mp3` filename,
+at most **3,000,000 bytes**, and a positive FFprobe duration **strictly less
+than 15 seconds**. Probed duration includes MP3 encoder padding. The exclusive
+duration bound applies to new library uploads too, per accepted
+[decision D3](../specs/bot-parity-decisions.md); existing library data is unchanged.
+Send only the `file` field. Additional files or text fields are rejected.
+
+Both endpoints share the existing two-pass FFmpeg pipeline: target **-16 LUFS**,
+maximum **-1.5 dBTP**, verified within **±2.5 LUFS**, with no true-peak overshoot
+and at most **0.01 seconds** duration change. Silence or other audio whose output
+cannot satisfy verification produces an error. Targets/tolerances come from the
+existing audio constants and API config; no additional environment is required.
+
+A successful response is `200 audio/mpeg`, with `Content-Length`,
+`Cache-Control: no-store` and an attachment filename derived from the basename:
+ASCII letters/digits/underscore/hyphen only, at most 80 stem characters, followed
+by `-normalized.mp3`. Unsafe characters become underscores; an empty stem uses
+`audio`. Paths from the client never become server processing paths.
+
+Errors use `{statusCode, error, message}`: `400` for missing/extra fields,
+malformed multipart, corrupt/unsupported audio or duration violations; `401` for
+missing/invalid authentication; `403` when the shared authentication policy
+rejects the caller; `413` for oversized files; and `500` for normalization,
+verification or local I/O failures. The shared upload handler now uses HTTP 413
+as well as JSON `statusCode: 413` for oversized library uploads. Processing
+errors are reported before binary streaming begins. If streaming fails after
+headers are sent, the connection closes and the incomplete download must be
+discarded.
+
+Uploads are buffered within the byte limit, then written into a private,
+request-specific temporary directory. Input and output stay available until
+processing/streaming finishes. Disconnects cancel active FFmpeg work and the
+response stream; cleanup waits for them to stop before removing the directory.
+Partial multipart uploads create no disk files. Cleanup failures are logged.
+
+The [OpenAPI document](src/docs/openapi.yml) describes the binary request/response.
+`npm test -- --runInBand tests/integration/audio.test.ts tests/unit/audioService.test.ts`
+runs real FFmpeg/FFprobe audio checks, HTTP disconnect/concurrency cases,
+temporary-file cleanup, unchanged MySQL library rows and fake-GCS objects,
+and precise duration-boundary checks. It requires the disposable test
+infrastructure described below; no production services are used.
 ## Production build
 
 From `api/`, run `npm ci && npm run build && npm start` with the runtime

@@ -1,18 +1,20 @@
-# Bot parity contract — proposed decisions
+# Bot parity contract — accepted decisions
 
-Status: **Proposed, not Accepted**. Owner review is the remaining design gate for
-#141. This accompanies the [18-command inventory](bot-parity.md); it neither
-implements a bot nor asserts that a v2 behavior has passed acceptance testing.
-Every proposal below can be changed during review. API changes mentioned here
-are follow-up work, not changes already present in `main`.
+Status: **Accepted** on 2026-10-15 (America/Chicago), covering D1–D11, the
+permission matrix, and playback/reporting semantics. See the
+[owner approval record](https://github.com/k1dkev/KevBot/issues/141#issuecomment-6207636658).
+This accompanies the [18-command inventory](bot-parity.md); it neither implements
+a bot nor asserts that v2 behavior has passed acceptance testing. API changes
+mentioned here are follow-up work, not changes already present in `main`.
+Future changes to this contract require an explicit reviewed decision.
 
 ## Compatibility decisions
 
-| ID | Proposed contract | Evidence / intentional difference |
+| ID | Accepted contract | Evidence / intentional difference |
 | --- | --- | --- |
 | D1 | Keep configured `<prefix><command>!<args>` access. Preserve all 18 registry names, case-folding, help selectors `kb`/`kevbot`/`kev-bot`, and greeting type aliases. Slash commands are additive, not a release prerequisite. | `MessageCreate.js`, `help.js`, `setgreeting.js`; approved release boundary. Trim ordinary argument whitespace; malformed input returns usage instead of an exception. |
 | D2 | Farewell duration is strictly **less than 4 seconds** across API and clients. Test 3, 3.999 and 4 seconds. | `setfarewell.js` rejects `>=4`; the README's 3-second statement is corrected, not silently treated as implemented behavior. No new master-only duration exception. |
-| D3 | New uploaded audio must be strictly **less than 15 seconds** across both clients. Keep MP3 validation, normalization, 15-character bot clip names and existing API byte limits. Test 14.999 and 15 seconds. | Legacy `upload.js` rejects `>=15`, while the API currently allows exactly 15. This proposes an explicit shared API boundary change, not a bot-only exception. Audit existing boundary-length clips before cutover; do not delete them. |
+| D3 | New uploaded audio must be strictly **less than 15 seconds** across both clients. Keep MP3 validation, normalization, 15-character bot clip names and existing API byte limits. Test 14.999 and 15 seconds. | Legacy `upload.js` rejects `>=15`, while the API currently allows exactly 15. This requires an explicit shared API boundary change, not a bot-only exception. Audit existing boundary-length clips before cutover; do not delete them. |
 | D4 | Preserve category names up to the existing schema's **45 characters**, with lowercase ASCII letters/digits for new bot-created names. Align the API's current 15-character playlist cap with this compatibility limit. Never truncate/rename existing data automatically. | Legacy category command has no explicit cap; baseline `categories.category_name` is `varchar(45)` and migration 2.4 retains its width. Track-name limits remain unchanged. Existing incompatible names require a cutover report and an owner-approved mapping. |
 | D5 | `mostplayed` means counts of ordinary **PLAY (0)** events, not random/raid/greetings/farewells. Zero-play tracks are excluded. Sort count descending, then name and ID for stable ties. | `updateMostPlayed.js` explicitly filters `play_type=0`. API `total_play_count` combines types 0/1/3, so reusing that field would change semantics. Use the per-type data or a shared query instead. |
 | D6 | Reserve `categories`, `cats`, `emptycats`, `all`, `mostplayed`, `myuploads`, `playhistory`, `uploadhistory`; these are virtual pools, not mutable playlists. Do **not** add `allcats` as an alias in this release; correct the help text and allow an actual playlist with that name. | Exact protected names from `v1/src/data.js`. `allcats` is documentation-only and adding it could shadow an existing playlist. `cats` and `categories` are real aliases. |
@@ -20,7 +22,7 @@ are follow-up work, not changes already present in `main`.
 | D8 | `playhistory` is global recent play **events**, newest first, preserving repeats and timestamps; `uploadhistory` is global uploads, newest first. Exclude deleted/unplayable tracks from random candidates and explain missing references in list output. | Existing resolver/history intent; do not turn global history into user-only or unique-track history. The API needs read queries, not just existing play-log writes. |
 | D9 | Random selection is uniform over the complete eligible pool: unique tracks for all/category/myuploads/mostplayed/uploadhistory, but event entries for playhistory (a repeated track can have multiple chances). A requested pool length is applied before sampling. `cats`/`categories`/`emptycats` cannot be played. | `pr.js` samples the resolver's array. This retains event weighting without inheriting whole-library caching. An empty pool gives useful feedback, not an undefined-track error. |
 | D10 | `raid` uses 1-based ordinary guild voice channels in displayed top-down order, including parent-category order, with channel ID as a stable tie-break. Do not interpret raw Discord positions as contiguous numbers. Number the full voice list, then check target permissions; do not silently renumber denied channels. Stage channels are excluded. | `raid.js` describes top-down numbering but looks up `rawPosition === n-1`, which fails with gaps/categories. Require a guild and a positive integer in range. |
-| D11 | One active playback per guild. Reject a new manual play/random/raid request while busy with a clear response; skip overlapping automatic greetings/farewells, with a diagnostic reason and no play log. No interruption or unbounded queue in the first release. | Legacy creates independent players/connections without a reliable overlap contract. This is a proposed behavior decision, not claimed legacy parity. Reassess explicitly if interruption is preferred. |
+| D11 | One active playback per guild. Reject a new manual play/random/raid request while busy with a clear response; skip overlapping automatic greetings/farewells, with a diagnostic reason and no play log. No interruption or unbounded queue in the first release. | Legacy creates independent players/connections without a reliable overlap contract. This is an accepted behavior decision, not claimed legacy parity. Any later interruption/queue change requires explicit review. |
 
 ## Context, errors and command semantics
 
@@ -58,7 +60,7 @@ are follow-up work, not changes already present in `main`.
   blindly retried after an unknown outcome. Downloads/requests have bounded
   timeouts and every completion/failure/disconnect/shutdown releases resources.
 
-## Identity and permission proposal
+## Identity and permission contract
 
 Trusted bot service authentication and the represented user are separate. The
 API must resolve/provision the user by their Discord snowflake **string** without
@@ -67,7 +69,7 @@ Bot clients cannot choose arbitrary numeric user IDs as proof of identity.
 Ordinary browser clients cannot invoke bot delegation or assign privileged roles.
 The bot never receives database/GCS credentials, and user ID `0` is not an actor.
 
-Propose retaining one configured `MASTER_DISCORD_ID` on the **API server**, checked
+Retain one configured `MASTER_DISCORD_ID` on the **API server**, checked
 as a string against the resolved actor. Do not use Number conversion, guild admin
 status, or possession of the bot key as the authority. No general admin command,
 ownership transfer, or unrestricted impersonation endpoint is added by parity.
@@ -107,18 +109,25 @@ preferences/events [#162](https://github.com/k1dkev/KevBot/issues/162), and
 full acceptance [#163](https://github.com/k1dkev/KevBot/issues/163).
 Each is a native sub-issue of the relevant M1/M2 epic with a dependency on #141.
 
-Implementation issues must link this proposal and remain blocked on owner
-acceptance of its decisions. Their completion must provide implementation and
+Implementation issues must link this accepted contract. The design/publication
+dependency #141 completes when the acceptance documentation lands; remaining
+implementation dependencies still apply. Their completion must provide
+implementation and
 verification references for every command/special mode; a basic playback demo
 does not satisfy full parity. Separate cutover work must audit category names,
 15-second existing clips, identity/ownership gaps and audio-object consistency.
 
-## Approval procedure
+## Approval record and change control
 
-1. Review D1–D11, the permission matrix, and playback/reporting semantics. Record
-   accepted choices or replacements in this file and the design PR.
-2. Change status to Accepted only after owner approval; keep implementation and
-   test-guild acceptance pending until they actually happen.
-3. Close #141 only when the contract decisions are accepted and implementation
-   follow-ups have clear dependencies. Do not close it just for publishing this
-   proposal. Release acceptance remains under #139/#140.
+The owner explicitly accepted the contract on 2026-10-15 (America/Chicago):
+
+> I accept D1–D11, the permission matrix, and playback/reporting semantics.
+
+The linked approval record is the source of this status change. No behavior
+choices were changed while recording acceptance. The documentation PR closes
+#141 on merge; implementation issues #157–#163 remain open with their own
+dependencies and verification requirements. Test-guild/release acceptance
+remains under #139/#140 and is not satisfied by accepting this design.
+
+Changes to D1–D11, the permission matrix, or playback/reporting semantics must
+record their rationale and owner approval in a subsequent reviewed update.

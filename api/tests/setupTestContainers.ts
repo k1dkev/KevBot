@@ -6,7 +6,7 @@ let network: StartedNetwork;
 
 const runMigrationManager = async (db_connection_string: string) => {
   const migrationDir = path.resolve(__dirname, "../../db/migration");
-  return await new GenericContainer("migration-manager:latest")
+  return await new GenericContainer(process.env.MIGRATION_TEST_IMAGE || "migration-manager:latest")
     .withNetwork(network)
     .withStartupTimeout(120_000)
     .withEnvironment({ DB_CONNECTION_STRING: db_connection_string })

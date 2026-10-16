@@ -1,6 +1,7 @@
 """Opt-in Docker integration check: python -m unittest discover -s tests -p test_integration.py."""
 
 from pathlib import Path
+import json
 import os
 import subprocess
 import tempfile
@@ -56,7 +57,9 @@ class MigrationIntegration(unittest.TestCase):
             (scripts / "1.1.0__add_name.sql").write_text(
                 "ALTER TABLE sample ADD name VARCHAR(20);\n"
             )
-            (scripts / "1.2.0__bad.sql").write_text("THIS IS NOT VALID SQL;\n")
+            (scripts / "1.2.0__bad.sql").write_text(
+                "THIS IS NOT VALID SQL 'synthetic-seed-secret';\n"
+            )
             docker("network", "create", network)
             try:
                 docker(
@@ -115,14 +118,14 @@ class MigrationIntegration(unittest.TestCase):
                         sql,
                     ).stdout.strip()
 
-                def migrate(*args):
+                def migrate(*args, password="smoke-only"):
                     return docker(
                         "run",
                         "--rm",
                         "--network",
                         network,
                         "-e",
-                        "DB_CONNECTION_STRING=mysql://root:smoke-only@migration-db:3306/smoke",
+                        f"DB_CONNECTION_STRING=mysql://root:{password}@migration-db:3306/smoke",
                         "-e",
                         "MYSQL_SSL_CA=/tls/server-cert.pem",
                         "--mount",
@@ -136,28 +139,92 @@ class MigrationIntegration(unittest.TestCase):
                         check=False,
                     )
 
-                dry = migrate("--version", "1.1.0", "--dry-run")
+                def records(result):
+                    rows = [json.loads(line) for line in result.stderr.splitlines()]
+                    self.assertEqual(len({row["run_id"] for row in rows}), 1)
+                    self.assertTrue(
+                        all(row["component"] == "migration_manager" for row in rows)
+                    )
+                    for secret in (
+                        "smoke-only",
+                        "wrong-password",
+                        "mysql://",
+                        "synthetic-seed-secret",
+                        "THIS IS NOT VALID SQL",
+                        "Traceback",
+                    ):
+                        self.assertNotIn(secret, result.stdout + result.stderr)
+                    return rows
+
+                dry = migrate("--version", "1.1.0", "--dry-run", "--log-format", "json")
                 self.assertEqual(dry.returncode, 0, dry.stderr)
+                dry_records = records(dry)
+                self.assertTrue(all(row["dry_run"] for row in dry_records))
+                self.assertIn("script_planned", [row["event"] for row in dry_records])
+                self.assertIn("PLANNED", dry.stdout)
+                self.assertNotIn("DONE", dry.stdout)
                 self.assertEqual(
                     query(
                         "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='smoke'"
                     ),
                     "0",
                 )
-                applied = migrate("--version", "1.1.0")
+                applied = migrate("--version", "1.1.0", "--log-format", "json")
                 self.assertEqual(applied.returncode, 0, applied.stderr)
+                self.assertEqual(records(applied)[-1]["event"], "run_completed")
+                # API Testcontainers readiness still consumes this exact stdout result.
+                self.assertIn(
+                    "Database migration complete! None --> 1.1.0", applied.stdout
+                )
                 self.assertEqual(
                     query(
                         "SELECT version FROM schema_version ORDER BY id DESC LIMIT 1"
                     ),
                     "1.1.0",
                 )
-                current = migrate("--version", "1.1.0")
+                current = migrate("--version", "1.1.0", "--log-format", "json")
                 self.assertEqual(current.returncode, 0, current.stderr)
                 self.assertIn("already up to date", current.stdout)
+                current_record = next(
+                    row for row in records(current) if row["event"] == "already_current"
+                )
+                self.assertEqual(current_record["current_version"], "1.1.0")
+                self.assertEqual(current_record["target_version"], "1.1.0")
                 for target in ["bogus", "1.9.0", "1.0.0", "1.2.0"]:
-                    failed = migrate("--version", target)
+                    failed = migrate("--version", target, "--log-format", "json")
                     self.assertNotEqual(failed.returncode, 0, target)
+                    failure_records = records(failed)
+                    self.assertEqual(
+                        sum(row["severity"] == "ERROR" for row in failure_records), 1
+                    )
+                    self.assertEqual(failure_records[-1]["event"], "run_failed")
+                    self.assertNotIn("Database migration complete!", failed.stdout)
+                    if target == "1.2.0":
+                        self.assertEqual(
+                            failure_records[-1]["cause"], "sql_syntax_error"
+                        )
+                        self.assertEqual(failure_records[-1]["mysql_code"], 1064)
+                        self.assertEqual(
+                            failure_records[-1]["script"], "1.2.0__bad.sql"
+                        )
+                denied = migrate(
+                    "--log-format",
+                    "json",
+                    "--log-level",
+                    "DEBUG",
+                    password="wrong-password",
+                )
+                self.assertNotEqual(denied.returncode, 0)
+                denied_records = records(denied)
+                self.assertEqual(
+                    sum(row["event"] == "connection_retry" for row in denied_records), 4
+                )
+                self.assertEqual(
+                    sum(row["severity"] == "ERROR" for row in denied_records), 1
+                )
+                self.assertEqual(denied_records[-1]["cause"], "authentication_failed")
+                self.assertEqual(denied_records[-1]["reason"], "connection_exhausted")
+                self.assertEqual(denied_records[-1]["mysql_code"], 1045)
                 self.assertEqual(
                     query(
                         "SELECT version FROM schema_version ORDER BY id DESC LIMIT 1"
@@ -169,6 +236,7 @@ class MigrationIntegration(unittest.TestCase):
                 )
                 latest = migrate()
                 self.assertEqual(latest.returncode, 0, latest.stderr)
+                self.assertIn(" INFO migration_manager ", latest.stderr)
                 self.assertEqual(
                     query(
                         "SELECT version FROM schema_version ORDER BY id DESC LIMIT 1"

@@ -32,7 +32,9 @@ The first usable v2 release must match the legacy bot's full command set. Basic
 playback is an internal checkpoint, not the release boundary. Every legacy
 command, alias, argument mode, permission rule, and greeting/farewell behavior
 must be accounted for in the [accepted parity specification](specs/bot-parity.md).
-The current specification is a draft inventory. Fixes to legacy bugs
+The owner accepted D1–D11, the permission matrix, and playback/reporting semantics
+on 2026-10-15; see the [decision record](specs/bot-parity-decisions.md).
+Implementation and release verification remain pending. Fixes to legacy bugs
 or deliberate behavior changes must be documented rather than silently inherited.
 
 Keep MySQL, Kysely, GCS, the existing migration manager, and the current API
@@ -72,8 +74,9 @@ implementation tasks will be split out as contracts become ready.
 Outcome: the current project is understandable, reproducible, and ready for
 bounded implementation work.
 
-1. Review and accept the [legacy bot parity draft](specs/bot-parity.md), using
-   the actual command registry and event handlers as well as its README.
+1. The [legacy bot parity contract](specs/bot-parity.md) is accepted as of
+   2026-10-15. Track implementation against it and the actual command/event
+   evidence; acceptance of the design is not completion of the replacement bot.
 2. Update the frontend's Next.js/React dependencies against current advisories.
    The current branch pins Next.js `15.1.7`; the old security PR targets a
    different branch and is not sufficient evidence that this branch is patched.
@@ -198,8 +201,8 @@ flowchart TD
   B --> C
 ```
 
-Start parity design immediately. Production packaging, hosted-migration repairs,
-and frontend dependency updates can run independently. Frontend work and bot
+Parity design is accepted; API acting-user identity and permissions (#157) is the
+next contract-driven implementation step. Frontend work and bot
 work can overlap after the relevant API contracts are accepted. MySQL recovery
 work should proceed early rather than being discovered at cutover.
 
@@ -212,7 +215,7 @@ multiple focused PRs.
 
 | Order | Issue | Area | Completion criteria |
 | --- | --- | --- | --- |
-| 1 | [#141 Finalize legacy bot parity](https://github.com/k1dkev/KevBot/issues/141) | Bot/API | Review the existing draft inventory; settle command, duration, ranking, and permission decisions; map v2/API gaps; define test-guild acceptance |
+| 1 | [#141 Finalize legacy bot parity](https://github.com/k1dkev/KevBot/issues/141) | Bot/API | Owner accepted D1–D11, permissions and playback/reporting on 2026-10-15; publish the acceptance record, then implement/verify through #157–#163 |
 | 2 | [#142 Patch frontend dependencies](https://github.com/k1dkev/KevBot/issues/142) | Frontend | Review current official advisories; update compatible Next/React and related tooling; validate lockfile, build, auth, and core pages; resolve the old security PR appropriately |
 | 3 | [#143 Reproducible API production image](https://github.com/k1dkev/KevBot/issues/143) | API/platform | Clean tracked-source image compiles, packages OpenAPI docs, contains FFmpeg, starts with valid config, and passes an image check in CI |
 | 4 | [#144 Repair hosted MySQL migrations](https://github.com/k1dkev/KevBot/issues/144) | DB/tools | Confirm hosting and secure connection requirements; update workflow to current CLI; verify dry run, explicit version, already-current case, and nonzero failure |
@@ -337,7 +340,7 @@ and failure cases, verification, rollout/data impacts, open questions, and
 linked issues. Mark speculative alternatives explicitly. Record the chosen
 tradeoff in `DECISIONS.md` once accepted.
 
-The [full bot parity draft](specs/bot-parity.md) is the first concrete design.
+The [accepted full bot parity contract](specs/bot-parity.md) is the first concrete design.
 Next designs cover trusted bot actors/permissions and playback reporting/queue
 semantics as their tickets are worked. Existing search and auth docs need
 reconciliation first.

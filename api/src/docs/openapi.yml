@@ -606,6 +606,88 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /audio/normalize:
+    post:
+      summary: Normalize an audio upload without adding it to the library.
+      description: |
+        Uses the same bearer authentication, validation and two-pass FFmpeg
+        normalization as track uploads. Send exactly one file under `file`, with
+        no track name or other form fields. Only the case-sensitive `.mp3`
+        extension and actual MP3 audio are supported; MIME type alone is not proof.
+        Maximum file size is 3,000,000 bytes (inclusive). Probed input duration
+        must be positive and strictly less than 15 seconds, including encoder
+        padding (accepted parity decision D3).
+
+        Targets -16 LUFS integrated loudness and maximum -1.5 dBTP true peak.
+        Output is verified within +/-2.5 LUFS of the target, at or below -1.5 dBTP,
+        and within 0.01 seconds of the input's probed duration. Unverifiable output
+        is a processing failure, not a successful download.
+
+        Returns MP3 bytes directly. No database/library, permanent object storage,
+        playlist or playback writes occur. Each request has its own temporary
+        directory, removed after streaming finishes or processing stops on error
+        or disconnect. A failure after response streaming starts closes the
+        connection; clients must treat an incomplete download as a failure.
+
+        Example: `curl --fail --show-error -H "Authorization: Bearer $ACCESS_TOKEN" -F "file=@clip.mp3" http://localhost:3000/v1/audio/normalize --output clip-normalized.mp3`
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: MP3 audio, at most 3,000,000 bytes and strictly less than 15 seconds.
+            encoding:
+              file:
+                contentType: audio/mpeg
+      responses:
+        "200":
+          description: Playable, verified normalized MP3 binary.
+          headers:
+            Content-Disposition:
+              description: Attachment with sanitized basename, at most 80 stem characters, suffixed with -normalized.mp3.
+              schema:
+                type: string
+                example: 'attachment; filename="clip-normalized.mp3"'
+            Content-Length:
+              description: Number of bytes in the completed MP3.
+              schema:
+                type: integer
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Missing file, malformed multipart, extra file/field, unsupported extension/content, corrupt audio or duration limit violation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          description: Normalization, output metadata, loudness/peak verification, duration-preservation or local I/O failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /tracks:
     get:
       summary: Retrieve a paginated list of tracks.
@@ -657,6 +739,10 @@ paths:
           $ref: "#/components/responses/BadRequest"
     post:
       summary: Upload a new track.
+      description: |
+        Uses the same MP3 validation and normalization as `/audio/normalize`:
+        at most 3,000,000 bytes and a positive probed duration strictly less than
+        15 seconds (accepted parity decision D3). Existing tracks are not modified.
       security:
         - bearerAuth: []
       requestBody:
@@ -688,6 +774,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "409":
           $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
   /tracks/{id}:
     get:
       summary: Retrieve a track by ID.
@@ -1534,6 +1622,12 @@ components:
         message:
           type: string
   responses:
+    PayloadTooLarge:
+      description: File exceeds the 3,000,000-byte limit. Both HTTP status and JSON statusCode are 413.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
     BadRequest:
       description: Bad Request – validation error or missing fields.
       content:
