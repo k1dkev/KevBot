@@ -45,41 +45,17 @@ async function main() {
         DISCORD_OAUTH2_CLIENT_SECRET: "smoke-only",
         DISCORD_OAUTH2_REDIRECT_URI: "http://localhost/callback",
       })
+      // Inject the checked-in test probe only for this run; it is not shipped in the production image.
+      .withCopyFilesToContainer([
+        { source: path.join(__dirname, "production-probe.cjs"), target: "/tmp/production-probe.cjs" },
+      ])
       .withExposedPorts(3000)
       .withWaitStrategy(Wait.forHttp("/v1/docs/", 3000))
       .withStartupTimeout(60_000)
       .start();
     containers.push(api);
 
-    const ffmpeg = await api.exec(["ffmpeg", "-version"]);
-    assert.equal(ffmpeg.exitCode, 0, ffmpeg.output);
-    const probe = await api.exec([
-      "node",
-      "-e",
-      `
-      const assert = require('node:assert/strict');
-      const fs = require('node:fs');
-      (async () => {
-        assert.equal(process.env.NODE_ENV, 'production');
-        for (const file of ['dist/server.js', 'dist/docs/openapi.yml']) assert.ok(fs.existsSync(file), file);
-        for (const file of ['src', 'tests', 'scripts', '.env', 'local_dev.env', 'dist/stale-build-marker']) {
-          assert.ok(!fs.existsSync(file), 'Unexpected runtime artifact: ' + file);
-        }
-        assert.throws(() => require.resolve('typescript'), { code: 'MODULE_NOT_FOUND' });
-        for (const asset of ['swagger-ui.css', 'swagger-ui-bundle.js', 'swagger-ui-init.js']) {
-          const response = await fetch('http://127.0.0.1:3000/v1/docs/' + asset);
-          assert.equal(response.status, 200, asset);
-          const text = await response.text();
-          assert.ok(text.length > 100, asset);
-          if (asset === 'swagger-ui-init.js') assert.ok(text.includes('openapi'), 'Missing embedded spec');
-        }
-        const response = await fetch('http://127.0.0.1:3000/v1/users');
-        assert.equal(response.status, 200);
-        const users = await response.json();
-        assert.ok(Array.isArray(users), 'Expected a database-backed users response');
-      })().catch(error => { console.error(error); process.exit(1); });
-    `,
-    ]);
+    const probe = await api.exec(["node", "/tmp/production-probe.cjs"]);
     assert.equal(probe.exitCode, 0, probe.output);
     console.log("Production image smoke passed: startup, migrated MySQL, Swagger assets, FFmpeg, runtime-only files.");
   } finally {

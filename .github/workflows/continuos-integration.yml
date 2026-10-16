@@ -63,7 +63,7 @@ jobs:
           -v ./../db/migration:/db/migration:ro \
           -v /var/run/docker.sock:/var/run/docker.sock \
           -e DOCKER_HOST=unix:///var/run/docker.sock \
-          --entrypoint node kevbot_api_test scripts/production-smoke.cjs
+          --entrypoint npm kevbot_api_test run test:production
       - name: Run tests
         run: |
           docker run --rm \
