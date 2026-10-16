@@ -175,14 +175,14 @@ test("missing voice context is rejected before API access; close stops future co
   await assert.rejects(service.play(direct()), { reason: "closed" });
 });
 
-test("raid channel numbering is 1-based display order, handles gaps/categories, and excludes stage channels", () => {
-  const lowerCategory = { rawPosition: 0 };
-  const higherCategory = { rawPosition: 8 };
+test("raid channel numbering is 1-based display order, handles grouped channels, and excludes stage channels", () => {
+  const lowerGroup = { rawPosition: 0 };
+  const higherGroup = { rawPosition: 8 };
   const channels = [
-    { id: "voice-c", type: ChannelType.GuildVoice, rawPosition: 90, parent: higherCategory },
-    { id: "voice-b", type: ChannelType.GuildVoice, rawPosition: 90, parent: lowerCategory },
-    { id: "stage", type: ChannelType.GuildStageVoice, rawPosition: 1, parent: lowerCategory },
-    { id: "voice-a", type: ChannelType.GuildVoice, rawPosition: 90, parent: lowerCategory },
+    { id: "voice-c", type: ChannelType.GuildVoice, rawPosition: 90, parent: higherGroup },
+    { id: "voice-b", type: ChannelType.GuildVoice, rawPosition: 90, parent: lowerGroup },
+    { id: "stage", type: ChannelType.GuildStageVoice, rawPosition: 1, parent: lowerGroup },
+    { id: "voice-a", type: ChannelType.GuildVoice, rawPosition: 90, parent: lowerGroup },
   ];
   const guild = { channels: { cache: { values: () => channels } } };
   const client = { guilds: { cache: { get: () => guild } } };

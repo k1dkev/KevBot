@@ -1,5 +1,6 @@
 import type { BotApiClient } from "./api-client.js";
 import { PlaybackError, type PlaybackPool, type PlaybackService } from "./playback.js";
+import { preferenceCommands } from "./preference-commands.js";
 import {
   addTrackToPlaylists,
   addTracksToPlaylist,
@@ -190,24 +191,62 @@ export const commands: readonly CommandDefinition[] = [
       return { tokens };
     },
   },
-  pending(
-    "setgreeting",
-    "setgreeting!name [file|audio|clip|audioclip|playlist]",
-    "Set your track/playlist greeting.",
-    162,
-    (tokens) => {
+  {
+    name: "setgreeting",
+    usage: "setgreeting!name [file|audio|clip|audioclip|playlist]",
+    description: "Set your track/playlist greeting.",
+    guildOnly: false,
+    execute: preferenceCommands.setGreeting,
+    validate: (tokens) => {
       count(tokens, 1, 2);
-      const type = tokens[1] === undefined ? undefined : greetingTypes[tokens[1]];
-      if (tokens[1] !== undefined && !type) throw new UsageError("Unknown greeting type alias.");
+      const alias = tokens[1];
+      if (alias !== undefined && !Object.hasOwn(greetingTypes, alias))
+        throw new UsageError("Unknown greeting type alias.");
+      const type = alias === undefined ? undefined : greetingTypes[alias];
       name(tokens[0], type === "track" ? 15 : 45);
       return { tokens, greetingType: type };
     },
-  ),
-  pending("getgreeting", "getgreeting!", "Show your greeting.", 162, empty),
-  pending("delgreeting", "delgreeting!", "Clear your greeting.", 162, empty),
-  pending("setfarewell", "setfarewell!clip", "Set your farewell (strictly below 4 seconds).", 162, track),
-  pending("getfarewell", "getfarewell!", "Show your farewell.", 162, empty),
-  pending("delfarewell", "delfarewell!", "Clear your farewell.", 162, empty),
+  },
+  {
+    name: "getgreeting",
+    usage: "getgreeting!",
+    description: "Show your greeting.",
+    guildOnly: false,
+    execute: preferenceCommands.getGreeting,
+    validate: empty,
+  },
+  {
+    name: "delgreeting",
+    usage: "delgreeting!",
+    description: "Clear your greeting.",
+    guildOnly: false,
+    execute: preferenceCommands.deleteGreeting,
+    validate: empty,
+  },
+  {
+    name: "setfarewell",
+    usage: "setfarewell!clip",
+    description: "Set your farewell using a clip shorter than 4 seconds.",
+    guildOnly: false,
+    execute: preferenceCommands.setFarewell,
+    validate: track,
+  },
+  {
+    name: "getfarewell",
+    usage: "getfarewell!",
+    description: "Show your farewell.",
+    guildOnly: false,
+    execute: preferenceCommands.getFarewell,
+    validate: empty,
+  },
+  {
+    name: "delfarewell",
+    usage: "delfarewell!",
+    description: "Clear your farewell.",
+    guildOnly: false,
+    execute: preferenceCommands.deleteFarewell,
+    validate: empty,
+  },
   {
     name: "newplaylist",
     usage: "newplaylist!name",

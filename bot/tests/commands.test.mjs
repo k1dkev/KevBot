@@ -36,6 +36,12 @@ test("registry contains exactly all 18 accepted names; help derives actual imple
       "pr",
       "raid",
       "help",
+      "setgreeting",
+      "getgreeting",
+      "delgreeting",
+      "setfarewell",
+      "getfarewell",
+      "delfarewell",
       "newplaylist",
       "delplaylist",
       "addtoplaylist",
@@ -71,9 +77,20 @@ for (const [command, tokens] of Object.entries(examples)) {
       },
     };
     if (
-      ["newplaylist", "delplaylist", "addtoplaylist", "delfromplaylist", "addplayliststo", "delplaylistsfrom"].includes(
-        command,
-      )
+      [
+        "setgreeting",
+        "getgreeting",
+        "delgreeting",
+        "setfarewell",
+        "getfarewell",
+        "delfarewell",
+        "newplaylist",
+        "delplaylist",
+        "addtoplaylist",
+        "delfromplaylist",
+        "addplayliststo",
+        "delplaylistsfrom",
+      ].includes(command)
     )
       return;
     for (const guildId of [null, "3334567890123456789"]) {
@@ -162,6 +179,8 @@ test("missing/extra/malformed arguments and unsupported typed sources give usage
     assert.throws(() => commandRegistry.get("list").validate(tokens));
   assert.throws(() => commandRegistry.get("setgreeting").validate(["clip", "other"]));
   assert.throws(() => commandRegistry.get("setgreeting").validate(["clip", "category"]));
+  for (const alias of ["toString", "constructor", "__proto__"])
+    assert.throws(() => commandRegistry.get("setgreeting").validate(["clip", alias]));
   assert.throws(() => commandRegistry.get("raid").validate(["clip", "0"]));
   assert.doesNotThrow(() => commandRegistry.get("newplaylist").validate(["a".repeat(45)]));
   assert.throws(() => commandRegistry.get("newplaylist").validate(["a".repeat(46)]));
