@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.0](https://github.com/k1dkev/KevBot/compare/tools-v1.1.1...tools-v1.2.0) (2026-10-16)
+
+
+### Features
+
+* **tools:** add safe migration logging and run diagnostics ([#171](https://github.com/k1dkev/KevBot/issues/171)) ([f8571ea](https://github.com/k1dkev/KevBot/commit/f8571eac743bd0f72cc29857ca6d694b117aaf90))
+
+
+### Bug Fixes
+
+* **tools:** repair migration execution and failure reporting ([#156](https://github.com/k1dkev/KevBot/issues/156)) ([b35abcf](https://github.com/k1dkev/KevBot/commit/b35abcfc083833ea8cd63c56efeaa72aa89e2932))
+
 ## [1.1.1](https://github.com/Kunedawg/KevBot/compare/tools-v1.1.0...tools-v1.1.1) (2025-12-31)
 
 
