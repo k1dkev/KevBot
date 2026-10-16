@@ -5,3 +5,4 @@ include:
   - path: gcloud/docker-compose.yml
   - path: api/docker-compose.dev.yml
   - path: tools/docker-compose.dev.yml
+  - path: bot/docker-compose.dev.yml

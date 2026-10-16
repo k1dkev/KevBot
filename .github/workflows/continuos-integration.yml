@@ -10,6 +10,30 @@ on:
       - main
 
 jobs:
+  bot_checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./bot
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: bot/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: docker build --target production -t kevbot-bot:check .
+      - run: docker run --rm --network none kevbot-bot:check node dist/main.js --help
+      - name: Validate configuration without a gateway login
+        run: |
+          docker run --rm --network none \
+            -e DISCORD_BOT_TOKEN=synthetic-ci-token \
+            -e API_BASE_URL=http://127.0.0.1:3000 \
+            -e BOT_AUTH_API_KEY=synthetic-ci-key \
+            kevbot-bot:check node dist/main.js --check-config
+
   migration_manager_checks:
     runs-on: ubuntu-latest
     env:
