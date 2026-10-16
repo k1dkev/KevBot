@@ -10,6 +10,21 @@ on:
       - main
 
 jobs:
+  migration_manager_checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements.txt
+        working-directory: tools/db/migration_manager
+      - run: python -m unittest discover -s tests -p test_cli.py
+        working-directory: tools/db/migration_manager
+      - run: docker build -t migration-manager:check tools/db/migration_manager
+      - run: python -m unittest discover -s tests -p test_integration.py
+        working-directory: tools/db/migration_manager
+
   frontend_checks:
     runs-on: ubuntu-latest
     defaults:
