@@ -1,10 +1,12 @@
 # Discord bot v2 — legacy parity
 
-Status: **Proposed — owner review required**. Inventoried on 2026-10-08 and
-reviewed against the sources on 2026-10-14. The explicit
-[decision proposal and acceptance cases](bot-parity-decisions.md) resolves the
-inventory's open questions for review; none is Accepted merely by being written
-down. This describes intended compatibility, not an implemented `bot/` service.
+Status: **Accepted** on 2026-10-15 (America/Chicago). The owner accepted D1–D11,
+the permission matrix, and playback/reporting semantics in the
+[accepted decisions and acceptance cases](bot-parity-decisions.md).
+[Approval record](https://github.com/k1dkev/KevBot/issues/141#issuecomment-6207636658).
+Inventoried on 2026-10-08 and reviewed against sources on 2026-10-14.
+Design acceptance does not mean the `bot/` service is implemented or release
+verification has passed.
 
 The first usable v2 release must support the legacy bot's full command set.
 See [ROADMAP.md](../ROADMAP.md) for delivery order and release gates.
@@ -36,8 +38,9 @@ normally sent by DM and split/formatted when necessary.
 
 Preserve configured prefix access for the first release. Slash commands are
 additive unless the user explicitly approves replacing prefix compatibility.
-Guild/DM validity and errors must be defined for each command; voice commands
-need appropriate guild/channel context and Discord permissions.
+Guild/DM validity and errors follow the accepted context rules in
+[the decisions](bot-parity-decisions.md); voice commands need appropriate
+guild/channel context and Discord permissions.
 
 ## Required command matrix
 
@@ -81,13 +84,13 @@ while reusing the shared API; do not add a second bot-only category database.
 | `uploadhistory` | `list`, `pr` | Recent uploads with timestamps; default length 25 |
 | Ordinary category name | `list`, `pr` | Its eligible members; distinguish nonexistent category from empty category |
 
-Legacy history startup queries intend to keep 100 entries. Decide the v2 limit
-and behavior for requested lengths explicitly. Do not turn global history into
-user-only history or deduplicate events without accepting a change.
+Ranked/history pools default to 25 entries with positive integer lengths up to
+100 (D7). History remains global and preserves repeated events (D8); random
+sampling follows the accepted pool semantics (D9), not a first-page cache.
 
 Greeting type aliases: `file`, `audio`, `clip`, `audioclip` versus `cat`,
-`category`. `allcats` appears in legacy usage text but is not a special-case
-argument alias in the resolver; its status needs a decision.
+`category`. `allcats` is not a virtual alias for this release; correct the legacy
+usage text and allow an actual category with that name (D6).
 
 ## Voice events and activity
 
@@ -99,7 +102,8 @@ argument alias in the resolver; its status needs a decision.
 - Preserve distinct ordinary/random/raid/greeting/category-greeting/farewell play
   attribution and the relevant random-playlist logging.
 
-Define behavior for permission denial, missing/deleted clips, empty playlists,
+Implement the [accepted behavior](bot-parity-decisions.md) for permission denial,
+missing/deleted clips, empty playlists,
 expired API credentials, stalled downloads/streams, disconnects, channel moves,
 overlapping commands/events, and shutdown. The legacy runtime is not a reliable
 specification for all failure cases; use accepted behavior and verification.
@@ -113,36 +117,36 @@ Uploads, preferences, membership mutations, and play events must use the actual
 acting user. The current bot token maps to user ID `0`, so token issuance alone
 does not satisfy this contract.
 
-Retain collaborative additions and creator/master removal/deletion behavior
-unless a replacement is accepted. Specify how the legacy master user's authority
-is represented in v2; bot credentials alone must not imply permission to mutate
-arbitrary user-owned resources. Reject impersonation by ordinary user clients.
+Retain collaborative additions and creator/master removal/deletion behavior.
+The API checks the resolved actor against its configured `MASTER_DISCORD_ID`
+as a string, within the accepted permission matrix. Bot credentials alone must
+not imply permission to mutate arbitrary user-owned resources. Reject
+impersonation by ordinary user clients.
 
 Library selections and permission rules belong to shared API behavior. Discord
 command parsing, DM formatting, voice connection management, and gateway events
 belong to the bot adapter. No business operation should require bot database/GCS
 credentials.
 
-## Decisions required for acceptance
+## Accepted decisions
 
-Review the numbered proposals in [bot-parity-decisions.md](bot-parity-decisions.md)
-as a set. That document records concrete boundaries, permission rules, API gaps,
-test cases, and implementation work. The table below retains the original
-questions so a reviewer can see which legacy/API disagreements prompted them.
+The full contract is [bot-parity-decisions.md](bot-parity-decisions.md), including
+its permission matrix and playback/reporting semantics. This table summarizes
+the accepted resolutions; implementation and verification remain follow-up work.
 
-| Decision | Evidence / proposed direction |
+| Decision | Accepted resolution |
 | --- | --- |
-| Command migration | Preserve configured prefixes for the first release; slash commands are additive unless the user explicitly approves replacement |
-| Farewell duration | README says 3 seconds; implementation rejects durations `>=4`. Choose one shared rule |
-| Upload duration | Legacy rejects `>=15` seconds; current API permits exactly 15. Choose the boundary |
-| `mostplayed` definition | Legacy updater counts ordinary `p` plays; modern totals include other play types. Choose the metric |
-| Master/admin authority | Preserve equivalent privileged behavior with an explicit API authorization design |
-| Protected names and deletion | Define reserved virtual names and empty-only deletion consistently across clients |
-| Category name length | Legacy command has no explicit length cap; API caps playlist names at 15. Check existing names and decide compatibility |
-| `allcats` | Decide whether to support the documented-only alias or correct the usage text |
-| Raid channel numbers | Preserve numbered input; define deterministic top-down numbering rather than copying raw-position bugs |
-| History limits and random sampling | Define default/max pool lengths and unbiased selection over the complete eligible pool |
-| Concurrent playback | Decide interruption/queue behavior for commands and automatic voice events per guild |
+| Command migration | Preserve configured prefixes and all 18 commands; slash commands remain additive (D1) |
+| Farewell duration | Strictly less than 4 seconds across clients/API (D2) |
+| Upload duration | New uploads strictly less than 15 seconds; audit existing boundary clips without deleting them (D3) |
+| `mostplayed` definition | Ordinary PLAY (0) events only, with stable ties and no zero-play entries (D5) |
+| Master/admin authority | API-configured master Discord ID, resolved as a string; only the explicit permission matrix grants authority |
+| Protected names and deletion | Reserved virtual pools are immutable; creator/master can delete only empty nonreserved categories (D6 and permission matrix) |
+| Category name length | Preserve compatibility up to 45 characters; do not silently truncate/rename existing data (D4) |
+| `allcats` | No virtual alias; correct help and preserve real categories with that name (D6) |
+| Raid channel numbers | Deterministic 1-based displayed voice-channel order, with permission checks after numbering (D10) |
+| History limits and random sampling | Ranked/history default 25, maximum 100; global repeated-event history and complete-pool sampling as specified (D7–D9) |
+| Concurrent playback | One active play per guild; reject busy manual requests, skip overlapping automatic events; no interruption/unbounded queue (D11) |
 
 Known legacy defects include incomplete cache updates, missing removal-helper
 imports, and a broken optional-category upload call. These features still need
@@ -168,5 +172,6 @@ release. Do not point the legacy bot at the migrated v2 schema: v2 removes its
 stored procedures and changes media naming. Rehearse schema/audio migration and
 backup restoration separately; cut over bot instances without duplicate events.
 
-Acceptance is complete only when every required matrix row has evidence and all
-behavior decisions above are settled. Basic `p` playback cannot close this gate.
+Implementation/release acceptance is complete only when every required matrix
+row has evidence. The design is accepted, but basic `p` playback cannot close
+the full parity release gate.

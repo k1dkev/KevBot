@@ -1,11 +1,12 @@
 import argparse
+import logging
 import os
 import re
 import subprocess
 import tempfile
 import time
 from dotenv import load_dotenv
-from packaging.version import parse as parse_version, Version, InvalidVersion
+from packaging.version import parse as parse_version, Version
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -14,13 +15,30 @@ from enum import Enum
 from collections import defaultdict
 from urllib.parse import urlparse, unquote
 
+# Support both `python -m migration_manager` and the existing directory entrypoint.
+if __package__:
+    from .diagnostics import (
+        configure_logging,
+        register_environment_secrets,
+        register_secrets,
+        safe_script_name,
+        target_label,
+        update_context,
+    )
+    from .errors import MigrationManagerError, MySQLCommandError, failure_context
+else:
+    from diagnostics import (
+        configure_logging,
+        register_environment_secrets,
+        register_secrets,
+        safe_script_name,
+        target_label,
+        update_context,
+    )
+    from errors import MigrationManagerError, MySQLCommandError, failure_context
+
+logger = logging.getLogger("migration_manager" if __name__ == "__main__" else __name__)
 VERSION_TABLE_NAME = "schema_version"
-
-
-class MigrationManagerError(Exception):
-    def __init__(self, message):
-        super().__init__(message)
-        self.message = message
 
 
 @dataclass
@@ -40,17 +58,16 @@ class EnvVars:
 
     def __post_init__(self):
         load_dotenv(self.env_file)
+        register_environment_secrets()
         for env_var in self.get_required_env_vars():
             value = os.getenv(env_var)
             attr = env_var.lower()
             if value is None:
-                raise MigrationManagerError(
-                    f"Missing required environment variable: {env_var}"
-                )
+                raise MigrationManagerError("environment")
             if hasattr(self, attr):
                 setattr(self, attr, value)
             else:
-                raise MigrationManagerError(f"Unknown attribute: {attr}")
+                raise MigrationManagerError("environment")
 
 
 class SchemaState(Enum):
@@ -68,6 +85,21 @@ class SchemaStatus:
         if self.state == SchemaState.VERSIONED and self.version:
             return f"Schema is versioned with version: {self.version}"
         return f"Schema state is: {self.state.value}"
+
+
+def log_level(value):
+    level = value.upper()
+    if level not in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
+        raise argparse.ArgumentTypeError(
+            "log level must be DEBUG, INFO, WARNING, ERROR or CRITICAL"
+        )
+    return level
+
+
+def log_format(value):
+    if value not in ("text", "json"):
+        raise argparse.ArgumentTypeError("log format must be text or json")
+    return value
 
 
 def parse_args():
@@ -129,6 +161,20 @@ def parse_args():
         action="store_true",
         help="Set to true to not actually apply scripts",
     )
+    subparser.add_argument(
+        "--log-level",
+        type=log_level,
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        default="INFO",
+        help="Diagnostic severity threshold on stderr (default: INFO)",
+    )
+    subparser.add_argument(
+        "--log-format",
+        type=log_format,
+        choices=["text", "json"],
+        default="text",
+        help="Diagnostic format on stderr (default: text)",
+    )
     return parser.parse_args()
 
 
@@ -152,15 +198,17 @@ class MySQLClient:
             ):
                 raise ValueError()
         except ValueError:
-            raise MigrationManagerError(
-                "DB_CONNECTION_STRING must be mysql://user:password@host:port/database "
-                "with URL-encoded credentials and a simple schema name; configure TLS with MYSQL_SSL_CA."
-            ) from None
+            raise MigrationManagerError("connection_config") from None
+        register_secrets(
+            connection_string,
+            parsed.username,
+            parsed.password,
+            self.user,
+            self.password,
+        )
         self.ssl_ca = os.getenv("MYSQL_SSL_CA")
         if self.ssl_ca and not Path(self.ssl_ca).is_file():
-            raise MigrationManagerError(
-                "MYSQL_SSL_CA must point to a readable CA certificate file."
-            )
+            raise MigrationManagerError("tls_config")
 
     def run_sql_command(self, sql_cmd):
         # Keep passwords out of process arguments and preserve spaces/URL-encoded characters.
@@ -195,7 +243,7 @@ class MySQLClient:
                 )
             result = subprocess.run(cmd, capture_output=True, text=True, input=sql_cmd)
         if result.returncode != 0:
-            raise MigrationManagerError(f"SQL command failed!\n{result.stderr}")
+            raise MySQLCommandError(result.stderr)
         return result
 
 
@@ -224,10 +272,12 @@ def parse_script_file(f: Path):
     )
     match = re.match(pattern, f.name)
     if not match:
-        raise MigrationManagerError(f"Invalid script filename: {f.name}")
+        update_context(script=f.name)
+        raise MigrationManagerError("invalid_script")
     name = match.group("name")
     if name in ["baseline", "seed"]:
-        raise MigrationManagerError(f"Invalid script filename: {f.name}")
+        update_context(script=f.name)
+        raise MigrationManagerError("invalid_script")
     version = parse_version(match.group("version_str"))
 
     match match.group("type_name"):
@@ -289,20 +339,16 @@ def get_scripts_to_apply(
     migration_scripts = [s for s in all_scripts if s.type == ScriptType.MIGRATION]
 
     if len(baseline_scripts) > 1:
-        raise MigrationManagerError("Multiple baseline scripts found.")
+        raise MigrationManagerError("multiple_baselines")
     elif baseline_scripts:
         baseline_script = baseline_scripts[0]
         lowest_version = min(s.version for s in all_scripts)
         if baseline_script.version != lowest_version:
-            raise MigrationManagerError(
-                "Baseline script does not have the lowest version."
-            )
+            raise MigrationManagerError("baseline_order")
 
     migration_versions = [s.version for s in migration_scripts]
     if len(migration_versions) != len(set(migration_versions)):
-        raise MigrationManagerError(
-            "Multiple migration scripts found for the same version."
-        )
+        raise MigrationManagerError("duplicate_migration")
 
     scripts_to_apply = [
         s
@@ -325,62 +371,75 @@ def get_scripts_to_apply(
 def perform_action(env_vars: EnvVars, args):
     if args.action == "migrate":
         client = MySQLClient(env_vars.db_connection_string)
+        update_context(
+            target=target_label(client.host, client.port, client.database),
+            phase="connection",
+        )
         check_mysql_connection(client)
+        update_context(phase="schema")
         schema_status = get_schema_status(client)
-        print(schema_status.describe())
+        update_context(
+            current_version=str(schema_status.version)
+            if schema_status.version
+            else None,
+            schema_state=schema_status.state.name,
+            phase="planning",
+        )
+        logger.debug("schema_status")
         if not Path(args.scripts_directory).is_dir():
-            raise MigrationManagerError(
-                "Scripts directory does not exist or is not a directory."
-            )
+            raise MigrationManagerError("scripts_directory")
         all_scripts = [
             script
             for f in Path(args.scripts_directory).rglob("*")
             if (script := parse_script_file(f))
         ]
         if not all_scripts:
-            raise MigrationManagerError("No SQL scripts found in scripts directory.")
+            raise MigrationManagerError("no_scripts")
         if args.version == "latest":
             target_version = max(s.version for s in all_scripts)
         else:
             if not re.fullmatch(r"\d+\.\d+\.\d+", args.version):
-                raise MigrationManagerError(
-                    "Target version must be 'latest' or major.minor.patch."
-                )
+                raise MigrationManagerError("target_version")
             target_version = parse_version(args.version)
-        print(f"Target version: {target_version}")
+        update_context(target_version=str(target_version))
         if schema_status.version:
             if target_version < schema_status.version:
-                raise MigrationManagerError("Target version < current version!")
+                raise MigrationManagerError("downgrade")
         if target_version not in [
             s.version
             for s in all_scripts
             if s.type in {ScriptType.MIGRATION, ScriptType.BASELINE}
         ]:
-            raise MigrationManagerError(
-                "Migration or baseline script with desired target version does not"
-                " exist!"
-            )
+            raise MigrationManagerError("missing_target")
         scripts = get_scripts_to_apply(all_scripts, schema_status, target_version)
+        logger.info("plan_ready", extra={"script_count": len(scripts)})
         apply_scripts(client, scripts, args.dry_run, schema_status)
+        update_context(phase="completion", script=None)
+        logger.info("run_completed")
         print(
             f"Database migration complete! {schema_status.version} --> {target_version}"
         )
 
 
 def check_mysql_connection(client: MySQLClient):
-    print("Testing MySQL database connection...")
-    attempts = 0
-    while attempts < 5:
+    logger.debug("connection_check")
+    for attempt in range(1, 6):
         try:
             client.run_sql_command("SELECT 1")
-            print("MySQL database is ready.")
+            logger.info("connection_ready", extra={"attempt": attempt})
             return
-        except Exception:
-            print("Waiting for MySQL to be ready...")
-            attempts += 1
+        except Exception as error:
+            if attempt == 5:
+                raise MigrationManagerError("connection_exhausted") from error
+            logger.warning(
+                "connection_retry",
+                extra={
+                    "attempt": attempt,
+                    "max_attempts": 5,
+                    **failure_context(error),
+                },
+            )
             time.sleep(2)
-    print("Number of attempts exceeded. Could not connect to MySql Database.")
-    sys.exit(1)
 
 
 def get_schema_status(client: MySQLClient) -> SchemaStatus:
@@ -415,8 +474,8 @@ def get_schema_status(client: MySQLClient) -> SchemaStatus:
         return SchemaStatus(
             SchemaState.VERSIONED, parse_version(result.stdout.split("\n")[1])
         )
-    except Exception:
-        raise MigrationManagerError("Failed to determine Schema Status")
+    except Exception as error:
+        raise MigrationManagerError("schema_status") from error
 
 
 def apply_version_to_version_table(script: Script, client):
@@ -429,9 +488,7 @@ def apply_version_to_version_table(script: Script, client):
     version_exists = int(result.stdout.split("\n")[1]) > 0
 
     if version_exists:
-        raise MigrationManagerError(
-            f"Version '{str(script.version)} has already been applied to database"
-        )
+        raise MigrationManagerError("version_applied")
 
     insert_version_sql = f"""
         INSERT INTO {VERSION_TABLE_NAME} (version, script_name) VALUES
@@ -450,7 +507,7 @@ def create_version_table(script: Script, client):
     result = client.run_sql_command(check_table_sql)
     table_exists = int(result.stdout.split("\n")[1]) > 0
     if table_exists:
-        raise MigrationManagerError("Version table already exists, not expected")
+        raise MigrationManagerError("version_table")
 
     create_table_sql = f"""
         CREATE TABLE {VERSION_TABLE_NAME} (
@@ -469,21 +526,28 @@ def apply_scripts(
     client: MySQLClient, scripts: List[Script], dry_run, schema_status: SchemaStatus
 ):
     if dry_run:
-        print("DRY RUN. Scripts will not actually be applied.")
+        logger.info("dry_run")
     if not scripts:
+        logger.info("already_current")
         print("No scripts to apply! Database is already up to date.")
         return
 
     is_versioned = schema_status.state == SchemaState.VERSIONED
     headers = ["Script", "Status"]
-    script_names = [s.path.name for s in scripts]
+    script_names = [safe_script_name(s.path.name) for s in scripts]
     script_width = max(len(s) for s in script_names + [headers[0]]) + 2
-    status_width = max(len(status) for status in ["DONE"] + [headers[1]]) + 2
-    print("Applying Scripts...\n")
+    status = "PLANNED" if dry_run else "DONE"
+    status_width = max(len(status), len(headers[1])) + 2
+    print("Planning Scripts...\n" if dry_run else "Applying Scripts...\n")
     print(f"{headers[0]:<{script_width}}{headers[1]:<{status_width}}")
     print("=" * (script_width + status_width))
-    for script in scripts:
-        print(f"{script.path.name:<{script_width}}", end="")
+    for script, script_name in zip(scripts, script_names):
+        update_context(
+            phase="planning" if dry_run else "execution", script=script.path.name
+        )
+        started = time.monotonic()
+        if not dry_run:
+            logger.info("script_started")
         script_path = script.path.resolve()
         if not dry_run:
             with open(script_path, "r") as file:
@@ -495,23 +559,27 @@ def apply_scripts(
                 else:
                     create_version_table(script, client)
                     is_versioned = True
-        print(f"{'DONE':<{status_width}}")
+        logger.info(
+            "script_planned" if dry_run else "script_completed",
+            extra={
+                "script_elapsed_ms": round((time.monotonic() - started) * 1000, 3),
+            },
+        )
+        print(f"{script_name:<{script_width}}{status:<{status_width}}")
     print("")
 
 
 def main():
+    args = parse_args()
+    configure_logging(args.log_level, args.log_format, dry_run=args.dry_run)
+    logger.info("run_started")
     try:
-        args = parse_args()
         env_vars = EnvVars(env_file=args.env_file)
         perform_action(env_vars, args)
         return 0
-    except MigrationManagerError as e:
-        print(
-            f"\nMigration failed with the following error: {e.message}", file=sys.stderr
-        )
-        return 1
-    except (OSError, InvalidVersion, ValueError) as e:
-        print(f"\nMigration failed: {type(e).__name__}", file=sys.stderr)
+    except Exception as error:
+        # One terminal diagnostic, without traceback, raw SQL or driver stderr.
+        logger.error("run_failed", extra=failure_context(error))
         return 1
 
 

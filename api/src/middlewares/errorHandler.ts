@@ -3,13 +3,18 @@ import multer from "multer";
 import { ZodError } from "zod";
 import * as Boom from "@hapi/boom";
 import { fromError } from "zod-validation-error";
-import { StatusCodes } from "http-status-codes";
+import { getReasonPhrase, StatusCodes } from "http-status-codes";
 
 export const errorHandlerFactory =
   (maxFileSizeInBytes: number) => (err: any, req: Request, res: Response, next: NextFunction) => {
-    // TODO: improve this lazy and overly verbose error logging
-    if (process.env.NODE_ENV !== "test") {
-      console.error(err);
+    // The request completion event owns the diagnostic, avoiding duplicate error logs.
+    // Expected validation/auth failures need only route and status, never error input.
+    if (
+      !(err instanceof multer.MulterError) &&
+      !(err instanceof ZodError) &&
+      (!Boom.isBoom(err) || err.output.statusCode >= 500)
+    ) {
+      res.locals.logError = err;
     }
 
     if (err instanceof multer.MulterError) {
@@ -22,15 +27,15 @@ export const errorHandlerFactory =
           statusCode = StatusCodes.REQUEST_TOO_LONG;
           break;
         case "LIMIT_FILE_COUNT":
-          message = "Too many files uploaded. Maximum allowed is 5 files.";
+          message = "Too many files uploaded.";
           break;
         case "LIMIT_UNEXPECTED_FILE":
           message = "Unexpected field in form data.";
           break;
       }
-      res.status(StatusCodes.BAD_REQUEST).json({
+      res.status(statusCode).json({
         statusCode: statusCode,
-        error: "Bad Request",
+        error: getReasonPhrase(statusCode),
         message: message,
       });
       return;

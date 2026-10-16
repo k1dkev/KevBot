@@ -1,119 +1,125 @@
-# KevBot Architecture
+# KevBot architecture
 
-## 1. System Overview
+Implementation snapshot: `main` at `789bfc4` (2026-10-16), after publication of
+the accepted parity contract. This is a source map, not a claim about what is
+deployed. [PRD.md](PRD.md) owns product outcomes;
+[ROADMAP.md](ROADMAP.md) owns scope/order, and the
+[documentation index](docs/README.md) links contracts and operational instructions.
 
-KevBot unifies audio management across a Next.js frontend and a Discord bot, both powered by a shared Express + TypeScript API. The API orchestrates FFmpeg-based audio normalization, persists metadata in MySQL, and stores media files in Google Cloud Storage (GCS) while exposing REST endpoints under `/v1/*`. Local development runs through Docker Compose with auxiliary services for the database and a GCS emulator.
+## Components and boundaries
 
-## 2. Core Components
-
-- **Frontend (`frontend/`):** Next.js 15 App Router UI for authentication, uploads, browsing tracks, and playlist management. Communicates with the API via REST using the configured `NEXT_PUBLIC_API_URL`.
-- **Discord Bot (`bot/`, planned):** Node.js service mirroring the API client contracts to enable command-driven playback, playlist curation, and greeting/farewell configuration inside Discord guilds.
-- **Backend API (`api/`):** Express server with modular services, controllers, and routes. Handles authentication, track processing (including inline FFmpeg normalization), playlist logic, and play logging using Kysely for MySQL access.
-- **Database (`db/`):** MySQL schema managed through semver migrations. Stores users, tracks, playlists, play logs, greetings/farewells, and play-count aggregates.
-- **Storage (`gcloud/`):** Local emulator for Google Cloud Storage hosting normalized audio (`{trackId}.mp3`) and originals (`{trackId}.original.mp3`).
-- **Audio Pipeline:** FFmpeg (via `fluent-ffmpeg`) is executed directly by the API process during uploads to normalize audio to EBU R128 standards and verify loudness before persisting.
-- **Tooling (`tools/`):** Helper container and scripts for ad-hoc tasks; pattern will be reused for the upcoming bot service.
-
-## 3. High-Level Architecture
-
-```mermaid
-graph TD
-  subgraph Clients
-    FE[Next.js Frontend]
-    BOT[Discord Bot]
-  end
-  subgraph Platform
-    API["Express API (FFmpeg pipeline)"]
-    DB[(MySQL)]
-    GCS[(Tracks Bucket)]
-  end
-  FE -->|REST / JSON| API
-  BOT -->|REST / JSON| API
-  API -->|SQL via Kysely| DB
-  API -->|Upload / Stream| GCS
-  BOT -->|Voice Playback| DiscordGuilds[(Discord Guilds)]
-```
-
-- Both clients rely exclusively on the API for business logic and persistence.
-- The API handles file uploads with temporary disk storage, invokes FFmpeg inside the same process for normalization/verification, and then writes the output to the tracks bucket.
-- Track metadata, playlists, user preferences, and play counts live in MySQL, enabling consistent analytics across surfaces.
-
-## 4. Track Upload Flow
+| Component | Current responsibility and limits |
+| --- | --- |
+| [API](api/src/app.ts) | Express/TypeScript REST service; authentication, validation, library/personal preferences, audio processing, activity writes and unified search. Kysely accesses MySQL; GCS stores media. |
+| [Frontend](frontend/src/app) | Next.js 15 App Router; Discord login, browse/search, profiles, playlist pages and single-track playback. Upload/management controls, playlist queue/play reporting and complete statistics remain work. |
+| [Database](db/migration) | MySQL 8; forward semver SQL baseline/migrations, users, library data, preferences and play counts. The API's expected schema version is configured independently of component release tags. |
+| [Storage emulator](gcloud/docker-compose.yml) | Local fake GCS on port 4443, backed by `gcloud/data`. It emulates object storage; checked-in fixtures do not establish production data correctness. |
+| [Tools](tools/Dockerfile) | Python migration manager, rename utility and helpers. Maintenance tools can use database/storage credentials; ordinary client operations must use the API. |
+| Replacement Discord bot | Planned `bot/` service; no such service is present in this baseline. Accepted design is linked below. |
+| [Legacy bot](v1/README.md) | Historical implementation and compatibility evidence. It accesses legacy data/storage directly and is not interchangeable with the v2 schema or a completed replacement bot. |
 
 ```mermaid
-sequenceDiagram
-  participant User
-  participant Frontend
-  participant API
-  participant GCS as Tracks Bucket
-  participant DB as MySQL
-  User->>Frontend: Select MP3 + name
-  Frontend->>API: POST /v1/tracks (multipart)
-  API->>API: FFmpeg normalize & analyze
-  API->>GCS: Upload normalized + original MP3
-  API->>DB: Insert track record, play counts seed
-  API-->>Frontend: 201 Created (track payload)
-  Frontend-->>User: Show upload success
+flowchart LR
+  Web["Next.js website"] -->|HTTP API| API["Express API"]
+  Bot["Planned v2 Discord bot"] -.->|HTTP API| API
+  API -->|Kysely| DB[(MySQL)]
+  API --> GCS[(GCS audio objects)]
+  API -->|subprocesses| FFmpeg["FFmpeg / ffprobe"]
+  Bot -.-> Voice["Discord voice"]
 ```
 
-Key constraints enforced during this flow:
+Dashed connections describe planned integration. The existing web player uses
+the track stream endpoint through an HTML audio element; it does not yet provide
+the complete playlist/play-reporting behavior required by the product scope.
+See [player source](frontend/src/lib/contexts/music-player-context.tsx).
 
-- File extension `.mp3`, size ≤ 3 MB, duration ≤ 15 s.
-- Name must be lowercase alphanumeric ≤ 15 characters and unique among active tracks.
-- Loudness verified within ±2.5 LU of -16 LUFS with true peak ≤ -1.5 dBTP.
+## Identity, authorization and contracts
 
-## 5. Playback & Logging Flow
+Current [auth routes](api/src/routes/authRoutes.ts) implement Discord exchange,
+refresh, logout and current-user lookup. The API also issues bot service tokens
+through [bot auth](api/src/routes/botRoutes.ts). The baseline verifier maps a bot
+token to user ID `0`; that is not a real acting-user model. See
+[token verification](api/src/services/authService.ts).
 
-```mermaid
-sequenceDiagram
-  participant Listener as Web/Bot User
-  participant Client as Frontend/Bot
-  participant API
-  participant GCS as Tracks Bucket
-  participant DB as MySQL
-  Listener->>Client: Request track/playlist playback
-  Client->>API: GET /v1/tracks/:id/stream (range)
-  API->>GCS: Stream MP3 bytes
-  GCS-->>API: Audio chunks
-  API-->>Client: Stream audio response
-  Client-->>Listener: Play audio locally / in Discord voice
-  Client->>API: POST /v1/plays/tracks (play_type)
-  API->>DB: Append play log + update counters
-```
+The owner accepted D1–D11, the permission matrix and playback/reporting semantics
+in [#141](https://github.com/k1dkev/KevBot/issues/141#issuecomment-6207636658),
+with publication recorded by [#169](https://github.com/k1dkev/KevBot/pull/169).
+The [parity inventory](specs/bot-parity.md) and
+[decision contract](specs/bot-parity-decisions.md) specify the planned boundary:
+trusted bot authentication plus validated Discord actors, shared library policy
+and no bot database/GCS credentials. They do not establish runtime completion.
+[#157](https://github.com/k1dkev/KevBot/issues/157) owns the API actor/policy work
+and matching public API docs; #158–#163 cover the remaining adapters/acceptance.
 
-- The Discord bot pipes the streamed response into the Discord voice connection using Discord.js/voice primitives.
-- Random playlist sessions additionally invoke `POST /v1/plays/playlists/random` to track usage.
+Some read/search/play routes currently permit anonymous access. Reconciling
+that behavior with security prose, deleted-content visibility and intended
+public access remains #145. Route/schema code is the observed baseline; this
+architecture does not choose a new security policy or duplicate endpoint tables.
 
-## 6. Deployment & Environment
+## Audio and persistence flow
 
-- **Local Development:** `docker compose --env-file dev.env -f docker-compose.dev.yml up --build` starts API, MySQL, GCS emulator, frontend, and tools containers.
-- **Service-Specific Compose:** Each service directory contains its own compose file for focused work (e.g., `api/docker-compose.dev.yml`). Planned `bot/` service will ship with a similar setup.
-- **Configuration:** `.env`, `dev.env`, and `local_dev.env` must stay in sync. New environment variables require documentation and propagation across these files.
-- **Secrets:** API reads MySQL connection URL, bucket config, and JWT secret from environment (validated in `configFactory`). Discord bot credentials (token, client ID) will be introduced under the same configuration discipline.
+The [upload controller](api/src/controllers/tracksController.ts) validates the
+multipart upload, extension/format and duration. It invokes ffprobe and the
+two-pass FFmpeg helpers in [audioUtils](api/src/utils/audioUtils.ts), then checks
+normalized duration and loudness. These are subprocesses run during the API
+request, not a separately deployed normalization worker.
 
-## 7. Repository Structure
+The [track service](api/src/services/tracksService.ts) opens a SQL transaction,
+inserts the track to obtain its ID, uploads normalized audio as `{id}.mp3` and
+the original as `{id}.original.mp3`, then completes the transaction. GCS writes
+are not part of a distributed SQL transaction: a partial storage failure can
+need compensation. The controller attempts temporary-file cleanup in `finally`.
+Do not interpret that sequence as guaranteed atomic database/object cleanup.
 
-```
-api/        Express API source, tests, Dockerfile, build artifacts
-frontend/   Next.js app routing, components, lib
-bot/        (planned) Discord bot service mirroring API client logic
-db/         MySQL migrations and migration tooling
-gcloud/     Local GCS emulator with fixtures under data/
-tools/      Utility container and scripts
-.github/    CI workflows covering linting, migrations, deploy/reset jobs
-```
+Streaming reads the ID-addressed normalized object and supports HTTP ranges.
+Activity reporting uses separate API writes; streaming alone is not evidence
+that the frontend or planned bot reports a successful play. Accepted bot start
+reporting, idempotency, pools and overlap behavior remain implementation work.
 
-## 8. Discord Bot Integration Notes
+Current numeric/file/name limits live in [API config](api/src/config/config.ts),
+schemas and controllers. The [PRD](PRD.md#current-foundation-and-remaining-work)
+distinguishes the baseline from accepted #157 boundary changes; avoid copying
+another competing table of limits here. Audio normalization changes in other
+unmerged branches are not included in this snapshot.
 
-- The bot authenticates against the API using either user-issued JWTs or a bot service token with scoped permissions; all playlist and track mutations still route through `/v1/*`.
-- Guild-specific settings (e.g., default playlists per channel) can be persisted by extending `users` or adding new MySQL tables, but should respect existing ownership checks.
-- Audio playback leverages the same stream endpoint as the web client, keeping normalization and storage centralized in the API + GCS.
-- Bot deployment should mirror `api/` patterns: Dockerized service, dedicated compose file, and CI workflow updates once implemented.
+## Development and startup
 
-## 9. Observability & Telemetry
+The root [Compose file](docker-compose.dev.yml) includes MySQL, fake GCS, API and
+tools. It starts neither the frontend nor a bot. It also does not automatically
+apply database migrations. The tools container sleeps until invoked; its source
+mount is `/KevBot`, while the image includes tools at `/tools` and isolated
+Python interpreters under `/opt`.
 
-- API logging captures upload failures, normalization anomalies, and play logging errors.
-- MySQL aggregates (`track_play_counts`, `track_play_type_counts`) drive engagement dashboards; expose aggregated stats via future API endpoints if required.
-- Consider structured logs for Discord bot command usage to correlate with API metrics.
+Use the [root setup commands](README.md#local-development),
+[API build/test runbook](api/README.md),
+[migration-manager runbook](tools/db/migration_manager/README.md) and
+[frontend checks](frontend/README.md#checks-and-browser-smoke-tests).
+Python dependency setup follows the checked-out migration-manager runbook;
+uv adoption in #153 is separate from this baseline.
 
-This architecture ensures the frontend and Discord bot remain thin clients while the API governs FFmpeg normalization, MySQL persistence, and GCS media storage across the KevBot platform.
+The API reads and validates runtime configuration in
+[configFactory](api/src/config/config.ts). The frontend separately validates
+public browser configuration in [getConfig](frontend/src/lib/config.ts).
+Local env files are ignored and must match the selected topology; matching
+variable names does not mean host and container addresses should be identical.
+Environment-example and full security-contract reconciliation remain follow-up
+work under #145. No secrets or production state are documented here.
+
+## Build, verification and delivery
+
+The [API Dockerfile](api/Dockerfile) compiles TypeScript and packages OpenAPI YAML
+for the production target, alongside runtime dependencies and FFmpeg. The
+[CI workflow](.github/workflows/continuos-integration.yml) configures migration
+checks, frontend lint/unit/build/browser checks, API Testcontainers integration
+tests and a production-image smoke check. Test configuration is not evidence
+of a completed live Discord/OAuth/storage/production cutover.
+
+Frontend browser checks use synthetic API/audio fixtures. API integration checks
+use disposable MySQL and the standalone migration-manager image. Migration tests
+cover nonzero failures and verified TLS. There is no v2 bot CI target yet.
+
+[Release automation](CONTRIBUTING.md#releases) updates component versions and
+changelogs and can create tags/GitHub Releases. Deployment and hosted migration
+workflows are separately dispatched; publishing a release is not deployment
+evidence. Actual hosting topology and backup/restore/cutover readiness require
+the operational work in [M3](ROADMAP.md#m3--production-cutover-and-operation).

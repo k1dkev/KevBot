@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api-browser-client";
+import { logger } from "@/lib/logging/browser";
 import { ApiPlaylist } from "@/lib/types";
 import { useLibraryFilters } from "@/lib/contexts/library-filters-context";
 import { useAuth } from "@/lib/contexts/auth-context";
@@ -52,7 +53,7 @@ export function SideBar() {
         if (cancelled) return;
         setPlaylists(response);
       } catch (err) {
-        console.error("Failed to load playlists", err);
+        logger.error({ component: "sidebar", err }, "playlists.load.failed");
         if (!cancelled) {
           setError("Failed to load playlists");
           setPlaylists([]);

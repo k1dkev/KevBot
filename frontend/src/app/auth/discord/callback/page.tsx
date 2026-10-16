@@ -3,6 +3,9 @@
 import { useEffect, Suspense, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api-browser-client";
+import { logger } from "@/lib/logging/browser";
+
+const log = logger.child({ component: "oauth" });
 
 const DEFAULT_REDIRECT = "/tracks";
 
@@ -35,24 +38,24 @@ function CallbackContent() {
           }
         }
       } catch (storageError) {
-        console.warn("Failed to resolve OAuth redirect target:", storageError);
+        log.warn({ err: storageError }, "oauth.redirect.resolve.failed");
       } finally {
         try {
           sessionStorage.removeItem(storageKey);
         } catch (cleanupError) {
-          console.warn("Failed to clean up OAuth redirect key:", cleanupError);
+          log.warn({ err: cleanupError }, "oauth.redirect.cleanup.failed");
         }
       }
     }
 
     if (error) {
-      console.error("OAuth error:", error);
+      log.warn({}, "oauth.provider.rejected");
       router.push("/?error=oauth_error");
       return;
     }
 
     if (!code) {
-      console.error("No authorization code received");
+      log.warn({}, "oauth.code.missing");
       router.push("/?error=no_code");
       return;
     }
@@ -63,11 +66,11 @@ function CallbackContent() {
         if (data.access_token) {
           router.push(redirectTarget);
         } else {
-          console.error("No access token in response");
+          log.error({}, "oauth.token.missing");
           router.push("/?error=no_token");
         }
       } catch (error) {
-        console.error("Error exchanging code:", error);
+        log.warn({ err: error }, "oauth.exchange.failed");
         const status = (error as { status?: number } | null)?.status;
         const errorCode = status && status >= 400 && status < 500 ? "exchange_failed" : "exchange_error";
         router.push(`/?error=${errorCode}`);

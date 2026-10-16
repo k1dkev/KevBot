@@ -16,9 +16,12 @@ import { authMiddlewareFactory } from "./middlewares/auth";
 import { botRoutesFactory } from "./routes/botRoutes";
 import { devRoutesFactory } from "./routes/devRoutes";
 import { searchRoutesFactory } from "./routes/searchRoutes";
+import { requestLoggingFactory } from "./middlewares/requestLogging";
+import { audioRoutesFactory } from "./routes/audioRoutes";
 
 export function appFactory(config: Config, secrets: Secrets, db: Kysely<Database>, tracksBucket: Bucket) {
   const app = express();
+  app.use(requestLoggingFactory());
   // Basic CORS middleware allowing frontend origin with credentials
   const allowedOrigins = new Set<string>(["http://localhost:3000", process.env.FRONTEND_ORIGIN || ""].filter(Boolean));
 
@@ -48,6 +51,7 @@ export function appFactory(config: Config, secrets: Secrets, db: Kysely<Database
   app.use("/v1/bot", botRoutesFactory(config, services.authService, services.usersService, auth));
   app.use("/v1/users", usersRoutesFactory(auth, services.usersService));
   app.use("/v1/tracks", tracksRoutesFactory(config, auth, services.tracksService));
+  app.use("/v1/audio", audioRoutesFactory(config, auth));
   app.use("/v1/playlists", playlistsRoutesFactory(config, auth, services.playlistsService));
   app.use("/v1/search", searchRoutesFactory(config, services.searchService));
   app.use("/v1/plays", playsRoutesFactory(auth, services.playsService));

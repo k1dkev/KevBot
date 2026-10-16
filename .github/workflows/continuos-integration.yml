@@ -36,18 +36,29 @@ jobs:
 
   migration_manager_checks:
     runs-on: ubuntu-latest
+    env:
+      UV_PYTHON_DOWNLOADS: never
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python -m pip install -r requirements.txt
+      - name: Install pinned uv
+        run: python -m pip install uv==0.13.1
+      - run: uv lock --check
         working-directory: tools/db/migration_manager
-      - run: python -m unittest discover -s tests -p test_cli.py
+      - run: uv sync --locked
         working-directory: tools/db/migration_manager
       - run: docker build -t migration-manager:check tools/db/migration_manager
-      - run: python -m unittest discover -s tests -p test_integration.py
+      - run: uv run --locked python -m unittest discover -s tests
         working-directory: tools/db/migration_manager
+      - name: Build shared tools image
+        run: docker build --target production -t kevbot_tools:check tools
+      - name: Check shared tools invocations
+        run: |
+          docker run --rm -w /tools/db/migration_manager kevbot_tools:check /opt/migration_manager/.venv/bin/python migration_manager --help
+          docker run --rm -w /tools/db/rename_to_id kevbot_tools:check /opt/rename_to_id/.venv/bin/python rename_to_id --help
+          docker run --rm kevbot_tools:check mysql --version
 
   frontend_checks:
     runs-on: ubuntu-latest
@@ -70,6 +81,7 @@ jobs:
       - run: npm run lint
       - run: npm run test:unit
       - run: npm run build
+      - run: CHECK_LOGGING_BUNDLE=1 npm run test:unit
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v4
@@ -111,3 +123,5 @@ jobs:
           -v /var/run/docker.sock:/var/run/docker.sock \
           -e DOCKER_HOST=unix:///var/run/docker.sock \
           kevbot_api_test
+      - name: Run focused logging tests
+        run: docker run --rm --entrypoint npm kevbot_api_test run test:logging
