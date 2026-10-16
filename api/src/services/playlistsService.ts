@@ -3,6 +3,7 @@ import * as Boom from "@hapi/boom";
 import { Playlist } from "../db/schema";
 import { KevbotDb } from "../db/connection";
 import { Config } from "../config/config";
+import { assertMutablePlaylistName } from "./libraryPolicy";
 
 export function playlistsServiceFactory(db: KevbotDb, config: Config) {
   interface PlaylistOptions {
@@ -24,6 +25,16 @@ export function playlistsServiceFactory(db: KevbotDb, config: Config) {
   const playlistPermissionCheck = (playlist: Playlist, req_user_id: number) => {
     if (playlist.user_id !== req_user_id) {
       throw Boom.forbidden("You do not have permission to modify this playlist.");
+    }
+  };
+
+  const removalPermissionCheck = async (playlist: Playlist, req_user_id: number) => {
+    if (playlist.user_id === req_user_id) return;
+    const actor = await db.selectFrom("users").select("discord_id").where("id", "=", req_user_id).executeTakeFirst();
+    if (!config.masterDiscordId || actor?.discord_id !== config.masterDiscordId) {
+      throw Boom.forbidden(
+        "You do not have permission to modify this playlist; only its creator or configured master may remove tracks or delete it",
+      );
     }
   };
 
@@ -49,6 +60,8 @@ export function playlistsServiceFactory(db: KevbotDb, config: Config) {
 
   const patchPlaylist = async (id: number, name: string, req_user_id: number) => {
     const playlist = await getPlaylistById(id);
+    assertMutablePlaylistName(playlist.name);
+    assertMutablePlaylistName(name);
     playlistPermissionCheck(playlist, req_user_id);
     await validatePlaylistNameIsUnique(name, id);
     if (playlist.name === name) {
@@ -59,15 +72,30 @@ export function playlistsServiceFactory(db: KevbotDb, config: Config) {
   };
 
   const deletePlaylist = async (id: number, req_user_id: number) => {
-    const playlist = await getPlaylistById(id);
-    playlistPermissionCheck(playlist, req_user_id);
-    await db
-      .updateTable("playlists")
-      .set({ deleted_at: new Date() })
-      .where("id", "=", id)
-      .where("deleted_at", "is", null)
-      .execute();
-    return await getPlaylistById(id);
+    return db.transaction().execute(async (trx) => {
+      const playlist = await trx
+        .selectFrom("playlists")
+        .selectAll()
+        .where("id", "=", id)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!playlist) throw Boom.notFound("Playlist not found");
+      assertMutablePlaylistName(playlist.name);
+      await removalPermissionCheck(playlist, req_user_id);
+      const member = await trx
+        .selectFrom("playlist_tracks")
+        .select("track_id")
+        .where("playlist_id", "=", id)
+        .executeTakeFirst();
+      if (member) throw Boom.conflict("Playlist must be empty before deletion");
+      await trx
+        .updateTable("playlists")
+        .set({ deleted_at: new Date() })
+        .where("id", "=", id)
+        .where("deleted_at", "is", null)
+        .execute();
+      return trx.selectFrom("playlists").selectAll().where("id", "=", id).executeTakeFirstOrThrow();
+    });
   };
 
   const restorePlaylist = async (id: number, req_user_id: number, name?: string) => {
@@ -79,6 +107,7 @@ export function playlistsServiceFactory(db: KevbotDb, config: Config) {
   };
 
   const postPlaylist = async (name: string, req_user_id: number) => {
+    assertMutablePlaylistName(name);
     return await db.transaction().execute(async (trx) => {
       await validatePlaylistNameIsUnique(name);
       const { insertId } = await trx
@@ -104,10 +133,14 @@ export function playlistsServiceFactory(db: KevbotDb, config: Config) {
   };
 
   const postPlaylistTracks = async (id: number, track_ids: number[], req_user_id: number) => {
-    await getPlaylistById(id); // ensures playlist exists
-
     // ensures tracks are valid
-    const validTrackIds = await db.selectFrom("tracks").select("id").where("id", "in", track_ids).execute();
+    const validTrackIds = await db
+      .selectFrom("tracks")
+      .select("id")
+      .where("id", "in", track_ids)
+      .where("deleted_at", "is", null)
+      .orderBy("id")
+      .execute();
     const validTrackIdSet = new Set(validTrackIds.map((track) => track.id));
     const invalidTrackIds = track_ids.filter((track_id) => !validTrackIdSet.has(track_id));
     if (invalidTrackIds.length > 0) {
@@ -115,6 +148,15 @@ export function playlistsServiceFactory(db: KevbotDb, config: Config) {
     }
 
     return await db.transaction().execute(async (trx) => {
+      // All membership writes lock the parent, serializing against empty-only deletion.
+      const playlist = await trx
+        .selectFrom("playlists")
+        .selectAll()
+        .where("id", "=", id)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!playlist || playlist.deleted_at) throw Boom.notFound("Playlist not found");
+      assertMutablePlaylistName(playlist.name);
       const inPlaylistTrackIds = await trx
         .selectFrom("playlist_tracks")
         .select("track_id")
@@ -148,12 +190,19 @@ export function playlistsServiceFactory(db: KevbotDb, config: Config) {
   };
 
   const deletePlaylistTracks = async (id: number, track_ids: number[], req_user_id: number) => {
-    const playlist = await getPlaylistById(id); // ensures playlist exists
-    playlistPermissionCheck(playlist, req_user_id);
     if (track_ids.length == 0) {
       throw Boom.badRequest("track_ids array cannot be empty.");
     }
     return await db.transaction().execute(async (trx) => {
+      const playlist = await trx
+        .selectFrom("playlists")
+        .selectAll()
+        .where("id", "=", id)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!playlist || playlist.deleted_at) throw Boom.notFound("Playlist not found");
+      assertMutablePlaylistName(playlist.name);
+      await removalPermissionCheck(playlist, req_user_id);
       const trackIdSet = new Set(track_ids);
       const inPlaylistTrackIdSet = new Set(
         (

@@ -447,6 +447,10 @@ describe("PATCH /v1/playlists/:id/restore", () => {
 });
 
 describe("POST /v1/playlists/:id/tracks", () => {
+  beforeAll(async () => {
+    // The restore-conflict test deliberately leaves this shared fixture deleted.
+    await db.updateTable("playlists").set({ deleted_at: null }).where("id", "=", 788).execute();
+  });
   it("should add tracks to playlist", async () => {
     const jwtToken = await getLoginTokenAndTestResult(user_login, app);
     const res = await request(app)
@@ -455,7 +459,7 @@ describe("POST /v1/playlists/:id/tracks", () => {
       .send({ track_ids: [23, 40] })
       .expect(201);
     expect(res.body).toEqual({
-      added_track_ids: [40, 23],
+      added_track_ids: [23, 40],
       message: "Tracks added successfully to the playlist.",
       playlist_id: 788,
     });
@@ -466,10 +470,10 @@ describe("POST /v1/playlists/:id/tracks", () => {
     const res = await request(app)
       .post("/v1/playlists/788/tracks")
       .set("Authorization", `Bearer ${jwtToken}`)
-      .send({ track_ids: [23, 40, 50] })
+      .send({ track_ids: [23, 40] })
       .expect(201);
     expect(res.body).toEqual({
-      added_track_ids: [50],
+      added_track_ids: [],
       message: "Tracks added successfully to the playlist.",
       playlist_id: 788,
     });
@@ -480,13 +484,22 @@ describe("POST /v1/playlists/:id/tracks", () => {
     const res = await request(app)
       .post("/v1/playlists/788/tracks")
       .set("Authorization", `Bearer ${jwtToken}`)
-      .send({ track_ids: [23, 40, 50] })
+      .send({ track_ids: [23, 40] })
       .expect(201);
     expect(res.body).toEqual({
       added_track_ids: [],
       message: "Tracks added successfully to the playlist.",
       playlist_id: 788,
     });
+  });
+
+  it("rejects deleted tracks rather than adding hidden memberships", async () => {
+    const jwtToken = await getLoginTokenAndTestResult(user_login, app);
+    await request(app)
+      .post("/v1/playlists/788/tracks")
+      .set("Authorization", `Bearer ${jwtToken}`)
+      .send({ track_ids: [50] })
+      .expect(404);
   });
 
   it("should return error when provided with empty array", async () => {

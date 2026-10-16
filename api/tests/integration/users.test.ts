@@ -385,7 +385,11 @@ async function greetingFarewellChecks(type: "greeting" | "farewell", endpoint: s
   });
 
   it(`should update user ${type} playlist`, async () => {
-    await sendAndCheckValidSalutationPutRequest({ track_id: null, playlist_id: 55 });
+    if (type === "farewell") {
+      await sendAndCheckInvalidSalutationPutRequest({ track_id: null, playlist_id: 55 }, 400, /less than 4 seconds/i);
+    } else {
+      await sendAndCheckValidSalutationPutRequest({ track_id: null, playlist_id: 55 });
+    }
   });
 
   it(`should clear user ${type}`, async () => {

@@ -91,3 +91,6 @@ from development-tool advisory findings.
 
 See [application logging conventions](../docs/LOGGING.md) for browser defaults,
 server-only logging, redaction and verification commands.
+
+See the [frontend build-tool advisory review](../docs/FRONTEND_DEPENDENCY_ADVISORIES.md)
+for the current full-audit disposition and the tested selector-parser override.
