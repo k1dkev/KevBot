@@ -13,9 +13,10 @@ const DISCORD_TOKEN_URL = "https://discord.com/api/oauth2/token";
 export type AuthRole = "user" | "bot";
 
 export interface AuthContext {
-  userId: number;
+  userId?: number;
   role: AuthRole;
   sessionId?: string;
+  actorDiscordId?: string;
 }
 
 interface AccessTokenBundle {
@@ -184,6 +185,7 @@ export function computeAccessToken(
   role: AuthRole,
   userId?: number,
   sessionId?: string,
+  actorDiscordId?: string,
 ): AccessTokenBundle {
   const expiresInSeconds = config.authAccessTokenTtlMinutes * 60;
 
@@ -191,6 +193,8 @@ export function computeAccessToken(
     {
       role,
       sid: sessionId,
+      actor_id: role === "bot" ? userId : undefined,
+      actor_discord_id: role === "bot" ? actorDiscordId : undefined,
     },
     secrets.KEVBOT_API_JWT_SECRET,
     {
@@ -293,11 +297,24 @@ export function authServiceFactory(config: Config, secrets: Secrets, db: KevbotD
     return computeAccessToken(config, secrets, "bot");
   };
 
+  const resolveBotActor = async (discordId: string) => {
+    // The UNIQUE discord_id constraint makes concurrent first commands idempotent.
+    // Do not overwrite profile metadata supplied by the OAuth flow.
+    await db
+      .insertInto("users")
+      .values({ discord_id: discordId })
+      .onDuplicateKeyUpdate({ discord_id: discordId })
+      .execute();
+    const user = await usersService.getUserByDiscordId(discordId);
+    return { user, ...computeAccessToken(config, secrets, "bot", user.id, undefined, user.discord_id) };
+  };
+
   const verifyToken = async (token: string): Promise<AuthContext> => {
     try {
       const decoded = jwt.verify(token, secrets.KEVBOT_API_JWT_SECRET, {
         audience: config.authJwtAudience,
         issuer: config.authJwtIssuer,
+        algorithms: ["HS256"],
       });
 
       if (typeof decoded === "string") {
@@ -308,10 +325,9 @@ export function authServiceFactory(config: Config, secrets: Secrets, db: KevbotD
       const role = (decoded as any).role;
       const sessionId = (decoded as any).sid as string | undefined;
 
-      // TODO: better handling of bot vs user cases here.
-      const userId = role === "user" ? Number(sub) : 0;
-      if (role === "user") {
-        if (!Number.isFinite(userId)) {
+      const userId = role === "user" ? Number(sub) : decoded.actor_id;
+      if (role === "user" || userId !== undefined) {
+        if (!Number.isSafeInteger(userId) || userId <= 0) {
           throw Boom.unauthorized("Token subject is invalid");
         }
       }
@@ -319,8 +335,16 @@ export function authServiceFactory(config: Config, secrets: Secrets, db: KevbotD
       if (role !== "user" && role !== "bot") {
         throw Boom.unauthorized("Token role is invalid");
       }
-
-      return { userId, role, sessionId };
+      if (role === "bot") {
+        if (sub !== "bot" || sessionId !== undefined) throw Boom.unauthorized();
+        if (userId !== undefined) {
+          const actor = await usersService.getUserById(userId);
+          if (actor.discord_id !== decoded.actor_discord_id) throw Boom.unauthorized();
+        } else if (decoded.actor_discord_id !== undefined) throw Boom.unauthorized();
+      } else if (decoded.actor_id !== undefined || decoded.actor_discord_id !== undefined) {
+        throw Boom.unauthorized();
+      }
+      return { userId, role, sessionId, actorDiscordId: role === "bot" ? decoded.actor_discord_id : undefined };
     } catch (err) {
       if (isJwtError(err)) {
         throw Boom.unauthorized(err.message);
@@ -335,6 +359,7 @@ export function authServiceFactory(config: Config, secrets: Secrets, db: KevbotD
     refreshAccessToken,
     revokeSession,
     issueBotToken,
+    resolveBotActor,
     verifyToken,
   };
 }
