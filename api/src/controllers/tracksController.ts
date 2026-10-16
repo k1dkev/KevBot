@@ -9,6 +9,7 @@ import { getAuthenticatedUser } from "../utils/getAuthenticatedUser";
 import { Config } from "../config/config";
 import { TracksService } from "../services/tracksService";
 import { tracksSchemasFactory } from "../schemas/tracksSchemas";
+import { getLogger } from "../logging/context";
 
 export function tracksControllerFactory(config: Config, tracksService: TracksService) {
   const tracksSchemas = tracksSchemasFactory(config);
@@ -109,7 +110,7 @@ export function tracksControllerFactory(config: Config, tracksService: TracksSer
         [file?.path, normalizedPath].map(async (filePath) => {
           if (filePath) {
             await fs.promises.rm(filePath, { force: true }).catch((error) => {
-              console.error("Failed to delete file during track post clean up", error);
+              getLogger().warn({ component: "uploads", err: error }, "upload.cleanup.failed");
             });
           }
         }),

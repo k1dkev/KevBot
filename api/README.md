@@ -57,6 +57,9 @@ temporary-file cleanup, unchanged MySQL library rows and fake-GCS objects,
 and precise duration-boundary checks. It requires the disposable test
 infrastructure described below; no production services are used.
 
+Application logging configuration, redaction and correlation conventions are in
+[docs/LOGGING.md](../docs/LOGGING.md).
+
 ## Production build
 
 From `api/`, run `npm ci && npm run build && npm start` with the runtime

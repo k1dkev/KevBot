@@ -4,6 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { api } from "@/lib/api-browser-client";
+import { logger } from "@/lib/logging/browser";
+
+const log = logger.child({ component: "search" });
 import { LibrarySearchBar } from "@/components/track-search-bar";
 import { DataTable } from "@/components/ui/data-table";
 import { trackColumns, TrackRow } from "@/components/data-table/track-columns";
@@ -229,7 +232,7 @@ export function LibrarySearchPanel({
         setLastFetchedGeneration(generation);
       } catch (err) {
         if (!cancelled && activeGeneration.current === generation) {
-          console.error("Search failed", err);
+          log.error({ err }, "search.failed");
           setError("Unable to perform search. Please try again.");
           setResults([]);
           setPagination({ total: 0, limit: PAGE_SIZE, offset: 0, has_next: false, has_prev: false });
@@ -260,7 +263,7 @@ export function LibrarySearchPanel({
       setError(null);
     } catch (err) {
       if (!isCurrent()) return;
-      console.error("Failed to load additional results", err);
+      log.error({ err }, "search.pagination.failed");
       setError("Unable to load more results. Try again.");
     } finally {
       if (isCurrent()) {

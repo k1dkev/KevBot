@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { logger } from "./logging/browser";
 
 const frontendConfigSchema = z.object({
   apiUrl: z
@@ -73,7 +74,13 @@ export function getConfig(): FrontendConfig {
     return cachedConfig;
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.error("Frontend configuration validation error:", error.errors);
+      logger.error(
+        {
+          component: "config",
+          issues: error.issues.map(({ path, code }) => ({ field: path.join("."), issueType: code })),
+        },
+        "config.validation.failed",
+      );
       throw new Error(`Frontend configuration error: ${error.errors.map((e) => e.message).join(", ")}`);
     }
     throw error;
