@@ -2,6 +2,22 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0](https://github.com/k1dkev/KevBot/compare/api-v2.2.0...api-v2.3.0) (2026-10-16)
+
+
+### Features
+
+* **api:** add standalone audio normalization endpoint ([#173](https://github.com/k1dkev/KevBot/issues/173)) ([2c59d7c](https://github.com/k1dkev/KevBot/commit/2c59d7ca66f43c4c4de01dfb4d997ffcb189f49f))
+* **api:** add structured logging to API and frontend ([#178](https://github.com/k1dkev/KevBot/issues/178)) ([ed5fe1e](https://github.com/k1dkev/KevBot/commit/ed5fe1e513858851483b19aea23a008fb7255933))
+* **api:** resolve bot actors and enforce shared library permissions ([#172](https://github.com/k1dkev/KevBot/issues/172)) ([902f594](https://github.com/k1dkev/KevBot/commit/902f594dfb150fbdfa4e31daa6c569fa08380a34))
+* unified search ([#135](https://github.com/k1dkev/KevBot/issues/135)) ([94bac59](https://github.com/k1dkev/KevBot/commit/94bac5930e63ae180f309be35689394a7183c93e))
+
+
+### Bug Fixes
+
+* **api:** build a self-contained production image ([#155](https://github.com/k1dkev/KevBot/issues/155)) ([bbad754](https://github.com/k1dkev/KevBot/commit/bbad754d99afbdece381ad84307dfe17509c0f83))
+* **api:** improve unified search relevance ranking ([#152](https://github.com/k1dkev/KevBot/issues/152)) ([0e7b6bd](https://github.com/k1dkev/KevBot/commit/0e7b6bd4ed7ff064fc750b39bf52f3c9e3838465))
+
 ## [2.2.0](https://github.com/Kunedawg/KevBot/compare/api-v2.1.0...api-v2.2.0) (2025-12-31)
 
 

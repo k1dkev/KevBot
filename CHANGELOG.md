@@ -14,6 +14,26 @@ For component-specific technical changes, see:
 
 ---
 
+## [2.0.0-beta.4](https://github.com/k1dkev/KevBot/compare/v2.0.0-beta.3...v2.0.0-beta.4) (2026-10-16)
+
+
+### Features
+
+* **api:** add standalone audio normalization endpoint ([#173](https://github.com/k1dkev/KevBot/issues/173)) ([2c59d7c](https://github.com/k1dkev/KevBot/commit/2c59d7ca66f43c4c4de01dfb4d997ffcb189f49f))
+* **api:** add structured logging to API and frontend ([#178](https://github.com/k1dkev/KevBot/issues/178)) ([ed5fe1e](https://github.com/k1dkev/KevBot/commit/ed5fe1e513858851483b19aea23a008fb7255933))
+* **api:** resolve bot actors and enforce shared library permissions ([#172](https://github.com/k1dkev/KevBot/issues/172)) ([902f594](https://github.com/k1dkev/KevBot/commit/902f594dfb150fbdfa4e31daa6c569fa08380a34))
+* **frontend:** complete library browsing and profile overhaul ([#150](https://github.com/k1dkev/KevBot/issues/150)) ([59b7f79](https://github.com/k1dkev/KevBot/commit/59b7f792c7d926689da148fa96eab86c2e8fd804))
+* **tools:** add safe migration logging and run diagnostics ([#171](https://github.com/k1dkev/KevBot/issues/171)) ([f8571ea](https://github.com/k1dkev/KevBot/commit/f8571eac743bd0f72cc29857ca6d694b117aaf90))
+* unified search ([#135](https://github.com/k1dkev/KevBot/issues/135)) ([94bac59](https://github.com/k1dkev/KevBot/commit/94bac5930e63ae180f309be35689394a7183c93e))
+
+
+### Bug Fixes
+
+* **api:** build a self-contained production image ([#155](https://github.com/k1dkev/KevBot/issues/155)) ([bbad754](https://github.com/k1dkev/KevBot/commit/bbad754d99afbdece381ad84307dfe17509c0f83))
+* **api:** improve unified search relevance ranking ([#152](https://github.com/k1dkev/KevBot/issues/152)) ([0e7b6bd](https://github.com/k1dkev/KevBot/commit/0e7b6bd4ed7ff064fc750b39bf52f3c9e3838465))
+* **frontend:** patch selector parser advisory ([#177](https://github.com/k1dkev/KevBot/issues/177)) ([a94db7c](https://github.com/k1dkev/KevBot/commit/a94db7ccadc8de4f6062bab28ea0fddd221fee4b))
+* **tools:** repair migration execution and failure reporting ([#156](https://github.com/k1dkev/KevBot/issues/156)) ([b35abcf](https://github.com/k1dkev/KevBot/commit/b35abcfc083833ea8cd63c56efeaa72aa89e2932))
+
 ## [2.0.0-beta.3](https://github.com/Kunedawg/KevBot/compare/v2.0.0-beta.2...v2.0.0-beta.3) (2025-12-31)
 
 
