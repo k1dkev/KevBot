@@ -1,5 +1,6 @@
 FROM node:22-alpine AS dependencies
 WORKDIR /bot
+RUN apk add --no-cache ffmpeg
 COPY package*.json ./
 RUN npm ci
 
@@ -11,6 +12,7 @@ RUN npm run build && npm prune --omit=dev
 FROM node:22-alpine AS production
 ENV NODE_ENV=production
 WORKDIR /bot
+RUN apk add --no-cache ffmpeg
 COPY --from=build --chown=node:node /bot/node_modules ./node_modules
 COPY --from=build --chown=node:node /bot/dist ./dist
 COPY --chown=node:node package.json ./

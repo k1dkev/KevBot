@@ -71,6 +71,7 @@ export class BotApiClient {
     headers: Record<string, string>,
     json?: unknown,
     signal?: AbortSignal,
+    responseType: "json" | "audio" = "json",
   ): Promise<{ status: number; body: unknown }> {
     if (this.shutdown.signal.aborted || signal?.aborted) throw new ApiClientError("closed");
     if (this.active >= this.config.API_MAX_CONCURRENT_REQUESTS) throw new ApiClientError("busy");
@@ -89,6 +90,7 @@ export class BotApiClient {
           method,
           headers: {
             ...headers,
+            Accept: responseType === "audio" ? "audio/mpeg" : "application/json",
             "X-Request-ID": requestId,
             ...(json === undefined ? {} : { "Content-Type": "application/json" }),
           },
@@ -111,6 +113,10 @@ export class BotApiClient {
           await response.body?.cancel();
           return { status: response.status, body: undefined };
         }
+        if (responseType === "audio" && !/^audio\/mpeg(?:\s*;|$)/i.test(response.headers.get("content-type") ?? "")) {
+          await response.body?.cancel();
+          throw new ApiClientError("protocol", response.status);
+        }
         reader = response.body?.getReader();
         if (!reader) throw new ApiClientError("protocol", response.status, mutating);
         const chunks: Uint8Array[] = [];
@@ -123,7 +129,9 @@ export class BotApiClient {
             throw new ApiClientError("protocol", response.status, mutating);
           chunks.push(next.value);
         }
-        const text = Buffer.concat(chunks).toString("utf8");
+        const bytes = Buffer.concat(chunks);
+        if (responseType === "audio") return { status: response.status, body: bytes };
+        const text = bytes.toString("utf8");
         try {
           return { status: response.status, body: JSON.parse(text) as unknown };
         } catch {
@@ -295,6 +303,38 @@ export class BotApiClient {
     const data = options.schema.safeParse(result.body);
     if (!data.success) throw new ApiClientError("protocol", result.status, method !== "GET" && method !== "HEAD");
     return data.data;
+  }
+
+  async requestAudio(authorDiscordId: string, path: string): Promise<Buffer> {
+    if (
+      !discordIdSchema.safeParse(authorDiscordId).success ||
+      !/^\/v1\/(?!bot(?:\/|$))[^%?#\\]*$/.test(path) ||
+      path.includes("..") ||
+      path.includes("://")
+    )
+      throw new ApiClientError("invalid");
+    if (this.shutdown.signal.aborted) throw new ApiClientError("closed");
+    let token = await this.actor(authorDiscordId);
+    let result = await this.raw(path, "GET", { Authorization: `Bearer ${token.value}` }, undefined, undefined, "audio");
+    if (result.status === 401) {
+      token = await this.actor(authorDiscordId, token);
+      result = await this.raw(path, "GET", { Authorization: `Bearer ${token.value}` }, undefined, undefined, "audio");
+    }
+    if (result.status >= 400) {
+      const kind =
+        result.status === 401
+          ? "auth"
+          : result.status === 403
+            ? "denied"
+            : result.status === 404
+              ? "not_found"
+              : result.status < 500 && result.status !== 429
+                ? "invalid"
+                : "unavailable";
+      throw new ApiClientError(kind, result.status);
+    }
+    if (!Buffer.isBuffer(result.body) || result.body.length === 0) throw new ApiClientError("protocol", result.status);
+    return result.body;
   }
 }
 

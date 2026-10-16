@@ -2,8 +2,10 @@ import { Client, Events, GatewayIntentBits, Partials, type Message } from "disco
 import type { BotConfig } from "./config.js";
 import { BotApiClient } from "./api-client.js";
 import { Dispatcher } from "./dispatcher.js";
+import { PlaybackService } from "./playback.js";
 import type { BotLogger } from "./logging.js";
 import { bounded, PrivateReplies } from "./replies.js";
+import { DiscordVoicePlatform } from "./voice.js";
 
 export function createDiscordClient(config: BotConfig): Client {
   return new Client({
@@ -12,6 +14,7 @@ export function createDiscordClient(config: BotConfig): Client {
       GatewayIntentBits.GuildMessages,
       GatewayIntentBits.DirectMessages,
       GatewayIntentBits.MessageContent,
+      GatewayIntentBits.GuildVoiceStates,
     ],
     partials: [Partials.Channel],
     allowedMentions: { parse: [], repliedUser: false },
@@ -26,14 +29,18 @@ export async function startGateway(
   options: {
     client?: Pick<Client, "on" | "off" | "login" | "destroy">;
     api?: BotApiClient;
+    playback?: PlaybackService;
     onFatal?: () => void;
     signal?: AbortSignal;
   } = {},
 ) {
   const client = options.client ?? createDiscordClient(config);
   const api = options.api ?? new BotApiClient(config, log);
+  const playback =
+    options.playback ??
+    (!options.client ? new PlaybackService(api, new DiscordVoicePlatform(client as Client, log), log) : undefined);
   const replies = new PrivateReplies(config, log);
-  const dispatcher = new Dispatcher(config, api, replies, log);
+  const dispatcher = new Dispatcher(config, api, replies, log, undefined, Date.now, playback);
   let closed = false;
   let stopping: Promise<void> | undefined;
   const message = (event: Message) => {
@@ -54,6 +61,7 @@ export async function startGateway(
     closed = true;
     dispatcher.close();
     replies.close();
+    playback?.close();
     api.close();
     client.off(Events.MessageCreate, message);
     client.off(Events.ClientReady, ready);

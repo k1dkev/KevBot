@@ -1,28 +1,22 @@
+import { PlaybackError, type PlaybackPool, type PlaybackService } from "./playback.js";
+import type { BotApiClient } from "./api-client.js";
+
 export const helpSelectors = ["kb", "kevbot", "kev-bot"] as const;
-export const greetingTypes: Readonly<Record<string, "track" | "category">> = {
+export const greetingTypes: Readonly<Record<string, "track" | "playlist">> = {
   file: "track",
   audio: "track",
   clip: "track",
   audioclip: "track",
-  cat: "category",
-  category: "category",
+  playlist: "playlist",
 };
-export const reservedPools = [
-  "categories",
-  "cats",
-  "emptycats",
-  "all",
-  "mostplayed",
-  "myuploads",
-  "playhistory",
-  "uploadhistory",
-] as const;
-const rankedPools = new Set(["mostplayed", "playhistory", "uploadhistory"]);
+const rankedSources = new Set(["most_played", "play_history", "upload_history"]);
+const namedSources = new Set(["all_tracks", "most_played", "my_uploads", "play_history", "upload_history"]);
 export interface ParsedArgs {
   tokens: string[];
-  pool?: string;
+  pool?: PlaybackPool;
   limit?: number;
-  greetingType?: "track" | "category";
+  greetingType?: "track" | "playlist";
+  trackName?: string;
   channelNumber?: number;
 }
 export class UsageError extends Error {}
@@ -38,7 +32,9 @@ export interface CommandDefinition {
     args: ParsedArgs;
     authorDiscordId: string;
     guildId: string | null;
+    voiceChannelId: string | null;
     api: BotApiClient;
+    playback?: PlaybackService;
   }): string | Promise<string>;
 }
 const count = (tokens: string[], min: number, max = min) => {
@@ -53,36 +49,43 @@ const track = (tokens: string[]) => {
   name(tokens[0], 15);
   return { tokens };
 };
-const category = (tokens: string[]) => {
+const playlist = (tokens: string[]) => {
   count(tokens, 1);
   name(tokens[0], 45);
-  if ((reservedPools as readonly string[]).includes(tokens[0]!))
-    throw new UsageError("Virtual pools cannot be changed.");
   return { tokens };
 };
 const empty = (tokens: string[]) => {
   count(tokens, 0);
   return { tokens };
 };
-function pool(tokens: string[], playable: boolean): ParsedArgs {
+function pool(tokens: string[]): ParsedArgs {
   count(tokens, 0, 2);
-  const pool = tokens[0] === "cats" ? "categories" : (tokens[0] ?? "all");
-  name(pool, 45);
-  if (playable && ["categories", "emptycats"].includes(pool)) throw new UsageError("This pool cannot be played.");
-  if (tokens[1] !== undefined && (!rankedPools.has(pool) || !/^[1-9]\d*$/.test(tokens[1]) || Number(tokens[1]) > 100))
-    throw new UsageError(
-      "Ranked/history lengths must be integers from 1 through 100; other pools use the full eligible set.",
-    );
-  return { tokens, pool, ...(rankedPools.has(pool) ? { limit: Number(tokens[1] ?? 25) } : {}) };
+  const selector = tokens[0];
+  let selected: PlaybackPool = { type: "all_tracks" };
+  if (selector !== undefined) {
+    if (selector.startsWith("source:")) {
+      const source = selector.slice("source:".length);
+      if (!namedSources.has(source)) throw new UsageError("Use a supported typed source.");
+      selected = { type: source as "all_tracks" | "most_played" | "my_uploads" | "play_history" | "upload_history" };
+    } else {
+      const playlistName = selector.startsWith("playlist:") ? selector.slice("playlist:".length) : selector;
+      name(playlistName, 45);
+      selected = { type: "playlist", name: playlistName };
+    }
+  }
+  const bounded = selected.type !== "playlist" && rankedSources.has(selected.type);
+  if (tokens[1] !== undefined && (!bounded || !/^[1-9]\d*$/.test(tokens[1]) || Number(tokens[1]) > 100))
+    throw new UsageError("Only ranked/history sources accept a length from 1 through 100.");
+  return { tokens, pool: selected, ...(bounded ? { limit: Number(tokens[1] ?? 25) } : {}) };
 }
-const membership = (categoryFirst: boolean) => (tokens: string[]) => {
+const membership = (playlistFirst: boolean) => (tokens: string[]) => {
   count(tokens, 2, 100);
-  if (categoryFirst) {
-    category(tokens.slice(0, 1));
+  if (playlistFirst) {
+    playlist(tokens.slice(0, 1));
     tokens.slice(1).forEach((item) => name(item, 15));
   } else {
     name(tokens[0], 15);
-    tokens.slice(1).forEach((item) => category([item]));
+    tokens.slice(1).forEach((item) => playlist([item]));
   }
   return { tokens };
 };
@@ -96,38 +99,74 @@ const pending = (
 ): CommandDefinition => ({ name, usage, description, followup, validate, guildOnly });
 
 export const commands: readonly CommandDefinition[] = [
-  pending("p", "p!clip", "Play an exact clip in your voice channel.", 160, track, true),
-  pending(
-    "pr",
-    "pr![pool] [length]",
-    "Random selection from an eligible pool.",
-    160,
-    (tokens) => pool(tokens, true),
-    true,
-  ),
-  pending(
-    "raid",
-    "raid!clip channel-number",
-    "Play in a numbered guild voice channel.",
-    160,
-    (tokens) => {
+  {
+    name: "p",
+    usage: "p!track",
+    description: "Play an exact track in your voice channel.",
+    guildOnly: true,
+    validate: track,
+    execute: ({ args, authorDiscordId, guildId, voiceChannelId, playback }) => {
+      if (!playback || !guildId) throw new PlaybackError("closed");
+      return playback.play({
+        kind: "play",
+        trackName: args.tokens[0],
+        actorDiscordId: authorDiscordId,
+        guildId,
+        voiceChannelId,
+      });
+    },
+  },
+  {
+    name: "pr",
+    usage: "pr![source:<type>|playlist:<name>] [length]",
+    description: "Play a random track from a typed source or named playlist.",
+    guildOnly: true,
+    validate: pool,
+    execute: ({ args, authorDiscordId, guildId, voiceChannelId, playback }) => {
+      if (!playback || !guildId) throw new PlaybackError("closed");
+      return playback.play({
+        kind: "random",
+        pool: args.pool,
+        limit: args.limit,
+        actorDiscordId: authorDiscordId,
+        guildId,
+        voiceChannelId,
+      });
+    },
+  },
+  {
+    name: "raid",
+    usage: "raid!track channel-number",
+    description: "Play an exact track in a numbered guild voice channel.",
+    guildOnly: true,
+    validate: (tokens) => {
       count(tokens, 2);
       name(tokens[0], 15);
       if (!/^[1-9]\d*$/.test(tokens[1]!) || !Number.isSafeInteger(Number(tokens[1])))
         throw new UsageError("Channel number must be a positive integer.");
-      return { tokens, channelNumber: Number(tokens[1]) };
+      return { tokens, trackName: tokens[0], channelNumber: Number(tokens[1]) };
     },
-    true,
-  ),
-  pending("list", "list![pool] [length]", "List clips, categories or history.", 161, (tokens) => pool(tokens, false)),
+    execute: ({ args, authorDiscordId, guildId, playback }) => {
+      if (!playback || !guildId) throw new PlaybackError("closed");
+      return playback.play({
+        kind: "raid",
+        trackName: args.trackName,
+        actorDiscordId: authorDiscordId,
+        guildId,
+        voiceChannelId: null,
+        channelNumber: args.channelNumber,
+      });
+    },
+  },
+  pending("list", "list![source:<type>|playlist:<name>] [length]", "List tracks, playlists or history.", 161, pool),
   pending(
     "upload",
-    "upload![category ...] + MP3 attachment",
+    "upload![playlist ...] + MP3 attachment",
     "Upload the first attachment through the API.",
     161,
     (tokens) => {
       count(tokens, 0, 100);
-      tokens.forEach((item) => category([item]));
+      tokens.forEach((item) => playlist([item]));
       return { tokens };
     },
   ),
@@ -146,8 +185,8 @@ export const commands: readonly CommandDefinition[] = [
   },
   pending(
     "setgreeting",
-    "setgreeting!name [file|audio|clip|audioclip|cat|category]",
-    "Set your clip/category greeting.",
+    "setgreeting!name [file|audio|clip|audioclip|playlist]",
+    "Set your track/playlist greeting.",
     162,
     (tokens) => {
       count(tokens, 1, 2);
@@ -162,21 +201,27 @@ export const commands: readonly CommandDefinition[] = [
   pending("setfarewell", "setfarewell!clip", "Set your farewell (strictly below 4 seconds).", 162, track),
   pending("getfarewell", "getfarewell!", "Show your farewell.", 162, empty),
   pending("delfarewell", "delfarewell!", "Clear your farewell.", 162, empty),
-  pending("newcategory", "newcategory!name", "Create a category.", 161, category),
-  pending("delcategory", "delcategory!name", "Delete an empty category with API permission checks.", 161, category),
-  pending("addtocat", "addtocat!category clip [clip ...]", "Add clips to one category.", 161, membership(true)),
+  pending("newcategory", "newcategory!name", "Create a playlist (legacy command alias).", 161, playlist),
+  pending("delcategory", "delcategory!name", "Delete an empty playlist with API permission checks.", 161, playlist),
+  pending("addtocat", "addtocat!playlist track [track ...]", "Add tracks to one playlist.", 161, membership(true)),
   pending(
     "delfromcat",
-    "delfromcat!category clip [clip ...]",
-    "Remove clips with API permission checks.",
+    "delfromcat!playlist track [track ...]",
+    "Remove tracks with API permission checks.",
     161,
     membership(true),
   ),
-  pending("addcatsto", "addcatsto!clip category [category ...]", "Add one clip to categories.", 161, membership(false)),
+  pending(
+    "addcatsto",
+    "addcatsto!track playlist [playlist ...]",
+    "Add one track to playlists.",
+    161,
+    membership(false),
+  ),
   pending(
     "delcatsfrom",
-    "delcatsfrom!clip category [category ...]",
-    "Remove a clip from categories with API permission checks.",
+    "delcatsfrom!track playlist [playlist ...]",
+    "Remove a track from playlists with API permission checks.",
     161,
     membership(false),
   ),
@@ -188,14 +233,15 @@ export const commandRegistry: ReadonlyMap<string, CommandDefinition> = new Map(
 export function renderHelp(prefix: string): string {
   return [
     `KevBot command foundation — ${prefix}<command>!<arguments>`,
-    "Only help is implemented. Other commands are registered for follow-up work.",
+    "Playback commands are implemented; other registered commands are pending follow-up work.",
     ...commands.map(
       (command) =>
         `${command.name} — ${command.execute ? "implemented" : `not implemented (#${command.followup})`}${command.guildOnly ? "; guild only" : "; DM or guild"}\n${prefix}${command.usage}\n${command.description}`,
     ),
-    "Pools: all (default), categories/cats, emptycats, mostplayed, myuploads, playhistory, uploadhistory, or a category name.",
-    "Ranked/history default 25, maximum 100. allcats is an ordinary category name, not an alias.",
-    "Greeting aliases: file/audio/clip/audioclip; cat/category. No library or voice operation is implemented yet.",
+    "Special sources use source:all_tracks, source:most_played, source:my_uploads, source:play_history, or source:upload_history.",
+    "Select a playlist by name or playlist:<name>; names are never reserved for special sources.",
+    "Ranked/history defaults are 25, maximum 100. Tracks and playlists named allcats or all are ordinary names.",
+    "Greeting types: file/audio/clip/audioclip or playlist. Other registered commands are pending follow-up work.",
   ].join("\n\n");
 }
 
@@ -219,4 +265,3 @@ export function parseCommand(content: string, prefix: string): { command: string
       .filter(Boolean),
   };
 }
-import type { BotApiClient } from "./api-client.js";

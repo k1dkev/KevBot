@@ -203,3 +203,29 @@ test("bounds cover delayed response bodies, fail-fast concurrency, shutdown and 
   await assert.rejects(first, { kind: "closed" });
   await assert.rejects(limited.request(actorId, "/v1/users/me", { schema }), { kind: "closed" });
 });
+
+test("audio downloads preserve bytes, use actor authorization, and reject wrong or oversized media", async () => {
+  const bytes = Uint8Array.from([0, 127, 128, 255, 0, 45]);
+  const valid = fixture(
+    async () =>
+      new Response(bytes, { headers: { "Content-Type": "audio/mpeg", "Content-Length": String(bytes.length) } }),
+  );
+  const received = await valid.client.requestAudio(actorId, "/v1/tracks/9/stream");
+  assert.deepEqual(received, Buffer.from(bytes));
+  const streamCall = valid.calls.find((call) => call.path === "/v1/tracks/9/stream");
+  assert.equal(streamCall.headers.Authorization, "Bearer actor-token");
+  assert.equal(streamCall.headers.Accept, "audio/mpeg");
+  assert.equal(streamCall.method, "GET");
+  valid.client.close();
+
+  const wrongType = fixture(async () => new Response("not audio", { headers: { "Content-Type": "text/plain" } }));
+  await assert.rejects(wrongType.client.requestAudio(actorId, "/v1/tracks/9/stream"), { kind: "protocol" });
+  wrongType.client.close();
+
+  const oversized = fixture(
+    async () => new Response(Buffer.alloc(257), { headers: { "Content-Type": "audio/mpeg", "Content-Length": "257" } }),
+    { API_MAX_RESPONSE_BYTES: "256" },
+  );
+  await assert.rejects(oversized.client.requestAudio(actorId, "/v1/tracks/9/stream"), { kind: "protocol" });
+  oversized.client.close();
+});

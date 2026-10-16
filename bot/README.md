@@ -1,10 +1,10 @@
 # KevBot Discord service foundation
 
-This service is **not release-ready**. It currently implements offline help and
-the bounded command/API foundation; the other registered commands explicitly
-report that they are pending follow-up issues. It does not play audio, upload
-files, or mutate the library yet. The first usable release still requires the
-legacy command set.
+This service is **not release-ready**. It implements exact-track playback and
+typed random playback/raid with bounded voice lifecycles. Library mutation,
+uploads, greetings/farewells, automatic voice events, and full parity verification
+remain follow-up work. The first usable release still requires the full accepted
+command set.
 
 ## Local checks and development
 
@@ -16,7 +16,7 @@ npm test
 npm run dev
 ```
 
-`npm test` compiles the TypeScript and runs offline command, API-client,
+`npm test` compiles the TypeScript and runs offline command, playback, API-client,
 gateway-lifecycle, redaction, and private-reply tests. `npm run dev` expects the
 environment described in `.env.example` to be supplied by the shell or IDE; the
 service does not load dotenv files itself. `npm run build` then
@@ -45,3 +45,18 @@ GCS. Do not enable this profile with a production Discord token as a local test.
 
 CI builds the production image and runs help/configuration checks with networking
 disabled and synthetic values. It performs no Discord gateway login or deployment.
+
+## Playback command selectors
+
+`pr!` defaults to all active tracks. Virtual sources use an explicit
+`source:<type>` selector, for example `pr!source:most_played 25`. Supported types
+are `all_tracks`, `most_played`, `my_uploads`, `play_history`, and `upload_history`.
+An ordinary selector such as `pr!allcats` selects a playlist by that exact name;
+`playlist:<name>` is an explicit equivalent. No playlist or track name is
+reserved for a virtual source. Playlist references use the shared API and do
+not use a second category data model.
+
+Voice playback uses the API's bounded audio stream and reports playback only
+after Discord's audio player reaches `Playing`. The voice adapter checks bot
+Connect/Speak permissions, allows one active playback per guild, bounds
+connection/start/finish waits, and disconnects on completion or failure.
