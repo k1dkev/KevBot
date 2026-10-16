@@ -1,203 +1,106 @@
 # KevBot
 
-A Discord bot and music management platform with a modern web interface, RESTful API, and automated audio processing capabilities.
+A shared audio library with an Express/TypeScript API, MySQL, GCS audio storage,
+and a Next.js website. The website currently supports login, browse/search,
+profiles, playlist detail and single-track playback. Web management flows and the
+replacement Discord bot remain work; the legacy bot lives in `v1/`.
 
-## Current Planning
+Start with the [documentation index](docs/README.md),
+[product requirements](PRD.md), [architecture](ARCHITECTURE.md) and
+[roadmap](ROADMAP.md). GitHub issues track delivery, rather than copied checklists.
 
-Start with the [consolidated v2 roadmap](ROADMAP.md) for release scope, milestone
-order, and the proposed GitHub issue/design workflow. The first usable v2 release
-requires the legacy bot's full command set; its [parity specification](specs/bot-parity.md)
-is currently a draft.
+The first usable v2 release requires full legacy bot parity. The owner accepted
+the [parity contract](specs/bot-parity-decisions.md) in
+[#141](https://github.com/k1dkev/KevBot/issues/141#issuecomment-6207636658);
+[#169](https://github.com/k1dkev/KevBot/pull/169) records publication. Design
+acceptance is separate from API/bot implementation and release verification.
 
-The [planning audit](docs/PLANNING_AUDIT.md) maps older GitHub issues, Obsidian
-notes, and conflicting documentation to current implementation. Some setup,
-architecture, and release instructions below still need the reconciliation
-identified there. Use the [M0 epic and its sub-issues](https://github.com/k1dkev/KevBot/issues/137)
-for current task status; older issues are being reviewed in batches.
+## Local development
 
-## Overview
+Commands here match `main` at `41a221b` (2026-10-15). Use Docker with Compose
+`include` support for the service stack. For host development, the API declares
+Node `>=20.17.0 <21` (its image uses 20.17.0); frontend/formatting CI uses Node 22.
+Python tools use Python 3.12; host audio processing also requires FFmpeg/ffprobe.
 
-KevBot is a monorepo containing multiple components that work together:
+Supply your own ignored `dev.env` before running Compose. Its variables must
+satisfy the [included service files](docker-compose.dev.yml) and
+[API runtime validator](api/src/config/config.ts); the old
+[`api/.env.example`](api/.env.example) is incomplete and is not a full stack
+template. Environment-example cleanup remains under
+[#145](https://github.com/k1dkev/KevBot/issues/145).
 
-- **API**: Express + TypeScript backend with JWT authentication, file uploads, and streaming
-- **Frontend**: Next.js 15 application with modern UI
-- **Database**: MySQL with versioned migrations
-- **Tools**: Helper scripts and development utilities
-- **GCloud**: Local Google Cloud Storage emulator
-
-## Quick Start
-
-### Prerequisites
-
-- Docker and Docker Compose
-- Node.js >= 20.17.0 (for local development without Docker)
-
-### Starting the Full Stack
+From the repository root:
 
 ```sh
+docker compose --env-file dev.env -f docker-compose.dev.yml config --services
 docker compose --env-file dev.env -f docker-compose.dev.yml up --build
 ```
 
-### Starting Individual Services
+This starts MySQL, fake GCS, API and tools. It does **not** start frontend/bot or
+apply migrations. An empty database needs an explicit migration before the API
+can satisfy its schema-version check. Use the
+[migration-manager instructions](tools/db/migration_manager/README.md) with an
+explicitly selected disposable/local database; sensitive fixture copying is not
+a prerequisite for automated tests. Do not treat the historical reseeding
+recipe as a production or recovery runbook.
+
+Run the frontend separately after configuring its ignored `.env.local` according
+to [frontend configuration](frontend/README.md#environment-variables) and
+[the validator](frontend/src/lib/config.ts). Give the API a distinct port from
+Next's default 3000, and set the browser API URL and Discord redirect to match
+your chosen local addresses.
 
 ```sh
-# API
-cd api && npm run dev
-
-# Frontend
-cd frontend && npm run dev
-
-# Database
-cd db && docker compose up
-
-# Tools
-cd tools && docker compose -f docker-compose.dev.yml up
+npm --prefix frontend ci
+npm --prefix frontend run dev
 ```
 
-### Stopping Services
+For a host API, install its dependencies with `npm --prefix api ci`, provide its
+required environment and run `npm --prefix api run dev`. Container and host
+database/storage addresses can differ; do not copy URLs blindly between them.
+See the [API runbook](api/README.md) for build/start and container testing.
+
+To stop this Compose project while retaining database volumes:
 
 ```sh
-docker compose -f docker-compose.dev.yml down
-
-# Full reset (removes volumes)
-docker compose -f docker-compose.dev.yml down -v
+docker compose --env-file dev.env -f docker-compose.dev.yml down
 ```
 
-## Project Structure
+## Verification
 
-```
-KevBot/
-├── .github/           # CI/CD workflows and release automation
-├── api/               # Express + TypeScript backend
-│   ├── src/           # Source code
-│   ├── tests/         # Integration and unit tests
-│   └── docs/          # API documentation
-├── db/                # Database migrations (semver)
-│   └── migration/     # SQL migration scripts
-├── frontend/          # Next.js 15 App Router application
-│   └── src/
-│       ├── app/       # Next.js pages
-│       ├── components/# React components
-│       └── lib/       # Utilities and types
-├── gcloud/            # Local GCS emulator
-│   └── data/          # Storage fixtures
-├── tools/             # Development tools and scripts
-│   └── db/            # Database utilities
-└── v1/                # Legacy Discord bot (archived)
-```
-
-## Versioning & Releases
-
-### Component Versions
-
-Each component is versioned independently using [Semantic Versioning](https://semver.org/):
-
-- `api@2.0.0` - Backend API
-- `db@1.0.0` - Database migrations
-- `frontend@0.1.0` - Frontend application
-- `tools@1.0.0` - Development tools
-- `gcloud@1.0.0` - GCS emulator
-
-### Release Process
-
-We use [release-please](https://github.com/googleapis/release-please) for semi-automated releases:
-
-1. **Development**: Make changes in feature branches, commit freely (WIP commits are fine!)
-2. **Pull Request**: Open PR with a [conventional commit](https://www.conventionalcommits.org/) title
-3. **Merge**: Squash merge to `main` (all commits become one)
-4. **Automation**: release-please creates/updates a Release PR with changelogs
-5. **Release**: Merge the Release PR to publish new versions and create tags
-
-### Documentation
-
-- **[RELEASE_NOTES.md](RELEASE_NOTES.md)**: User-facing highlights for major releases
-- **Component CHANGELOGs**: Technical details in each component's `CHANGELOG.md`
-  - [API Changelog](api/CHANGELOG.md)
-  - [Database Changelog](db/CHANGELOG.md)
-  - [Frontend Changelog](frontend/CHANGELOG.md)
-
-## Development
-
-### Contributing
-
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on:
-
-- Development workflow and branch strategy
-- PR title requirements (conventional commits)
-- Testing guidelines
-- Release process
-
-### Key Points
-
-- **PR Titles Matter**: Use conventional commit format (enforced by CI)
-- **WIP Commits OK**: Branch commits don't need special formatting
-- **Squash Merge Only**: All PRs are squash merged to keep history clean
-- **Automated Releases**: release-please handles changelog generation
-
-### Example PR Titles
-
-```
-feat(api): add track streaming endpoint
-fix(frontend): resolve player controls issue
-chore(db): update migration scripts
-docs(project): improve setup instructions
-feat(api)!: breaking change to auth system
-```
-
-### Environment Configuration
-
-The project uses multiple environment files:
-
-- `.env` - General configuration
-- `dev.env` - Development-specific settings
-- `local_dev.env` - Local overrides (not committed)
-
-Keep these aligned and document any new variables.
-
-## Testing
-
-### API Tests
+Install the pinned repository formatters using
+[docs/FORMATTING.md](docs/FORMATTING.md), activate `.venv-format`, then run from
+the root:
 
 ```sh
-cd api
-npm test
+npm ci
+npm run format:check
+npm --prefix frontend run lint
+npm --prefix frontend run test:unit
 ```
 
-Uses Jest + Testcontainers to spin up isolated databases for testing.
+The [frontend runbook](frontend/README.md#checks-and-browser-smoke-tests) provides
+the configured build, browser installation and `test:e2e` commands. Those checks
+use synthetic fixtures. The [API runbook](api/README.md#run-tests-locally) builds
+the migration/test images and runs Jest/Testcontainers against disposable MySQL;
+[production smoke instructions](api/README.md#production-image-smoke-test) verify
+the actual runtime image. `npm test` alone does not prepare those dependencies.
 
-### Frontend Linting
+CI is configured for these checks on PRs to `main`; see the
+[workflow](.github/workflows/continuos-integration.yml) and
+[formatting workflow](.github/workflows/formatting.yml). Configured checks and
+checks required by branch protection are different; see the
+[observed repository settings](.github/REPOSITORY_SETTINGS.md).
 
-```sh
-cd frontend
-npm run lint
-```
+## Contributing and releases
 
-### CI/CD
-
-All tests and linting run automatically on pull requests via GitHub Actions.
-
-## Containers & Tools
-
-### Tools Container
-
-The development docker compose file mounts the root of KevBot to `src-dev` for live development. There's also a `src` directory with a copy of `/tools/` and `db/migration/`.
-
-### Docker Compose Files
-
-- `docker-compose.dev.yml` - Full development stack
-- `api/docker-compose.dev.yml` - API service only
-- `db/docker-compose.yml` - Database only
-- `frontend/docker-compose.yml` - Frontend only
-- `tools/docker-compose.dev.yml` - Tools container
-
-## Architecture
-
-For detailed architecture information, see [ARCHITECTURE.md](ARCHITECTURE.md).
+Use [CONTRIBUTING.md](CONTRIBUTING.md) for Conventional Commit titles, review,
+merge choices and [release behavior](CONTRIBUTING.md#releases). Component versions
+come from package/version files and the
+[release manifest](.github/.release-please-manifest.json), rather than examples
+copied into this README. Generated changelogs are release history;
+[RELEASE_NOTES.md](RELEASE_NOTES.md) contains human-written highlights.
 
 ## License
 
 ISC
-
-## Contact
-
-GitHub: [@Kunedawg](https://github.com/Kunedawg)
