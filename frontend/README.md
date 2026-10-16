@@ -86,3 +86,8 @@ they do not reuse an existing application. Failure traces/screenshots are writte
 to ignored `test-results/`. CI uses the same build settings and uploads failed
 browser artifacts. `npm audit --omit=dev` checks shipped dependencies separately
 from development-tool advisory findings.
+
+## Logging
+
+See [application logging conventions](../docs/LOGGING.md) for browser defaults,
+server-only logging, redaction and verification commands.

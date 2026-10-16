@@ -16,6 +16,7 @@ import { getAuthenticatedUser } from "../utils/getAuthenticatedUser";
 import { Config } from "../config/config";
 import { TracksService } from "../services/tracksService";
 import { tracksSchemasFactory } from "../schemas/tracksSchemas";
+import { getLogger } from "../logging/context";
 
 export function tracksControllerFactory(config: Config, tracksService: TracksService) {
   const tracksSchemas = tracksSchemasFactory(config);
@@ -174,7 +175,7 @@ export function tracksControllerFactory(config: Config, tracksService: TracksSer
         if (file?.path) await fs.unlinkSync(file.path);
         if (normalizedPath) await fs.unlinkSync(normalizedPath);
       } catch (error) {
-        console.error(`Failed to delete files during track post clean up`, error);
+        getLogger().warn({ component: "uploads", err: error }, "upload.cleanup.failed");
       }
     }
   };

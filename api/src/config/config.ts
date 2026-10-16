@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { logger } from "../logging/logger";
+import { logLevels } from "../logging/safety";
 
 const secretsSchema = z.object({
   DB_CONNECTION_STRING: z
@@ -46,6 +48,7 @@ const secretsSchema = z.object({
 });
 
 const configSchema = z.object({
+  logLevel: z.enum(logLevels).optional(),
   nodeEnv: z.string().min(1),
   maxFileSizeInBytes: z.number().int().positive(),
   maxTrackDurationInSeconds: z.number().positive(),
@@ -127,6 +130,7 @@ export function configFactory(): AppConfig {
       DISCORD_OAUTH2_REDIRECT_URI: process.env.DISCORD_OAUTH2_REDIRECT_URI,
     };
     const config = {
+      logLevel: process.env.LOG_LEVEL,
       nodeEnv: process.env.NODE_ENV,
       maxFileSizeInBytes: 3000000,
       maxTrackDurationInSeconds: 15.0,
@@ -162,9 +166,15 @@ export function configFactory(): AppConfig {
     return { config: validatedConfig, secrets: validatedSecrets };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.error("Configuration validation error:", error.errors);
+      logger.fatal(
+        {
+          component: "config",
+          issues: error.issues.map(({ path, code }) => ({ field: path.join("."), issueType: code })),
+        },
+        "config.validation.failed",
+      );
     } else {
-      console.error("Unknown error during configuration initialization:", error);
+      logger.fatal({ component: "config", err: error }, "config.initialization.failed");
     }
     process.exit(1);
   }

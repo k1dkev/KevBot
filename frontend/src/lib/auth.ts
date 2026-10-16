@@ -1,3 +1,5 @@
+import { logger } from "./logging/browser";
+
 interface JwtPayload {
   role?: string;
   sid?: string;
@@ -19,7 +21,7 @@ export function decodeJwt(token: string): JwtPayload | null {
     const decoded = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
     return JSON.parse(decoded) as JwtPayload;
   } catch (error) {
-    console.error("Failed to decode JWT:", error);
+    logger.debug({ component: "auth", err: error }, "auth.jwt.decode.failed");
     return null;
   }
 }

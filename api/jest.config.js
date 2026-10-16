@@ -4,6 +4,7 @@ module.exports = {
   testEnvironment: "node",
   setupFilesAfterEnv: ["./tests/setupTestContainers.ts"],
   testMatch: ["**/tests/**/*.test.ts", "**/tests/**/*.spec.ts"],
+  testPathIgnorePatterns: ["/node_modules/", "/tests/logging/"],
   transform: {
     "^.+.tsx?$": ["ts-jest", { tsconfig: "tests/tsconfig.json" }],
   },

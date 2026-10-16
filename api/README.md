@@ -1,5 +1,8 @@
 # API
 
+Application logging configuration, redaction and correlation conventions are in
+[docs/LOGGING.md](../docs/LOGGING.md).
+
 ## Production build
 
 From `api/`, run `npm ci && npm run build && npm start` with the runtime
