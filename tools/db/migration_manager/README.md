@@ -38,6 +38,99 @@ and must not be assumed rolled back. Baseline inference, cross-runner locking,
 checksums and recovery rehearsal remain separate cutover work. Workflow
 concurrency serializes runs for one environment, not arbitrary external clients.
 
+## Diagnostics and CLI output
+
+Migration-manager uses Python's standard [`logging`](https://docs.python.org/3.12/library/logging.html)
+library, configured once at the CLI boundary with named component loggers.
+It needs no adapter, new dependency, log file, or external logging service.
+The package handler does not propagate into the root logger or configure other
+libraries. Each invocation creates a fresh run ID and one stderr handler.
+
+`migrate --log-level LEVEL` accepts `DEBUG`, `INFO` (default), `WARNING`, `ERROR`,
+or `CRITICAL`, case-insensitively; invalid levels fail argument validation.
+`--log-format text|json` selects readable text (default) or one JSON object per
+stderr line for Docker/CI collectors. These are CLI options, not environment
+settings; the existing env-file/secret configuration is unchanged.
+
+| Level | Events |
+| --- | --- |
+| DEBUG | Connection check and schema inspection |
+| INFO | Run start, connection ready, plan, dry-run, each script start/completion or planned script, already-current state, completion |
+| WARNING | Failed connection attempts that will be retried (four at most) |
+| ERROR | One final failure, including exhausted connection retries |
+
+Every diagnostic contains a UTC timestamp, severity, component, run ID, event,
+target label, dry-run flag, phase, current/target versions, script, and elapsed
+milliseconds. Fields not yet known are null. `current_version` is the version
+observed at run start; `target_version` is the resolved plan target. Script events
+also include script elapsed milliseconds; plan events include script count, and
+retries include attempt/max-attempts. The target is `db-` plus the first 12 hex
+digits of SHA-256 over `host:port/database`, allowing correlation without emitting
+hostnames, schema names, users, or URLs. Script context is a sanitized basename,
+never a full path.
+
+Help, the script/status table, the already-current result, and the final
+`Database migration complete! <current> --> <target>` result remain on stdout.
+The latter preserves API Testcontainers' completion-text consumer; its one-shot
+wait also continues to depend on a successful exit. Log-level/format changes do
+not change those results. Dry-run rows say `PLANNED`, and failed scripts never
+receive a `DONE` row or a successful completion result. Logging errors are
+suppressed so a broken diagnostic stream/formatter cannot change migration
+success/failure; failure remains exit 1 even if `CRITICAL` filters its diagnostic.
+Argument errors remain exit 2, and help remains exit 0.
+
+Failures expose allowlisted `reason`/`cause` categories and, when available, a
+numeric MySQL error code parsed from the client error header. For example,
+`authentication_failed` / 1045 means check migration-user credentials/privileges;
+`connection_unavailable` / 2003 means check reachability;
+`tls_error` / 2026 means check the CA/hostname configuration; and
+`sql_syntax_error` / 1064 identifies a SQL failure with script context.
+Unknown driver errors get `mysql_command_failed`. After five connection attempts,
+the single terminal error retains the last safe cause without another sleep.
+
+Neither format, including DEBUG, serializes raw MySQL stderr, SQL bodies, seed
+rows, subprocess arguments, option-file contents, arbitrary exception messages,
+tracebacks, stack information, or arbitrary log-record extras. Client stderr is
+discarded at the error boundary after extracting the numeric code. Known
+connection credentials (encoded and decoded) and environment values whose names
+contain PASSWORD/SECRET/TOKEN/KEY/CONNECTION_STRING are redacted from script
+metadata and table rows; control characters are replaced and names are bounded.
+Keep secrets out of filenames: names are intentional operational metadata, and
+an unrelated secret not supplied through configuration cannot be identified by
+the tool. Driver error detail is deliberately unavailable even in DEBUG; inspect
+the identified script locally using appropriately controlled data when needed.
+New diagnostic call sites should use a static event from `diagnostics.EVENTS`
+and numeric or allowlisted details; formatters omit unrecognized event messages.
+
+Local examples (from this tool directory):
+
+```bash
+python -m migration_manager migrate -e ../../../dev.env ../../../db/migration --dry-run --log-level DEBUG
+python -m migration_manager migrate -e ../../../dev.env ../../../db/migration --dry-run --log-format json
+```
+
+Container example (from the repository root, after building the image):
+
+```bash
+docker run --rm --env-file .env -v ./db/migration:/app/migration:ro migration-manager migrate migration --dry-run --log-format json
+```
+
+In GitHub Actions, append the same options to the existing container command;
+normal runner stdout/stderr capture keeps diagnostics available without a file:
+
+```yaml
+- name: Preview migration with JSON diagnostics
+  env:
+    DB_CONNECTION_STRING: ${{ secrets.DB_CONNECTION_STRING }}
+  run: >-
+    docker run --rm -e DB_CONNECTION_STRING
+    -v "$GITHUB_WORKSPACE/db/migration:/app/migration:ro"
+    migration-manager migrate migration --dry-run --log-format json --log-level INFO
+```
+
+Retain the protected hosted workflow's existing verified-TLS certificate mount
+and options for targets requiring TLS; the example only illustrates logging.
+
 ## Local Python environment
 
 Use Python 3.12 and **uv 0.13.1**, the same uv version pinned in both Dockerfiles,
@@ -113,13 +206,18 @@ The integration check generates an ephemeral TLS certificate and disposable
 MySQL database. It verifies dry-run non-mutation, explicit/latest targets,
 already-current behavior, invalid/downgrade targets, SQL-failure exit codes,
 and CA/hostname-verified TLS. It never uses production credentials/data.
-The uv checks install into fresh temporary directories, check CLI help, and
-verify missing/stale locks fail without being created or rewritten. CI also
-builds the shared tools image and checks both Python tool invocations and the
-MySQL client. The API CI job builds the same standalone Dockerfile for its
-Testcontainers search suite; see [API test commands](../../../api/README.md#run-tests-locally).
-Both test harnesses accept `MIGRATION_TEST_IMAGE` to select a locally built image
-without replacing the default image tag (pass it into the API test container).
+It also checks JSON context, stdout compatibility, real SQL-error redaction,
+and authentication retry exhaustion with one terminal error. The unit suite
+covers levels, both formats, configuration validation, exception/metadata
+redaction, retry recovery, and broken logging streams/formatters. The uv checks
+install into fresh temporary directories, check CLI help, and verify missing
+or stale locks fail without being created or rewritten. CI also builds the
+shared tools image and checks both Python tool invocations and the MySQL client.
+The API CI job builds the same standalone Dockerfile for its Testcontainers
+search suite; see [API test commands](../../../api/README.md#run-tests-locally).
+Both test harnesses accept `MIGRATION_TEST_IMAGE` to select a locally built
+image without replacing the default image tag (pass it into the API test
+container).
 
 ## CLI Help
 
@@ -146,6 +244,8 @@ $ uv run --locked python migration_manager migrate -h
 
 usage: migration_manager migrate [-h] [--env-file ENV_FILE]
                                  [--version VERSION] [--dry-run]
+                                 [--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}]
+                                 [--log-format {text,json}]
                                  scripts_directory
 
 Migrate the database to the specified version. This command will apply migration scripts located in the specified directory.
@@ -161,6 +261,10 @@ options:
   --version VERSION, -v VERSION
                         Target database version
   --dry-run             Set to true to not actually apply scripts
+  --log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}
+                        Diagnostic severity threshold on stderr (default: INFO)
+  --log-format {text,json}
+                        Diagnostic format on stderr (default: text)
 
 Script Naming Conventions:
   - Scripts must be named in the format <version>__<name>.sql
