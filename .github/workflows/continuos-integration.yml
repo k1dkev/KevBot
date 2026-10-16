@@ -57,6 +57,7 @@ jobs:
       - run: npm run lint
       - run: npm run test:unit
       - run: npm run build
+      - run: CHECK_LOGGING_BUNDLE=1 npm run test:unit
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v4
@@ -98,3 +99,5 @@ jobs:
           -v /var/run/docker.sock:/var/run/docker.sock \
           -e DOCKER_HOST=unix:///var/run/docker.sock \
           kevbot_api_test
+      - name: Run focused logging tests
+        run: docker run --rm --entrypoint npm kevbot_api_test run test:logging

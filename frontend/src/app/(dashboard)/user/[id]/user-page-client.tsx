@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, Pause, Play } from "lucide-react";
 import { api } from "@/lib/api-browser-client";
+import { logger } from "@/lib/logging/browser";
 import { ApiPlaylist, ApiTrack, ApiUser } from "@/lib/types";
 import { UserPlaylistsTable } from "@/components/user-playlists-table";
 import { UserTracksTable } from "@/components/user-tracks-table";
@@ -122,7 +123,7 @@ export default function UserPageClient({ user }: UserPageClientProps) {
         setGreeting(resolvedGreeting);
         setFarewell(resolvedFarewell);
       } catch (err) {
-        console.error("Failed to load user profile data", err);
+        logger.error({ component: "profile", err }, "profile.load.failed");
         if (!cancelled) setError("Failed to load profile data.");
       } finally {
         if (!cancelled) setIsLoading(false);

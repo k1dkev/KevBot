@@ -18,10 +18,12 @@ import { devRoutesFactory } from "./routes/devRoutes";
 import { searchRoutesFactory } from "./routes/searchRoutes";
 import { libraryRoutesFactory } from "./routes/libraryRoutes";
 import { libraryServiceFactory } from "./services/libraryService";
+import { requestLoggingFactory } from "./middlewares/requestLogging";
 import { audioRoutesFactory } from "./routes/audioRoutes";
 
 export function appFactory(config: Config, secrets: Secrets, db: Kysely<Database>, tracksBucket: Bucket) {
   const app = express();
+  app.use(requestLoggingFactory());
   // Basic CORS middleware allowing frontend origin with credentials
   const allowedOrigins = new Set<string>(["http://localhost:3000", process.env.FRONTEND_ORIGIN || ""].filter(Boolean));
 

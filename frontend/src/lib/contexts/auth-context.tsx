@@ -3,6 +3,9 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { getConfig } from "@/lib/config";
 import { api, UnauthenticatedError } from "@/lib/api-browser-client";
+import { logger } from "@/lib/logging/browser";
+
+const log = logger.child({ component: "auth" });
 
 // TODO(discord-auth): where is the session stored or used, should that not be in the auth context?
 
@@ -87,7 +90,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // TODO: very specific error handling here. Not a fan of this. I'd prefer a more general approach.
         if (!(error instanceof UnauthenticatedError)) {
           // Unexpected errors should still be surfaced for debugging.
-          console.error("Failed to load user profile:", error);
+          log.error({ err: error }, "auth.profile.failed");
         }
         if (!isMountedRef.current) return;
         setState({
@@ -148,7 +151,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       sessionStorage.setItem(`oauth-state:${stateKey}`, JSON.stringify({ redirect: redirectTarget }));
     } catch (error) {
-      console.warn("Unable to persist OAuth redirect target:", error);
+      log.warn({ err: error }, "auth.redirect.persist.failed");
     }
 
     const params = new URLSearchParams({
@@ -165,7 +168,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       await api.auth.logout();
     } catch (error) {
-      console.error("Failed to logout:", error);
+      log.warn({ err: error }, "auth.logout.failed");
     } finally {
       setState({
         isAuthenticated: false,

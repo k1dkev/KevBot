@@ -7,9 +7,14 @@ import { getReasonPhrase, StatusCodes } from "http-status-codes";
 
 export const errorHandlerFactory =
   (maxFileSizeInBytes: number) => (err: any, req: Request, res: Response, next: NextFunction) => {
-    // TODO: improve this lazy and overly verbose error logging
-    if (process.env.NODE_ENV !== "test") {
-      console.error(err);
+    // The request completion event owns the diagnostic, avoiding duplicate error logs.
+    // Expected validation/auth failures need only route and status, never error input.
+    if (
+      !(err instanceof multer.MulterError) &&
+      !(err instanceof ZodError) &&
+      (!Boom.isBoom(err) || err.output.statusCode >= 500)
+    ) {
+      res.locals.logError = err;
     }
 
     if (err instanceof multer.MulterError) {

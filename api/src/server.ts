@@ -3,6 +3,9 @@ import { configFactory } from "./config/config";
 import { appFactory } from "./app";
 import { dbFactory } from "./db/connection";
 import { tracksBucketFactory } from "./storage/tracksBucket";
+import { logger } from "./logging/logger";
+
+const log = logger.child({ component: "startup" });
 
 async function startServer() {
   try {
@@ -14,17 +17,17 @@ async function startServer() {
     const server = app.listen(secrets.KEVBOT_API_PORT, secrets.KEVBOT_API_ADDRESS, () => {
       const addr = server.address();
       if (addr === null) {
-        console.error("Server address is null. The server might not be listening.");
+        log.error({}, "server.address.unavailable");
         return;
       }
       if (typeof addr === "object") {
-        console.log(`API is listening on ${addr.address}:${addr.port}.`);
+        log.info({ address: addr.address, port: addr.port }, `API is listening on ${addr.address}:${addr.port}.`);
         return;
       }
-      console.log(`API is listening on ${addr}.`);
+      log.info({}, `API is listening on ${addr}.`);
     });
   } catch (error) {
-    console.error("Failed to start server:", error);
+    log.fatal({ err: error }, "server.start.failed");
     process.exit(1); // Exit with an error code if initialization fails
   }
 }

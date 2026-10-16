@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api-browser-client";
+import { logger } from "@/lib/logging/browser";
 import { LibrarySearchPanel } from "@/components/library-search-panel";
 import { useSearchContext } from "@/lib/contexts/search-context";
 import { useUserName } from "@/lib/hooks/useUserName";
@@ -46,7 +47,7 @@ export default function PlaylistPageClient({ playlist }: PlaylistPageClientProps
         if (cancelled) return;
         setTracksTotal(res.pagination.total);
       } catch (err) {
-        console.error("Failed to load playlist tracks", err);
+        logger.error({ component: "playlist", err }, "playlist.tracks.load.failed");
       }
     })();
     return () => {

@@ -3,6 +3,9 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { ApiTrack } from "@/lib/types";
 import { api } from "@/lib/api-browser-client";
+import { logger } from "@/lib/logging/browser";
+
+const log = logger.child({ component: "playback" });
 
 interface MusicPlayerState {
   currentTrack: ApiTrack | null;
@@ -83,8 +86,8 @@ export function MusicPlayerProvider({ children }: MusicPlayerProviderProps) {
       setState((prev) => ({ ...prev, isPlaying: false, currentTime: 0 }));
     };
 
-    const handleError = (e: Event) => {
-      console.error("Audio error:", e);
+    const handleError = () => {
+      log.error({ mediaErrorCode: audio.error?.code }, "playback.audio.failed");
       setState((prev) => ({ ...prev, isLoading: false, isPlaying: false }));
     };
 
@@ -127,7 +130,7 @@ export function MusicPlayerProvider({ children }: MusicPlayerProviderProps) {
         currentTime: 0,
         isLoading: true,
       }));
-      audioRef.current.play().catch(console.error);
+      audioRef.current.play().catch((err) => log.warn({ err, trackId: track.id }, "playback.play.failed"));
     }
   };
 
@@ -139,7 +142,7 @@ export function MusicPlayerProvider({ children }: MusicPlayerProviderProps) {
 
   const resumeTrack = () => {
     if (audioRef.current) {
-      audioRef.current.play().catch(console.error);
+      audioRef.current.play().catch((err) => log.warn({ err }, "playback.resume.failed"));
     }
   };
 

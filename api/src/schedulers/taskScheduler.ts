@@ -3,6 +3,7 @@ import { aggregatePlayCounts } from "../tasks/aggregatePlayCounts";
 import { checkDatabaseVersion } from "../tasks/checkDatabaseVersion";
 import { KevbotDb } from "../db/connection";
 import { Config } from "../config/config";
+import { getLogger } from "../logging/context";
 
 const initTaskSchedules = async (config: Config, db: KevbotDb) => {
   // run on startup
@@ -20,7 +21,7 @@ const initTaskSchedules = async (config: Config, db: KevbotDb) => {
     },
   );
 
-  console.log("Scheduled play count aggregation to run every hour.");
+  getLogger().info({ component: "scheduler", schedule: "0 * * * *", timezone: "UTC" }, "aggregation.scheduled");
 };
 
 export default initTaskSchedules;
