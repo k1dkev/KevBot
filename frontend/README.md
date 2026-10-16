@@ -86,3 +86,6 @@ they do not reuse an existing application. Failure traces/screenshots are writte
 to ignored `test-results/`. CI uses the same build settings and uploads failed
 browser artifacts. `npm audit --omit=dev` checks shipped dependencies separately
 from development-tool advisory findings.
+
+See the [frontend build-tool advisory review](../docs/FRONTEND_DEPENDENCY_ADVISORIES.md)
+for the current full-audit disposition and the tested selector-parser override.
