@@ -26,7 +26,7 @@ export function audioControllerFactory(config: Config) {
     limits: { fileSize: config.maxFileSizeInBytes, files: 1, fields: 0 },
   }).single("file");
 
-  return async (req: Request, res: Response) => {
+  async function normalize(req: Request, res: Response) {
     const controller = new AbortController();
     const { signal } = controller;
     const abort = () => controller.abort();
@@ -81,5 +81,7 @@ export function audioControllerFactory(config: Config) {
         });
       }
     }
-  };
+  }
+
+  return { normalize };
 }

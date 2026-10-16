@@ -5,6 +5,6 @@ import { AuthMiddleware } from "../middlewares/auth";
 
 export function audioRoutesFactory(config: Config, auth: AuthMiddleware) {
   const router = express.Router();
-  router.post("/normalize", auth.requireAuth, audioControllerFactory(config));
+  router.post("/normalize", auth.requireAuth, audioControllerFactory(config).normalize);
   return router;
 }
