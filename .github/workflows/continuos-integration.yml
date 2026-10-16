@@ -54,6 +54,16 @@ jobs:
       - name: Build docker image for api tests
         run: |
           docker build --target test -t kevbot_api_test .
+      - name: Build clean production API image
+        run: docker build --target production -t kevbot_api_production:smoke .
+      - name: Smoke test production API image
+        run: |
+          docker run --rm \
+          --network host \
+          -v ./../db/migration:/db/migration:ro \
+          -v /var/run/docker.sock:/var/run/docker.sock \
+          -e DOCKER_HOST=unix:///var/run/docker.sock \
+          --entrypoint npm kevbot_api_test run test:production
       - name: Run tests
         run: |
           docker run --rm \
