@@ -1,7 +1,8 @@
 # KevBot architecture
 
-Implementation snapshot: `main` at `41a221b` (2026-10-15). This is a source map,
-not a claim about what is deployed. [PRD.md](PRD.md) owns product outcomes;
+Implementation snapshot: `main` at `789bfc4` (2026-10-16), after publication of
+the accepted parity contract. This is a source map, not a claim about what is
+deployed. [PRD.md](PRD.md) owns product outcomes;
 [ROADMAP.md](ROADMAP.md) owns scope/order, and the
 [documentation index](docs/README.md) links contracts and operational instructions.
 

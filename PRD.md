@@ -78,8 +78,9 @@ not assert that unpublished work is present in `main`.
 
 ## Current foundation and remaining work
 
-Implementation baseline: `main` at `41a221b` (2026-10-15). Status below describes
-source capabilities, not deployment or complete release acceptance.
+Implementation baseline: `main` at `789bfc4` (2026-10-16), after publication of
+the accepted parity contract. Status below describes source capabilities, not
+deployment or complete release acceptance.
 
 | Area | Present in the baseline | Required completion |
 | --- | --- | --- |
