@@ -42,6 +42,9 @@ const playlistSchema = z.array(z.object({ id: z.number().int().positive(), name:
 
 const pageSize = 100;
 const maxPages = 100;
+const maxReplyCharacters = 16_000;
+const oversizedMessage =
+  "This list is too large to fit in a Discord DM. Narrow the source or use a ranked/history length.";
 const playTypes: Readonly<Record<number, string>> = {
   0: "play",
   1: "random",
@@ -122,6 +125,7 @@ export async function listLibrary(context: ListContext): Promise<string> {
   let total = 0;
   let offset = 0;
   let pages = 0;
+  let estimatedCharacters = 0;
 
   do {
     if (pages >= maxPages) return "This source has too many entries to display in one request.";
@@ -129,6 +133,11 @@ export async function listLibrary(context: ListContext): Promise<string> {
     if (kind !== undefined && page.kind !== kind) throw new Error("Library source response changed kind between pages");
     kind = page.kind;
     total = page.pagination.total;
+    estimatedCharacters += formatRows(page.kind, page.data, resolved.source).reduce(
+      (size, line) => size + line.length + 1,
+      0,
+    );
+    if (estimatedCharacters > maxReplyCharacters) return oversizedMessage;
     rows.push(...page.data);
     if (bounded) break;
     if (!page.data.length && offset < total) throw new Error("Library source returned an empty page before its end");
@@ -139,5 +148,6 @@ export async function listLibrary(context: ListContext): Promise<string> {
   const label = bounded ? `${resolved.title} (${rows.length} of ${total})` : `${resolved.title} (${total})`;
   if (!rows.length) return `No entries in ${label}.`;
   const lines = formatRows(kind!, rows, resolved.source);
-  return [`${label}:`, ...lines].join("\n");
+  const response = [`${label}:`, ...lines].join("\n");
+  return response.length <= maxReplyCharacters ? response : oversizedMessage;
 }

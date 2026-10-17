@@ -152,3 +152,16 @@ test("missing playlist and empty source return clear non-success feedback", asyn
   const empty = await run([], async () => ({ kind: "tracks", data: [], pagination: pagination(0, 100, 0) }));
   assert.equal(empty, "No entries in all tracks (0).");
 });
+
+test("a list that cannot fit in bounded private replies fails explicitly", async () => {
+  const data = Array.from({ length: 100 }, (_, index) => track(index + 1, "x".repeat(180)));
+  const response = await run([], async (_actor, _path, options) => {
+    const offset = options.query.offset;
+    return {
+      kind: "tracks",
+      data: offset === 0 ? data : data.slice(0, 60).map((row, index) => ({ ...row, id: index + 101 })),
+      pagination: pagination(160, 100, offset),
+    };
+  });
+  assert.match(response, /too large to fit in a Discord DM/);
+});

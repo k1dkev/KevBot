@@ -62,8 +62,8 @@ than a separate library resource model.
 source. Ranked and history sources default to 25 entries and accept a length
 from 1 through 100. Global play history preserves repeated events and marks
 missing/deleted tracks; upload history shows timestamps and unavailable entries.
-The command refuses sources larger than its bounded page budget instead of
-silently returning only the first page.
+The command refuses results larger than its page or Discord-DM budget instead
+of silently returning only the first page.
 
 Voice playback uses the API's bounded audio stream and reports playback only
 after Discord's audio player reaches `Playing`. The voice adapter checks bot
