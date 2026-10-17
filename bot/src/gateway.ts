@@ -1,4 +1,4 @@
-import { Client, Events, GatewayIntentBits, Partials, type Message } from "discord.js";
+import { Client, Events, GatewayIntentBits, Partials, type Message, type VoiceState } from "discord.js";
 import type { BotConfig } from "./config.js";
 import { BotApiClient } from "./api-client.js";
 import { Dispatcher } from "./dispatcher.js";
@@ -6,6 +6,7 @@ import { PlaybackService } from "./playback.js";
 import type { BotLogger } from "./logging.js";
 import { bounded, PrivateReplies } from "./replies.js";
 import { DiscordVoicePlatform } from "./voice.js";
+import { AutomaticVoiceEvents } from "./voice-events.js";
 
 export function createDiscordClient(config: BotConfig): Client {
   return new Client({
@@ -30,6 +31,7 @@ export async function startGateway(
     client?: Pick<Client, "on" | "off" | "login" | "destroy">;
     api?: BotApiClient;
     playback?: PlaybackService;
+    voiceEvents?: AutomaticVoiceEvents;
     onFatal?: () => void;
     signal?: AbortSignal;
   } = {},
@@ -40,6 +42,14 @@ export async function startGateway(
     options.playback ??
     (!options.client ? new PlaybackService(api, new DiscordVoicePlatform(client as Client, log), log) : undefined);
   const replies = new PrivateReplies(config, log);
+  const voiceEvents =
+    options.voiceEvents ??
+    (playback
+      ? new AutomaticVoiceEvents(api, playback, log, (guildId, userId, channelId) => {
+          const state = (client as Client).guilds?.cache.get(guildId)?.voiceStates.cache.get(userId);
+          return state !== undefined && state.channelId === channelId;
+        })
+      : undefined);
   const dispatcher = new Dispatcher(config, api, replies, log, undefined, Date.now, playback);
   let closed = false;
   let stopping: Promise<void> | undefined;
@@ -49,6 +59,11 @@ export async function startGateway(
       .catch(() => log.error({ component: "gateway", reason: "dispatch_failed" }, "gateway.dispatch.failed"));
   };
   const ready = () => log.info({ component: "gateway" }, "gateway.ready");
+  const voiceStateUpdate = (oldState: VoiceState, newState: VoiceState) => {
+    void voiceEvents?.handle(oldState, newState).catch(() => {
+      log.warn({ component: "gateway", reason: "voice_event_failed" }, "gateway.voice_event.failed");
+    });
+  };
   const error = () => log.warn({ component: "gateway", reason: "discord_failure" }, "gateway.error");
   const invalidated = () => {
     void stop().finally(() => options.onFatal?.());
@@ -62,8 +77,10 @@ export async function startGateway(
     dispatcher.close();
     replies.close();
     playback?.close();
+    voiceEvents?.close();
     api.close();
     client.off(Events.MessageCreate, message);
+    client.off(Events.VoiceStateUpdate, voiceStateUpdate);
     client.off(Events.ClientReady, ready);
     client.off(Events.Error, error);
     client.off(Events.ShardError, error);
@@ -78,6 +95,7 @@ export async function startGateway(
     return stopping;
   };
   client.on(Events.MessageCreate, message);
+  client.on(Events.VoiceStateUpdate, voiceStateUpdate);
   client.on(Events.ClientReady, ready);
   client.on(Events.Error, error);
   client.on(Events.ShardError, error);

@@ -2,10 +2,11 @@
 
 This service is **not release-ready**. It implements exact-track, typed random,
 and raid playback plus playlist management (`newplaylist`, `delplaylist`,
-`addtoplaylist`, `delfromplaylist`, `addplayliststo`, and `delplaylistsfrom`)
-and user greeting/farewell settings through the shared API. Uploads, automatic
-voice events, and full parity verification remain follow-up work. The first
-usable release still requires the full accepted command set.
+`addtoplaylist`, `delfromplaylist`, `addplayliststo`, and `delplaylistsfrom`),
+user greeting/farewell settings, automatic voice greetings/farewells, and
+playlist-aware uploads through the shared API. List/history support and full
+parity verification remain follow-up work. The first usable release still
+requires the full accepted command set.
 
 ## Local checks and development
 
@@ -61,3 +62,10 @@ Voice playback uses the API's bounded audio stream and reports playback only
 after Discord's audio player reaches `Playing`. The voice adapter checks bot
 Connect/Speak permissions, allows one active playback per guild, bounds
 connection/start/finish waits, and disconnects on completion or failure.
+
+Automatic greetings trigger only when a human joins from disconnected state;
+farewells trigger only when a human disconnects. Moving between voice channels
+does not trigger either event. A greeting can use a track or randomly selected
+playlist member; farewell selection filters to active clips shorter than four
+seconds. Stale transitions and overlapping playback are skipped with bounded,
+metadata-only diagnostics.

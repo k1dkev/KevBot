@@ -36,7 +36,7 @@ const playbackReportSchema = z.object({ event_id: z.string().uuid(), duplicate: 
 
 export type NamedPoolSource = "all_tracks" | "most_played" | "my_uploads" | "play_history" | "upload_history";
 export type PlaybackPool = { type: NamedPoolSource } | { type: "playlist"; name: string };
-export type PlaybackKind = "play" | "random" | "raid";
+export type PlaybackKind = "play" | "random" | "raid" | "greeting" | "playlist_greeting" | "farewell";
 
 export class PlaybackError extends Error {
   constructor(
@@ -51,9 +51,12 @@ export interface PlaybackRequest {
   actorDiscordId: string;
   guildId: string;
   voiceChannelId: string | null;
+  trackId?: number;
+  playlistId?: number;
   trackName?: string;
   pool?: PlaybackPool;
   limit?: number;
+  maxDuration?: number;
   channelNumber?: number;
 }
 
@@ -79,7 +82,13 @@ export class PlaybackService {
     return this.api.request(actorDiscordId, `/v1/tracks/${trackId}`, { schema: trackSchema });
   }
 
-  private async resolvePool(actorDiscordId: string, pool: PlaybackPool | undefined, limit?: number) {
+  private async resolvePool(
+    actorDiscordId: string,
+    pool: PlaybackPool | undefined,
+    limit?: number,
+    playlistId?: number,
+  ) {
+    if (playlistId !== undefined) return { source: "playlist" as const, playlist_id: playlistId, limit };
     if (!pool || pool.type === "all_tracks") return { source: "all_tracks" as const, limit };
     if (pool.type !== "playlist") return { source: pool.type, limit };
     const playlist = await this.exactItem(actorDiscordId, pool.name, "playlist");
@@ -126,19 +135,32 @@ export class PlaybackService {
 
       let track: z.infer<typeof trackSchema>;
       let source: z.infer<typeof sourceSchema> | undefined;
-      if (request.kind === "random") {
+      const selectFromPool =
+        request.kind === "random" ||
+        request.kind === "playlist_greeting" ||
+        (request.kind === "farewell" && request.playlistId !== undefined);
+      if (selectFromPool) {
         const selection = await this.api.request(request.actorDiscordId, "/v1/library/pools/random", {
-          query: await this.resolvePool(request.actorDiscordId, request.pool, request.limit),
+          query: {
+            ...(await this.resolvePool(request.actorDiscordId, request.pool, request.limit, request.playlistId)),
+            ...(request.maxDuration === undefined ? {} : { max_duration: request.maxDuration }),
+          },
           schema: randomSchema,
         });
         track = await this.trackById(request.actorDiscordId, selection.track_id);
-        source = selection.source;
+        if (request.kind !== "farewell") source = selection.source;
       } else {
-        if (!request.trackName) throw new PlaybackError("track_not_found");
-        const match = await this.exactItem(request.actorDiscordId, request.trackName, "track");
-        if (!match) throw new PlaybackError("track_not_found");
-        track = await this.trackById(request.actorDiscordId, match.id);
+        if (request.trackId !== undefined) {
+          track = await this.trackById(request.actorDiscordId, request.trackId);
+        } else {
+          if (!request.trackName) throw new PlaybackError("track_not_found");
+          const match = await this.exactItem(request.actorDiscordId, request.trackName, "track");
+          if (!match) throw new PlaybackError("track_not_found");
+          track = await this.trackById(request.actorDiscordId, match.id);
+        }
       }
+      if (track.deleted_at !== null) throw new PlaybackError("track_not_found");
+      if (request.kind === "farewell" && track.duration >= 4) throw new PlaybackError("failed");
 
       const audio = await this.api.requestAudio(request.actorDiscordId, `/v1/tracks/${track.id}/stream`);
       let reported = false;

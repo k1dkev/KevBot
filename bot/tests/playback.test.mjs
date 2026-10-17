@@ -113,6 +113,47 @@ test("random playlist selection sends typed source IDs and preserves selected so
   assert.equal(voice.calls[0].target.channelId, "voice-1");
 });
 
+test("automatic greeting playback accepts an exact track ID and reports the greeting kind", async () => {
+  const { api, calls } = fakeApi();
+  const voice = fakeVoice();
+  const { log } = logs();
+  const service = new PlaybackService(api, voice, log);
+  await service.play(direct({ kind: "greeting", trackName: undefined, trackId: 11 }));
+  assert.equal(voice.calls[0].target.channelId, "voice-1");
+  assert.equal(calls.find((call) => call.path === "/v1/plays/events").options.json.play_type, "greeting");
+});
+
+test("playlist greetings use typed playlist selection and preserve the selected playlist ID", async () => {
+  const { api, calls } = fakeApi();
+  const voice = fakeVoice();
+  const { log } = logs();
+  const service = new PlaybackService(api, voice, log);
+  await service.play(direct({ kind: "playlist_greeting", trackName: undefined, playlistId: 42 }));
+  const selection = calls.find((call) => call.path === "/v1/library/pools/random");
+  assert.deepEqual(selection.options.query, { source: "playlist", playlist_id: 42, limit: undefined });
+  const report = calls.find((call) => call.path === "/v1/plays/events").options.json;
+  assert.equal(report.play_type, "playlist_greeting");
+  assert.deepEqual(report.source, { type: "playlist", playlist_id: 42 });
+});
+
+test("playlist farewells select only eligible clips and report farewell without a greeting source", async () => {
+  const { api, calls } = fakeApi();
+  const voice = fakeVoice();
+  const { log } = logs();
+  const service = new PlaybackService(api, voice, log);
+  await service.play(direct({ kind: "farewell", trackName: undefined, playlistId: 42, maxDuration: 4 }));
+  const selection = calls.find((call) => call.path === "/v1/library/pools/random");
+  assert.deepEqual(selection.options.query, {
+    source: "playlist",
+    playlist_id: 42,
+    limit: undefined,
+    max_duration: 4,
+  });
+  const report = calls.find((call) => call.path === "/v1/plays/events").options.json;
+  assert.equal(report.play_type, "farewell");
+  assert.equal(report.source, undefined);
+});
+
 test("raid uses the numbered target and records raid, while manual playback is exclusive per guild", async () => {
   const { api, calls } = fakeApi();
   let release;
