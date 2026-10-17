@@ -29,6 +29,7 @@ export class ApiClientError extends Error {
 export interface ApiRequest<T> {
   method?: Method;
   json?: unknown;
+  formData?: FormData;
   query?: Record<string, string | number | boolean | undefined>;
   schema: z.ZodType<T>;
   signal?: AbortSignal;
@@ -72,6 +73,7 @@ export class BotApiClient {
     json?: unknown,
     signal?: AbortSignal,
     responseType: "json" | "audio" = "json",
+    formData?: FormData,
   ): Promise<{ status: number; body: unknown }> {
     if (this.shutdown.signal.aborted || signal?.aborted) throw new ApiClientError("closed");
     if (this.active >= this.config.API_MAX_CONCURRENT_REQUESTS) throw new ApiClientError("busy");
@@ -86,15 +88,16 @@ export class BotApiClient {
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
     try {
       const operation = async () => {
+        const body = formData ?? (json === undefined ? undefined : JSON.stringify(json));
         const response = await this.fetcher(`${this.config.API_BASE_URL.replace(/\/$/, "")}${path}`, {
           method,
           headers: {
             ...headers,
             Accept: responseType === "audio" ? "audio/mpeg" : "application/json",
             "X-Request-ID": requestId,
-            ...(json === undefined ? {} : { "Content-Type": "application/json" }),
+            ...(json === undefined || formData !== undefined ? {} : { "Content-Type": "application/json" }),
           },
-          ...(json === undefined ? {} : { body: JSON.stringify(json) }),
+          ...(body === undefined ? {} : { body }),
           redirect: "error",
           signal: combined,
         });
@@ -263,6 +266,7 @@ export class BotApiClient {
       path.includes("://")
     )
       throw new ApiClientError("invalid");
+    if (options.json !== undefined && options.formData !== undefined) throw new ApiClientError("invalid");
     if (this.shutdown.signal.aborted || options.signal?.aborted) throw new ApiClientError("closed");
     const query = new URLSearchParams();
     const entries = Object.entries(options.query ?? {});
@@ -281,11 +285,21 @@ export class BotApiClient {
       { Authorization: `Bearer ${token.value}` },
       options.json,
       options.signal,
+      "json",
+      options.formData,
     );
     if (result.status === 401) {
       token = await this.actor(authorDiscordId, token);
       // Only an explicit authentication rejection allows this one replay, including mutations.
-      result = await this.raw(route, method, { Authorization: `Bearer ${token.value}` }, options.json, options.signal);
+      result = await this.raw(
+        route,
+        method,
+        { Authorization: `Bearer ${token.value}` },
+        options.json,
+        options.signal,
+        "json",
+        options.formData,
+      );
     }
     if (result.status >= 400) {
       const kind =

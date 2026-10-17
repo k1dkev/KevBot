@@ -38,6 +38,45 @@ test("service key is used only for authentication; actor ID is a string-only str
   client.close();
 });
 
+test("multipart mutations preserve FormData boundaries and only replay after an explicit 401", async () => {
+  const formData = new FormData();
+  formData.set("name", "sample");
+  formData.set("file", new Blob([Uint8Array.from([1, 2, 3])], { type: "audio/mpeg" }), "sample.mp3");
+  const calls = [];
+  let uploads = 0;
+  const { log } = logs();
+  const client = new BotApiClient(config(), log, async (url, init) => {
+    const route = path(url);
+    calls.push({ path: route, ...init });
+    if (route === "/v1/bot/auth") return json(serviceGrant());
+    if (route === "/v1/bot/actors/resolve")
+      return json(grant(`actor-${calls.filter((call) => call.path.endsWith("resolve")).length}`, actorId));
+    if (route === "/v1/tracks") {
+      uploads++;
+      assert.equal(init.method, "POST");
+      assert.equal(init.body, formData);
+      assert.equal(init.headers["Content-Type"], undefined);
+      assert.equal(init.headers.Accept, "application/json");
+      if (uploads === 1) return json({}, 401);
+      return json({ ok: true });
+    }
+    throw new Error(`Unexpected route ${route}`);
+  });
+
+  await client.request(actorId, "/v1/tracks", { method: "POST", formData, schema });
+  assert.equal(uploads, 2);
+  assert.equal(calls.filter((call) => call.path.endsWith("resolve")).length, 2);
+  assert.equal(formData.get("name"), "sample");
+  assert.equal(formData.get("file").name, "sample.mp3");
+
+  const beforeInvalid = calls.length;
+  await assert.rejects(client.request(actorId, "/v1/tracks", { method: "POST", json: {}, formData, schema }), {
+    kind: "invalid",
+  });
+  assert.equal(calls.length, beforeInvalid);
+  client.close();
+});
+
 test("concurrent requests share service authentication and actor resolution; cache keys never cross actors", async () => {
   const { client, calls } = fixture();
   await Promise.all(Array.from({ length: 5 }, () => client.request(actorId, "/v1/users/me", { schema })));
