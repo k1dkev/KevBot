@@ -94,16 +94,20 @@ test("delfromplaylist reports removals and clips that were not playlist members"
 
 test("addplayliststo continues per playlist, reports unknown names, and keeps API errors safe", async () => {
   const calls = [];
-  const response = await run("addplayliststo", ["clip1", "first", "second", "missing"], async (_actor, path, options) => {
-    calls.push({ path, options });
-    if (path === "/v1/search") return { data: [trackResult(41, "clip1")] };
-    if (path === "/v1/playlists") {
-      const name = options.query.name;
-      return name === "missing" ? [] : [playlist(name === "first" ? 31 : 32, name)];
-    }
-    if (path === "/v1/playlists/31/tracks") return { playlist_id: 31, added_track_ids: [41] };
-    throw new ApiClientError("denied", 403);
-  });
+  const response = await run(
+    "addplayliststo",
+    ["clip1", "first", "second", "missing"],
+    async (_actor, path, options) => {
+      calls.push({ path, options });
+      if (path === "/v1/search") return { data: [trackResult(41, "clip1")] };
+      if (path === "/v1/playlists") {
+        const name = options.query.name;
+        return name === "missing" ? [] : [playlist(name === "first" ? 31 : 32, name)];
+      }
+      if (path === "/v1/playlists/31/tracks") return { playlist_id: 31, added_track_ids: [41] };
+      throw new ApiClientError("denied", 403);
+    },
+  );
   assert.match(response, /first: added\./);
   assert.match(response, /second: The API denied this operation for your account\./);
   assert.match(response, /Playlists not found: missing\./);

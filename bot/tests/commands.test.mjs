@@ -31,7 +31,18 @@ test("registry contains exactly all 18 accepted names; help derives actual imple
   assert.equal(commandRegistry.size, 18);
   assert.deepEqual(
     commands.filter((item) => item.execute).map((item) => item.name),
-    ["p", "pr", "raid", "help", "newplaylist", "delplaylist", "addtoplaylist", "delfromplaylist", "addplayliststo", "delplaylistsfrom"],
+    [
+      "p",
+      "pr",
+      "raid",
+      "help",
+      "newplaylist",
+      "delplaylist",
+      "addtoplaylist",
+      "delfromplaylist",
+      "addplayliststo",
+      "delplaylistsfrom",
+    ],
   );
   const help = renderHelp("prefix");
   for (const entry of commands)
@@ -59,7 +70,12 @@ for (const [command, tokens] of Object.entries(examples)) {
         return "Playback completed.";
       },
     };
-    if (["newplaylist", "delplaylist", "addtoplaylist", "delfromplaylist", "addplayliststo", "delplaylistsfrom"].includes(command)) return;
+    if (
+      ["newplaylist", "delplaylist", "addtoplaylist", "delfromplaylist", "addplayliststo", "delplaylistsfrom"].includes(
+        command,
+      )
+    )
+      return;
     for (const guildId of [null, "3334567890123456789"]) {
       const replies = new PrivateReplies(cfg, log);
       const dispatcher = new Dispatcher(cfg, api, replies, log, undefined, Date.now, playback);
