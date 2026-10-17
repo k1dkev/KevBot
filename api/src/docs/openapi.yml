@@ -632,6 +632,84 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /admin/users:
+    get:
+      summary: List users and their authorization roles (Admin only).
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: User profiles with current authorization roles.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    discord_id:
+                      type: string
+                    discord_username:
+                      type: string
+                      nullable: true
+                    discord_avatar_hash:
+                      type: string
+                      nullable: true
+                    authorization_role:
+                      type: string
+                      enum: [user, moderator, admin]
+                    created_at:
+                      type: string
+                      format: date-time
+                    updated_at:
+                      type: string
+                      format: date-time
+                  required: [id, discord_id, authorization_role, created_at, updated_at]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /admin/users/{id}/role:
+    patch:
+      summary: Assign a user's fixed authorization role (Admin only).
+      description: Admins cannot change their own role. The final Admin cannot be demoted.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [role]
+              properties:
+                role:
+                  type: string
+                  enum: [user, moderator, admin]
+      responses:
+        "200":
+          description: Updated user and role.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
   /audio/normalize:
     post:
       summary: Normalize an audio upload without adding it to the library.
@@ -1079,7 +1157,7 @@ paths:
           $ref: "#/components/responses/NotFound"
     delete:
       summary: Soft delete a playlist.
-      description: Creator or configured master only. The playlist must have no memberships (409 otherwise).
+      description: Creator or Moderator/Admin only. The playlist must have no memberships (409 otherwise).
       security:
         - bearerAuth: []
       parameters:
@@ -1200,7 +1278,7 @@ paths:
           $ref: "#/components/responses/NotFound"
     delete:
       summary: Remove tracks from a playlist.
-      description: Creator or configured master only; active playlists only.
+      description: Creator or Moderator/Admin only; active playlists only.
       security:
         - bearerAuth: []
       parameters:

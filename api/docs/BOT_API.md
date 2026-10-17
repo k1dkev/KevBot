@@ -34,16 +34,22 @@ An ordinary website access token cannot opt into delegation with a header/body.
 
 - Authenticated actors may create playlists and add existing, nondeleted tracks
   to any active playlist. Membership records retain the adding actor.
-- Only the playlist creator or configured master may remove members or soft-delete
+- Only the playlist creator or a Moderator/Admin may remove members or soft-delete
   an empty playlist. Deletion returns 409 while any membership remains, including
   a soft-deleted track; explicitly remove that membership first. Membership writes
   and deletion lock the playlist row so concurrent adds cannot create a deleted,
   nonempty playlist. Adding/removing members of deleted playlists returns 404.
-- Configure the optional API `MASTER_DISCORD_ID` to an exact 17–20 digit snowflake
-  string. The API compares it with the resolved database identity, not a client
-  claim. Unset disables the override. Guild administrator roles are irrelevant.
-  Master is **not** a blanket override: track/profile/preferences stay self/owner-only;
--  playlist rename/restore remain creator-only.
+- Roles are stored on the user and checked by the API for browser and delegated-bot
+  requests alike. User is the default; Moderator adds cross-owner track rename/delete
+  and safe playlist removal/deletion; Admin adds user listing/role assignment.
+  Guild administrator roles and client-supplied role fields do not grant authority.
+- There is no `MASTER_DISCORD_ID` override. Bootstrap the first Admin with the
+  operator-only `npm run bootstrap:admin` command documented in
+  [`authorization-roles.md`](../../specs/authorization-roles.md). The one-time
+  bootstrap marker prevents a later rerun from silently re-promoting a demoted user.
+- Moderator/Admin are **not** blanket overrides: profile/preferences, playlist
+  rename/restore, and cross-owner track restore remain owner-only. Playlist deletion
+  still requires an empty playlist.
 - Playlists and tracks are addressed by their IDs in typed library requests;
   names such as `all`, `allcats`, `mostplayed` and `playhistory` are ordinary
   names, not reserved selectors. No name-based special pool aliases are exposed
@@ -53,7 +59,7 @@ An ordinary website access token cannot opt into delegation with a header/body.
   15 characters.
   Existing compatible data is not renamed or truncated; no schema migration is needed.
 - Greeting references must be active tracks or active, nonempty playlists. Farewell
-  tracks must be strictly shorter than 4 seconds for everyone, including master.
+  tracks must be strictly shorter than 4 seconds for everyone.
   The existing HTTP farewell-playlist form is retained, but every active member must
   meet that limit and the playlist must be nonempty. Legacy preferences are not
   rewritten; playback must recheck eligibility because membership may later change.
@@ -71,6 +77,6 @@ Run `cd api && npm test -- --runInBand tests/integration/botActors.test.ts`
 with Docker running and the migration-manager image built as described in the
 [API README](../README.md). Tests use synthetic IDs and disposable MySQL, covering
 concurrent first resolution, service/browser/delegated boundaries, forged claims,
-creator/master/unrelated policies, protected names, deleted/empty references,
+creator/moderator/unrelated policies, role boundaries, deleted/empty references,
 45-character playlists, unrestricted reserved-word overlap, unchanged track-name
 limits and farewell 3/3.999/4 boundaries.

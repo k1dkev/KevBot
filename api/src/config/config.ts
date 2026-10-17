@@ -54,10 +54,6 @@ const configSchema = z.object({
   maxTrackDurationInSeconds: z.number().positive(),
   maxTrackNameLength: z.number().int().positive(),
   maxPlaylistNameLength: z.number().int().positive(),
-  masterDiscordId: z
-    .string()
-    .regex(/^[1-9]\d{16,19}$/)
-    .optional(),
   maxUsernameLength: z.number().int().positive(),
   minPasswordLength: z.number().int().positive(),
   maxPasswordLength: z.number().int().positive(),
@@ -140,13 +136,12 @@ export function configFactory(): AppConfig {
       maxTrackDurationInSeconds: 15.0,
       maxTrackNameLength: 15,
       maxPlaylistNameLength: 45,
-      masterDiscordId: process.env.MASTER_DISCORD_ID || undefined,
       maxUsernameLength: 32,
       minPasswordLength: 8,
       maxPasswordLength: 64,
       supportedTrackExtensions: [".mp3"],
       jwtTokenExpirationTime: "1h",
-      expectedDbVersion: "2.15.0",
+      expectedDbVersion: "2.16.0",
       acceptableIntegratedLoudnessBand: 2.5,
       acceptableDurationChangeInSeconds: 0.01,
       maxResultsPerPage: 100,

@@ -1,9 +1,11 @@
 # Bot parity contract — accepted decisions
 
-Status: **Accepted** on 2026-10-15 (America/Chicago), covering D1–D11, the
-permission matrix, and playback/reporting semantics. D6 was revised at the
-owner's direction on 2026-10-16: library sources are typed and name-independent,
-and playlist/track names have no reserved-word list. See the
+Status: **Accepted with revisions** on 2026-10-16 (America/Chicago). D1–D11,
+playback/reporting semantics, and the revised role/resource model are recorded
+here. The owner approved the original parity contract on 2026-10-15, then
+directed that v2 use playlists throughout, retire the old library-command
+vocabulary, replace the permanent master-ID exception with roles, and
+never reserve playlist or track names. See the
 [owner approval record](https://github.com/k1dkev/KevBot/issues/141#issuecomment-6207636658).
 This accompanies the [18-command inventory](bot-parity.md); it neither implements
 a bot nor asserts that v2 behavior has passed acceptance testing. API changes
@@ -14,16 +16,16 @@ Future changes to this contract require an explicit reviewed decision.
 
 | ID | Accepted contract | Evidence / intentional difference |
 | --- | --- | --- |
-| D1 | Keep configured `<prefix><command>!<args>` access. Preserve all 18 registry names, case-folding, help selectors `kb`/`kevbot`/`kev-bot`, and greeting type aliases. Slash commands are additive, not a release prerequisite. | `MessageCreate.js`, `help.js`, `setgreeting.js`; approved release boundary. Trim ordinary argument whitespace; malformed input returns usage instead of an exception. |
-| D2 | Farewell duration is strictly **less than 4 seconds** across API and clients. Test 3, 3.999 and 4 seconds. | `setfarewell.js` rejects `>=4`; the README's 3-second statement is corrected, not silently treated as implemented behavior. No new master-only duration exception. |
+| D1 (revised) | Keep configured `<prefix><command>!<args>` access and all 18 operation groups. Use playlist terminology and names for the six library-management commands; obsolete v1 library-command spellings are not v2 commands. Keep case-folding and help selectors `kb`/`kevbot`/`kev-bot`. Slash commands are additive, not a release prerequisite. | V1 `MessageCreate.js`, `help.js`, `setgreeting.js`; owner direction on 2026-10-16 modernizes the command vocabulary. Trim ordinary argument whitespace; malformed input returns usage instead of an exception. |
+| D2 | Farewell duration is strictly **less than 4 seconds** across API and clients. Test 3, 3.999 and 4 seconds. | `setfarewell.js` rejects `>=4`; the README's 3-second statement is corrected, not silently treated as implemented behavior. No role-specific duration exception. |
 | D3 | New uploaded audio must be strictly **less than 15 seconds** across both clients. Keep MP3 validation, normalization, 15-character bot clip names and existing API byte limits. Test 14.999 and 15 seconds. | Legacy `upload.js` rejects `>=15`, while the API currently allows exactly 15. This requires an explicit shared API boundary change, not a bot-only exception. Audit existing boundary-length clips before cutover; do not delete them. |
 | D4 | Preserve playlist names up to the existing schema's **45 characters**, with lowercase ASCII letters/digits for new bot-created names. Align the API's current 15-character playlist cap with this compatibility limit. Never truncate/rename existing data automatically. | The playlist table has a 45-character name column. Track-name limits remain unchanged. Existing incompatible names require a cutover report and an owner-approved mapping. |
 | D5 | `mostplayed` means counts of ordinary **PLAY (0)** events, not random/raid/greetings/farewells. Zero-play tracks are excluded. Sort count descending, then name and ID for stable ties. | `updateMostPlayed.js` explicitly filters `play_type=0`. API `total_play_count` combines types 0/1/3, so reusing that field would change semantics. Use the per-type data or a shared query instead. |
-| D6 (revised) | Special library sources use a typed selector; playlist sources use playlist IDs. No playlist or track name is reserved or interpreted as an operation, including names such as `all`, `allcats`, `mostplayed`, or `playhistory`. | Owner direction on 2026-10-16 supersedes the legacy name-based resolver behavior. Legacy command aliases, if retained, are translated by the bot client and never become API resource names. |
+| D6 (revised) | Special library sources use typed selectors; playlist sources use playlist IDs. No playlist or track name is reserved or interpreted as an operation, including `all`, `allcats`, `mostplayed`, and `playhistory`. | Owner direction on 2026-10-16 supersedes legacy name-based resolution. The API accepts typed sources and never turns command text into a special resource name. |
 | D7 | Ranked/history pools default to 25 entries and accept a positive integer up to 100; larger/zero/negative/noninteger values return an explicit error. Fewer available entries returns all available entries. `all_tracks`, playlists and `my_uploads` cover the entire eligible set through pagination, not an implicit first-page cap. | Resolver default is 25; history startup queries retain 100. Explicit bounds replace accidental JavaScript coercion and truncated caches. |
 | D8 | `playhistory` is global recent play **events**, newest first, preserving repeats and timestamps; `uploadhistory` is global uploads, newest first. Exclude deleted/unplayable tracks from random candidates and explain missing references in list output. | Existing resolver/history intent; do not turn global history into user-only or unique-track history. The API needs read queries, not just existing play-log writes. |
 | D9 | Random selection is uniform over the complete eligible pool: unique tracks for all_tracks/playlists/my_uploads/most_played/upload_history, but event entries for play_history (a repeated track can have multiple chances). A requested pool length is applied before sampling. Playlist collections are resources, not playable sources. | `pr.js` samples the resolver's array. This retains event weighting without inheriting whole-library caching. An empty pool gives useful feedback, not an undefined-track error. |
-| D10 | `raid` uses 1-based ordinary guild voice channels in displayed top-down order, including parent-category order, with channel ID as a stable tie-break. Do not interpret raw Discord positions as contiguous numbers. Number the full voice list, then check target permissions; do not silently renumber denied channels. Stage channels are excluded. | `raid.js` describes top-down numbering but looks up `rawPosition === n-1`, which fails with gaps/categories. Require a guild and a positive integer in range. |
+| D10 | `raid` uses 1-based ordinary guild voice channels in displayed top-down order, including parent-group order, with channel ID as a stable tie-break. Do not interpret raw Discord positions as contiguous numbers. Number the full voice list, then check target permissions; do not silently renumber denied channels. Stage channels are excluded. | `raid.js` describes top-down numbering but looks up `rawPosition === n-1`, which fails with gaps/grouping. Require a guild and a positive integer in range. |
 | D11 | One active playback per guild. Reject a new manual play/random/raid request while busy with a clear response; skip overlapping automatic greetings/farewells, with a diagnostic reason and no play log. No interruption or unbounded queue in the first release. | Legacy creates independent players/connections without a reliable overlap contract. This is an accepted behavior decision, not claimed legacy parity. Any later interruption/queue change requires explicit review. |
 
 ## Context, errors and command semantics
@@ -71,33 +73,37 @@ Bot clients cannot choose arbitrary numeric user IDs as proof of identity.
 Ordinary browser clients cannot invoke bot delegation or assign privileged roles.
 The bot never receives database/GCS credentials, and user ID `0` is not an actor.
 
-Retain one configured `MASTER_DISCORD_ID` on the **API server**, checked
-as a string against the resolved actor. Do not use Number conversion, guild admin
-status, or possession of the bot key as the authority. No general admin command,
-ownership transfer, or unrestricted impersonation endpoint is added by parity.
+Use the fixed API-enforced User/Moderator/Admin role model in
+[`authorization-roles.md`](authorization-roles.md). Roles live on the resolved
+user record and are checked server-side for browser and delegated-bot requests.
+Do not infer authority from guild roles, JWT claims, or possession of the bot
+key. Bootstrap the initial Admin through the documented one-time operator
+procedure; no permanent `MASTER_DISCORD_ID` exception remains.
 
-| Operation | Any authenticated user | Playlist creator | Configured master |
+| Operation | User | Moderator | Admin |
 | --- | --- | --- | --- |
 | Create a playlist with any valid name | Yes, self-owned | Yes | Yes |
-| Add active clips to any active playlist | Yes; duplicates are non-destructive | Yes | Yes |
-| Remove membership | No | Yes | Yes |
-| Delete playlist | No | Only when empty | Only when empty |
+| Add active tracks to any active playlist | Yes; duplicates are non-destructive | Yes | Yes |
+| Rename/delete another user's track | No | Yes; deletion is soft-delete only | Yes |
+| Remove tracks from another user's playlist | No | Yes | Yes |
+| Delete another user's playlist | No | Yes, only when empty | Yes, only when empty |
+| List users / assign roles | No | No | Yes; cannot self-assign or demote the final Admin |
 | Change greeting/farewell | Own preference only | Own preference only | Own preference only |
-| Mutate special pool selectors | N/A; they are query types, not resources | N/A | N/A |
+| Mutate special pool selectors | N/A; selectors are typed queries, not resources | N/A | N/A |
 
 Apply the same shared-library policy through the API for web and bot, not weaker
-checks in Discord alone. Track rename/delete/restore and other web-only actions
-retain their separately specified policies; master authority is not a blanket
-override of every API operation. Creator/master resolution failures fail closed.
+checks in Discord alone. Playlist rename/restore and cross-owner track restore
+remain owner-only. Role changes take effect on the next privileged API request;
+the authorization role is never trusted from a client or a token.
 
 ## Gap groups and implementation gates
 
 | Group | Required work | Acceptance cases |
 | --- | --- | --- |
-| API identity/policy | Resolve/provision actors, authenticated delegation, server-side master/shared-additions/creator-removal policy, playlist naming and shared duration/name limits | Fresh Discord user; snowflake precision; forged actor; ordinary-client delegation; creator/master/unrelated user; former pool words as ordinary names; nonempty deletion; exact duration boundaries |
+| API identity/policy | Resolve/provision actors, authenticated delegation, server-side role abilities/shared additions, playlist naming and shared duration/name limits | Fresh Discord user; snowflake precision; forged actor; ordinary-client delegation; creator/moderator/admin/unrelated user; former pool words as ordinary names; nonempty deletion; exact duration boundaries |
 | API pools/activity | Per-type mostplayed, global event/upload history, complete sampling, stable limits/order, event-idempotent play reporting | More than one API page; ties; repeated history entries; 25/100 bounds; deleted references; unbiased candidates; duplicate report retry |
 | Bot foundation | TypeScript service/config/compose/CI, prefix dispatch, registry-derived help, shared API client/auth renewal and error responses | Exact 18-command registry; selectors/aliases; missing/extra args; case/whitespace; DM/guild contexts; closed DMs; no database/storage credentials |
-| Voice playback | p/pr/raid, per-guild state, random/raid numbering, lifecycle/timeouts and logging | Wrong/no channel; denied permissions; gapped/category channel positions; two guilds; busy guild; failed start; stream stall; reconnect/disconnect/shutdown; correct play type |
+| Voice playback | p/pr/raid, per-guild state, random/raid numbering, lifecycle/timeouts and logging | Wrong/no channel; denied permissions; gapped/grouped channel positions; two guilds; busy guild; failed start; stream stall; reconnect/disconnect/shutdown; correct play type |
 | Library commands | Upload and playlist membership/management commands | First attachment; no/corrupt/oversize audio; normalization; unknown supplied playlist; duplicate/missing/mixed item results; shared-additions/removal policy; upload succeeded but membership failed |
 | Preferences/events | Six greeting/farewell commands and automatic voice events | Track/playlist ambiguity; all type aliases; missing/cleared/deleted preferences; joins/leaves/switches; ignored bots; empty playlists; overlap handling |
 | Release acceptance | Matrix evidence and real test-guild run across all groups | Migrated data and new users; cross-client visibility; persistence after restart; exact aliases/defaults; no duplicate legacy/v2 events; upgrade/restore rehearsal |
@@ -131,7 +137,8 @@ choices were changed while recording acceptance. The documentation PR closes
 dependencies and verification requirements. Test-guild/release acceptance
 remains under #139/#140 and is not satisfied by accepting this design.
 
-D6 was revised in #175 at the owner's direction on 2026-10-16, replacing
-reserved, name-based pool words with typed source selectors and playlist IDs.
-Further changes to D1–D11, the permission matrix, or playback/reporting
+D1, D6, and the permission matrix were revised at the owner's direction on
+2026-10-16: v2 uses playlist terminology, typed source selectors, unrestricted
+track/playlist names, and fixed API roles instead of a permanent master-ID
+exception. Further changes to D1–D11, the role matrix, or playback/reporting
 semantics must record their rationale and owner approval in a reviewed update.

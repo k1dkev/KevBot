@@ -13,22 +13,23 @@ runbooks and the preserved historical PRD.
 
 ## First usable v2 release
 
-The release must replace the full legacy Discord bot, including all 18 registered
-commands, supported aliases and argument modes, library/category operations,
+The release must replace the full legacy Discord bot, including all 18 command
+operations, supported aliases and argument modes, playlist operations,
 greetings, farewells, voice events, permissions and useful failure responses.
 Basic playback alone does not satisfy this requirement.
 
 The [command inventory](specs/bot-parity.md) and
-[D1–D11, permission matrix and playback/reporting contract](specs/bot-parity-decisions.md)
-define compatibility. The owner accepted these on 2026-10-15 in
+[D1–D11, role matrix and playback/reporting contract](specs/bot-parity-decisions.md)
+define compatibility. The owner accepted the original contract on 2026-10-15 and
+revised playlist terminology and the role model on 2026-10-16 in
 [#141's approval record](https://github.com/k1dkev/KevBot/issues/141#issuecomment-6207636658);
 [#169](https://github.com/k1dkev/KevBot/pull/169) records their publication.
 Design acceptance does not mean the API gaps, replacement bot, test-guild checks
 or production cutover are implemented.
 
 Preserve configured prefix access. Slash commands may be additive; replacing
-prefix access requires a separate owner decision. Categories use the shared
-playlist model. The replacement bot must use the API rather than direct
+prefix access requires a separate owner decision. Use playlists throughout.
+The replacement bot must use the API rather than direct
 database/storage access or the legacy whole-library download/cache architecture.
 
 ## User outcomes
@@ -50,7 +51,7 @@ database/storage access or the legacy whole-library download/cache architecture.
 
 Implement every command and special pool in the linked parity inventory, with
 exact-name resolution, complete eligible pools, bounded history modes and
-per-item results for batch category operations. Voice playback must handle
+per-item results for batch playlist operations. Voice playback must handle
 missing context, permissions, failed starts, timeouts and cleanup.
 
 The accepted overlap policy allows one active playback per guild: reject busy
@@ -67,12 +68,13 @@ authentication must remain distinct from the real Discord user taking an action;
 website login must not be required before the bot can resolve/provision that user.
 Discord snowflakes must be handled as strings in the accepted actor contract.
 
-The accepted category policy permits collaborative additions and restricts
-removal/deletion to the creator or configured master, with empty-only deletion
-and reserved virtual pools. Master authority is not a general override of every
-web operation. See the accepted permission matrix for the exact scope.
+The API role policy permits collaborative playlist additions and assigns
+cross-owner abilities to fixed User, Moderator, and Admin roles. Playlist
+deletion remains empty-only, names are not constrained by source selectors, and
+Admin is not a blanket override of ownership rules. See the accepted role and
+playback contracts for the exact scope.
 
-[#157](https://github.com/k1dkev/KevBot/issues/157) owns implementation of these
+[#181](https://github.com/k1dkev/KevBot/issues/181) owns implementation of these
 identity/policy gaps and corresponding public API documentation. This PRD does
 not assert that unpublished work is present in `main`.
 
@@ -92,7 +94,7 @@ deployment or complete release acceptance.
 Accepted compatibility can intentionally differ from the baseline. In particular,
 the baseline upload duration check permits exactly 15 seconds and caps playlist
 names at 15 characters. The accepted contract requires uploads strictly shorter
-than 15 seconds and category names up to 45 characters; farewell duration is
+than 15 seconds and playlist names up to 45 characters; farewell duration is
 strictly shorter than 4 seconds. #157 owns alignment and boundary tests. Existing
 data needs an audit, not automatic truncation, renaming or deletion.
 

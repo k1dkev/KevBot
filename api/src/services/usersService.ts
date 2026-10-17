@@ -4,6 +4,8 @@ import { KevbotDb } from "../db/connection";
 import { TracksService } from "./tracksService";
 import { PlaylistsService } from "./playlistsService";
 import { Config } from "../config/config";
+import { AuthorizationRole, AuthorizationService } from "../authorization/roles";
+import { getLogger } from "../logging/context";
 
 const PUBLIC_USER_FIELDS = [
   "users.id",
@@ -24,6 +26,7 @@ export function usersServiceFactory(
   config: Config,
   tracksService: TracksService,
   playlistsService: PlaylistsService,
+  authorizationService: AuthorizationService,
 ) {
   const validateDiscordIdIsUnique = async (discordId: string) => {
     const user = await db
@@ -136,6 +139,68 @@ export function usersServiceFactory(
     return await query.execute();
   };
 
+  const getAdminUsers = async (actorUserId: number) => {
+    await authorizationService.requireAbility(actorUserId, "users.list");
+    return await db
+      .selectFrom("users")
+      .select([...PUBLIC_USER_FIELDS, "users.authorization_role"])
+      .orderBy("users.id", "asc")
+      .execute();
+  };
+
+  const assignUserRole = async (targetUserId: number, role: AuthorizationRole, actorUserId: number) => {
+    if (targetUserId === actorUserId) throw Boom.forbidden("You cannot change your own role.");
+
+    const result = await db.transaction().execute(async (trx) => {
+      // Serialize role changes and bootstrap so the final-admin check cannot race.
+      await trx
+        .selectFrom("authorization_state")
+        .select("id")
+        .where("id", "=", 1)
+        .forUpdate()
+        .executeTakeFirstOrThrow();
+      await authorizationService.requireAbility(actorUserId, "users.assign_role", trx);
+
+      const target = await trx
+        .selectFrom("users")
+        .select([...PUBLIC_USER_FIELDS, "users.authorization_role"])
+        .where("users.id", "=", targetUserId)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!target) throw Boom.notFound("User not found");
+      if (target.authorization_role === role) return { target, changed: false, previousRole: role };
+
+      if (target.authorization_role === "admin" && role !== "admin") {
+        const { count } = await trx
+          .selectFrom("users")
+          .select(({ fn }) => fn.countAll<number>().as("count"))
+          .where("authorization_role", "=", "admin")
+          .executeTakeFirstOrThrow();
+        if (Number(count) <= 1) throw Boom.conflict("The last Admin cannot be demoted.");
+      }
+
+      await trx.updateTable("users").set({ authorization_role: role }).where("id", "=", targetUserId).execute();
+      return {
+        target: { ...target, authorization_role: role },
+        changed: true,
+        previousRole: target.authorization_role,
+      };
+    });
+
+    if (result.changed) {
+      getLogger().info(
+        {
+          actor_user_id: actorUserId,
+          target_user_id: targetUserId,
+          previous_role: result.previousRole,
+          new_role: role,
+        },
+        "authorization.role.changed",
+      );
+    }
+    return { ...result.target, authorization_role: role };
+  };
+
   const getUserById = async (id: number) => {
     const user = await db.selectFrom("users").select(PUBLIC_USER_FIELDS).where("users.id", "=", id).executeTakeFirst();
     if (!user) {
@@ -180,6 +245,8 @@ export function usersServiceFactory(
     putGreeting,
     putFarewell,
     getUsers,
+    getAdminUsers,
+    assignUserRole,
     getUserById,
     getGreetingByUserId,
     getFarewellByUserId,
