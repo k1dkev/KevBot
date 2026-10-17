@@ -2,20 +2,20 @@
 
 ## Library pools and playback events
 
-The API exposes global list/random queries at `GET /v1/library/pools/{name}`
-and `GET /v1/library/pools/{name}/random`. Global reads retain the access
-behavior of existing routes; `myuploads` requires an authenticated actor.
-Lists return stable pages with total counts; `all`, categories and `myuploads`
-can be fully paged. Ranked/history pools default to 25 and cap at 100. Random
-selection evaluates the full eligible set for `all`, categories and `myuploads`,
-and samples unique tracks; `playhistory` samples recent events so repeats retain
+The API exposes typed list/random queries at `GET /v1/library/pools?source=...`
+and `GET /v1/library/pools/random?source=...`. Global reads retain the access
+behavior of existing routes; `my_uploads` requires an authenticated actor.
+Lists return stable pages with total counts; `all_tracks`, playlists, and
+`my_uploads` can be fully paged. Ranked/history pools default to 25 and cap at
+100. Random selection evaluates the full eligible set for `all_tracks`, playlists,
+and `my_uploads`, and samples unique tracks; `play_history` samples recent events so repeats retain
 their weight. Deleted/unavailable history entries include a reason in list output
 and are excluded from random candidates.
 
 Bot reporting uses `POST /v1/plays/events` with a delegated bot actor and a
 stable UUID `event_id`. Send the report only after playback enters Playing and
 reuse that UUID on retries. The API atomically records the event, ordinary
-activity rows/counters and any real category selection. Replaying the same
+activity rows/counters and any real playlist selection. Replaying the same
 identity and payload is idempotent; reusing it for a different actor or payload
 returns 409. Virtual pools do not create synthetic playlist selections. The
 server trusts the authenticated bot process for the playback-state assertion.
@@ -140,10 +140,10 @@ host networking for the Linux/CI-equivalent `--network host` command above.
 ## Bot actors and shared library permissions
 
 See [the bot API contract](docs/BOT_API.md) for the service-token/acting-user
-exchange, shared category rules and compatibility changes. `MASTER_DISCORD_ID`
-is an optional, exact Discord snowflake string; unset means no master override.
-Forward it explicitly to the API container. Do not give the bot database or GCS
-credentials, or place `BOT_AUTH_API_KEY` in browser configuration.
+exchange, shared playlist rules, and role behavior. Bootstrap the first Admin
+using the one-time operator procedure in
+[`authorization-roles.md`](../specs/authorization-roles.md). Do not give the bot
+database or GCS credentials, or place `BOT_AUTH_API_KEY` in browser configuration.
 
 ## Prerequisites
 
