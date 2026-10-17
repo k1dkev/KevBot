@@ -112,11 +112,13 @@ claiming they are met.
 
 ## Policy questions and deferred scope
 
-Public versus authenticated reads, anonymous play reporting and deleted-content
-visibility still need explicit policy reconciliation under
-[#145](https://github.com/k1dkev/KevBot/issues/145). Current routes are evidence of
-behavior, not an implicit decision to preserve or change that policy. This
-documentation pass does not change auth/security policy.
+Public versus authenticated reads and deleted-content visibility still need
+explicit policy reconciliation under
+[#145](https://github.com/k1dkev/KevBot/issues/145). Anonymous playback reports
+are accepted as history-only events and excluded from aggregate counts and
+rankings; see the #175 playback contract. A UUID makes retries idempotent but
+does not prove a playback was audible or that an anonymous request came from
+the official browser client.
 
 Keep MySQL, Kysely, GCS and the existing API/migration architecture as the starting
 point. Payments, automated moderation, listening rooms, advanced analytics,

@@ -15,7 +15,6 @@ const runMigrationManager = async (db_connection_string: string) => {
       { source: `${migrationDir}/baseline`, target: "/app/migration/baseline" },
     ])
     .withCommand(["migrate", "migration"])
-    .withWaitStrategy(Wait.forLogMessage("Database migration complete! None --> 2.14.0"))
     .withWaitStrategy(Wait.forOneShotStartup())
     .start();
 };

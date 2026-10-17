@@ -136,7 +136,7 @@ the accepted resolutions; implementation and verification remain follow-up work.
 
 | Decision | Accepted resolution |
 | --- | --- |
-| Command migration | Preserve configured prefixes and all 18 commands; slash commands remain additive (D1) |
+| Command migration | Preserve configured prefixes and all 18 commands; slash commands and `/search` for tracks/playlists are required for v2 (revised D1) |
 | Farewell duration | Strictly less than 4 seconds across clients/API (D2) |
 | Upload duration | New uploads strictly less than 15 seconds; audit existing boundary clips without deleting them (D3) |
 | `mostplayed` definition | Ordinary PLAY (0) events only, with stable ties and no zero-play entries (D5) |

@@ -35,7 +35,7 @@ test("aggregation reports committed summary at info and per-item updates only at
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce(undefined);
     const query: Record<string, any> = { execute };
-    for (const method of ["selectFrom", "select", "groupBy", "insertInto", "values", "onDuplicateKeyUpdate"])
+    for (const method of ["selectFrom", "select", "where", "groupBy", "insertInto", "values", "onDuplicateKeyUpdate"])
       query[method] = () => query;
     let committed = false;
     const db = {

@@ -1,5 +1,25 @@
 # API
 
+## Library pools and playback events
+
+The API exposes global list/random queries at `GET /v1/library/pools/{name}`
+and `GET /v1/library/pools/{name}/random`. Global reads retain the access
+behavior of existing routes; `myuploads` requires an authenticated actor.
+Lists return stable pages with total counts; `all`, categories and `myuploads`
+can be fully paged. Ranked/history pools default to 25 and cap at 100. Random
+selection evaluates the full eligible set for `all`, categories and `myuploads`,
+and samples unique tracks; `playhistory` samples recent events so repeats retain
+their weight. Deleted/unavailable history entries include a reason in list output
+and are excluded from random candidates.
+
+Bot reporting uses `POST /v1/plays/events` with a delegated bot actor and a
+stable UUID `event_id`. Send the report only after playback enters Playing and
+reuse that UUID on retries. The API atomically records the event, ordinary
+activity rows/counters and any real category selection. Replaying the same
+identity and payload is idempotent; reusing it for a different actor or payload
+returns 409. Virtual pools do not create synthetic playlist selections. The
+server trusts the authenticated bot process for the playback-state assertion.
+See [OpenAPI](src/docs/openapi.yml) and the [accepted bot contract](../specs/bot-parity-decisions.md).
 ## Standalone audio normalization
 
 `POST /v1/audio/normalize` accepts one multipart `file` and returns normalized

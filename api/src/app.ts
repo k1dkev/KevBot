@@ -16,6 +16,8 @@ import { authMiddlewareFactory } from "./middlewares/auth";
 import { botRoutesFactory } from "./routes/botRoutes";
 import { devRoutesFactory } from "./routes/devRoutes";
 import { searchRoutesFactory } from "./routes/searchRoutes";
+import { libraryRoutesFactory } from "./routes/libraryRoutes";
+import { libraryServiceFactory } from "./services/libraryService";
 import { requestLoggingFactory } from "./middlewares/requestLogging";
 import { audioRoutesFactory } from "./routes/audioRoutes";
 
@@ -55,6 +57,7 @@ export function appFactory(config: Config, secrets: Secrets, db: Kysely<Database
   app.use("/v1/playlists", playlistsRoutesFactory(config, auth, services.playlistsService));
   app.use("/v1/search", searchRoutesFactory(config, services.searchService));
   app.use("/v1/plays", playsRoutesFactory(auth, services.playsService));
+  app.use("/v1/library", libraryRoutesFactory(auth, libraryServiceFactory(db)));
   app.use("/v1/dev", devRoutesFactory(config, secrets, db, services.usersService));
   app.use(errorHandlerFactory(config.maxFileSizeInBytes));
   return app;

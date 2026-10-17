@@ -6,7 +6,6 @@ import { PlaysService } from "../services/playsService";
 export function playsRoutesFactory(auth: AuthMiddleware, playsService: PlaysService) {
   const router = express.Router();
   const playsController = playsControllerFactory(playsService);
-  router.post("/tracks", auth.optionalAuth, playsController.logTracksPlay);
-  router.post("/playlists/random", auth.optionalAuth, playsController.logRandomPlaylistsPlay);
+  router.post("/events", auth.optionalAuthStrict, playsController.reportPlayback);
   return router;
 }
