@@ -1,10 +1,11 @@
-# KevBot Discord service foundation
+# KevBot Discord service
 
-This service is **not release-ready**. It implements exact-track playback and
-typed random playback/raid with bounded voice lifecycles. Library mutation,
-uploads, greetings/farewells, automatic voice events, and full parity verification
-remain follow-up work. The first usable release still requires the full accepted
-command set.
+This service is **not release-ready**. It implements exact-track, typed random,
+and raid playback plus playlist management (`newplaylist`, `delplaylist`,
+`addtoplaylist`, `delfromplaylist`, `addplayliststo`, and `delplaylistsfrom`)
+through the shared API. Uploads, greetings/farewells, automatic voice events,
+and full parity verification remain follow-up work. The first usable release
+still requires the full accepted command set.
 
 ## Local checks and development
 
@@ -53,8 +54,8 @@ disabled and synthetic values. It performs no Discord gateway login or deploymen
 are `all_tracks`, `most_played`, `my_uploads`, `play_history`, and `upload_history`.
 An ordinary selector such as `pr!allcats` selects a playlist by that exact name;
 `playlist:<name>` is an explicit equivalent. No playlist or track name is
-reserved for a virtual source. Playlist references use the shared API and do
-not use a second category data model.
+reserved for a virtual source. Playlist references use the shared API rather
+than a separate library resource model.
 
 Voice playback uses the API's bounded audio stream and reports playback only
 after Discord's audio player reaches `Playing`. The voice adapter checks bot

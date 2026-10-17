@@ -71,7 +71,7 @@ test("offline help/config CLI cannot log in and does not print configuration sec
     });
   const help = invoke(["--help"]);
   assert.equal(help.status, 0, help.stderr);
-  assert.match(help.stdout, /Playback commands are implemented/);
+  assert.match(help.stdout, /Implemented: .*newplaylist/);
   const valid = invoke(["--check-config"], {
     DISCORD_BOT_TOKEN: "synthetic-canary",
     BOT_AUTH_API_KEY: "api-canary",

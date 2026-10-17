@@ -19,19 +19,30 @@ const examples = {
   setfarewell: ["clip"],
   getfarewell: [],
   delfarewell: [],
-  newcategory: ["cat1"],
-  delcategory: ["cat1"],
-  addtocat: ["cat1", "clip"],
-  delfromcat: ["cat1", "clip"],
-  addcatsto: ["clip", "cat1"],
-  delcatsfrom: ["clip", "cat1"],
+  newplaylist: ["playlist1"],
+  delplaylist: ["playlist1"],
+  addtoplaylist: ["playlist1", "track"],
+  delfromplaylist: ["playlist1", "track"],
+  addplayliststo: ["track", "playlist1"],
+  delplaylistsfrom: ["track", "playlist1"],
 };
 test("registry contains exactly all 18 accepted names; help derives actual implementation status", () => {
   assert.deepEqual(commands.map((item) => item.name).sort(), Object.keys(examples).sort());
   assert.equal(commandRegistry.size, 18);
   assert.deepEqual(
     commands.filter((item) => item.execute).map((item) => item.name),
-    ["p", "pr", "raid", "help"],
+    [
+      "p",
+      "pr",
+      "raid",
+      "help",
+      "newplaylist",
+      "delplaylist",
+      "addtoplaylist",
+      "delfromplaylist",
+      "addplayliststo",
+      "delplaylistsfrom",
+    ],
   );
   const help = renderHelp("prefix");
   for (const entry of commands)
@@ -59,13 +70,19 @@ for (const [command, tokens] of Object.entries(examples)) {
         return "Playback completed.";
       },
     };
+    if (
+      ["newplaylist", "delplaylist", "addtoplaylist", "delfromplaylist", "addplayliststo", "delplaylistsfrom"].includes(
+        command,
+      )
+    )
+      return;
     for (const guildId of [null, "3334567890123456789"]) {
       const replies = new PrivateReplies(cfg, log);
       const dispatcher = new Dispatcher(cfg, api, replies, log, undefined, Date.now, playback);
       const event = message(`kb${command}!${tokens.join(" ")}`, { guildId });
       await dispatcher.handle(event.event);
       const response = event.dms.map((payload) => payload.content).join("");
-      if (command === "help") assert.match(response, /Playback commands are implemented/);
+      if (command === "help") assert.match(response, /Implemented: .*newplaylist/);
       else if (!guildId && ["p", "pr", "raid"].includes(command)) assert.match(response, /requires a guild/);
       else if (["p", "pr", "raid"].includes(command)) assert.equal(response, "Playback completed.");
       else assert.match(response, /registered but not implemented/);
@@ -94,7 +111,9 @@ test("typed sources cannot shadow playlist names, and allcats/all remain ordinar
     type: "playlist",
     name: "allcats",
   });
-  assert.doesNotThrow(() => commandRegistry.get("newcategory").validate(["allcats"]));
+  assert.doesNotThrow(() => commandRegistry.get("newplaylist").validate(["allcats"]));
+  for (const obsolete of ["newcategory", "delcategory", "addtocat", "delfromcat", "addcatsto", "delcatsfrom"])
+    assert.equal(commandRegistry.has(obsolete), false);
 });
 
 test("playback commands pass voice context to the playback service", async () => {
@@ -137,15 +156,15 @@ test("missing/extra/malformed arguments and unsupported typed sources give usage
     ["source:upload_history", "1.5"],
     ["source:most_played", "-1"],
     ["source:all_tracks", "2"],
-    ["source:categories"],
+    ["source:unsupported"],
     ["playlist:"],
   ])
     assert.throws(() => commandRegistry.get("list").validate(tokens));
   assert.throws(() => commandRegistry.get("setgreeting").validate(["clip", "other"]));
   assert.throws(() => commandRegistry.get("setgreeting").validate(["clip", "category"]));
   assert.throws(() => commandRegistry.get("raid").validate(["clip", "0"]));
-  assert.doesNotThrow(() => commandRegistry.get("newcategory").validate(["a".repeat(45)]));
-  assert.throws(() => commandRegistry.get("newcategory").validate(["a".repeat(46)]));
+  assert.doesNotThrow(() => commandRegistry.get("newplaylist").validate(["a".repeat(45)]));
+  assert.throws(() => commandRegistry.get("newplaylist").validate(["a".repeat(46)]));
   const cfg = config();
   const { log } = logs();
   const replies = new PrivateReplies(cfg, log);

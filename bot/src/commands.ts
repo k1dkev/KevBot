@@ -1,6 +1,13 @@
-import { PlaybackError, type PlaybackPool, type PlaybackService } from "./playback.js";
 import type { BotApiClient } from "./api-client.js";
-
+import { PlaybackError, type PlaybackPool, type PlaybackService } from "./playback.js";
+import {
+  addTrackToPlaylists,
+  addTracksToPlaylist,
+  createPlaylist,
+  deletePlaylist,
+  removeTrackFromPlaylists,
+  removeTracksFromPlaylist,
+} from "./library-commands.js";
 export const helpSelectors = ["kb", "kevbot", "kev-bot"] as const;
 export const greetingTypes: Readonly<Record<string, "track" | "playlist">> = {
   file: "track",
@@ -201,39 +208,66 @@ export const commands: readonly CommandDefinition[] = [
   pending("setfarewell", "setfarewell!clip", "Set your farewell (strictly below 4 seconds).", 162, track),
   pending("getfarewell", "getfarewell!", "Show your farewell.", 162, empty),
   pending("delfarewell", "delfarewell!", "Clear your farewell.", 162, empty),
-  pending("newcategory", "newcategory!name", "Create a playlist (legacy command alias).", 161, playlist),
-  pending("delcategory", "delcategory!name", "Delete an empty playlist with API permission checks.", 161, playlist),
-  pending("addtocat", "addtocat!playlist track [track ...]", "Add tracks to one playlist.", 161, membership(true)),
-  pending(
-    "delfromcat",
-    "delfromcat!playlist track [track ...]",
-    "Remove tracks with API permission checks.",
-    161,
-    membership(true),
-  ),
-  pending(
-    "addcatsto",
-    "addcatsto!track playlist [playlist ...]",
-    "Add one track to playlists.",
-    161,
-    membership(false),
-  ),
-  pending(
-    "delcatsfrom",
-    "delcatsfrom!track playlist [playlist ...]",
-    "Remove a track from playlists with API permission checks.",
-    161,
-    membership(false),
-  ),
+  {
+    name: "newplaylist",
+    usage: "newplaylist!name",
+    description: "Create a playlist.",
+    guildOnly: false,
+    validate: playlist,
+    execute: createPlaylist,
+  },
+  {
+    name: "delplaylist",
+    usage: "delplaylist!name",
+    description: "Delete an empty playlist with API permission checks.",
+    guildOnly: false,
+    validate: playlist,
+    execute: deletePlaylist,
+  },
+  {
+    name: "addtoplaylist",
+    usage: "addtoplaylist!playlist track [track ...]",
+    description: "Add tracks to one playlist.",
+    guildOnly: false,
+    validate: membership(true),
+    execute: addTracksToPlaylist,
+  },
+  {
+    name: "delfromplaylist",
+    usage: "delfromplaylist!playlist track [track ...]",
+    description: "Remove tracks with API permission checks.",
+    guildOnly: false,
+    validate: membership(true),
+    execute: removeTracksFromPlaylist,
+  },
+  {
+    name: "addplayliststo",
+    usage: "addplayliststo!track playlist [playlist ...]",
+    description: "Add one track to playlists.",
+    guildOnly: false,
+    validate: membership(false),
+    execute: addTrackToPlaylists,
+  },
+  {
+    name: "delplaylistsfrom",
+    usage: "delplaylistsfrom!track playlist [playlist ...]",
+    description: "Remove a track from playlists with API permission checks.",
+    guildOnly: false,
+    validate: membership(false),
+    execute: removeTrackFromPlaylists,
+  },
 ];
 export const commandRegistry: ReadonlyMap<string, CommandDefinition> = new Map(
   commands.map((command) => [command.name, command]),
 );
 
 export function renderHelp(prefix: string): string {
+  const implemented = commands.filter((command) => command.execute).map((command) => command.name);
+  const pending = commands.filter((command) => !command.execute).map((command) => command.name);
   return [
     `KevBot command foundation — ${prefix}<command>!<arguments>`,
-    "Playback commands are implemented; other registered commands are pending follow-up work.",
+    `Implemented: ${implemented.join(", ")}.`,
+    `Still pending: ${pending.join(", ")}.`,
     ...commands.map(
       (command) =>
         `${command.name} — ${command.execute ? "implemented" : `not implemented (#${command.followup})`}${command.guildOnly ? "; guild only" : "; DM or guild"}\n${prefix}${command.usage}\n${command.description}`,
@@ -241,7 +275,7 @@ export function renderHelp(prefix: string): string {
     "Special sources use source:all_tracks, source:most_played, source:my_uploads, source:play_history, or source:upload_history.",
     "Select a playlist by name or playlist:<name>; names are never reserved for special sources.",
     "Ranked/history defaults are 25, maximum 100. Tracks and playlists named allcats or all are ordinary names.",
-    "Greeting types: file/audio/clip/audioclip or playlist. Other registered commands are pending follow-up work.",
+    "Greeting types: file/audio/clip/audioclip or playlist.",
   ].join("\n\n");
 }
 
