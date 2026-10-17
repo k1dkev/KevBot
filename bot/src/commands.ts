@@ -1,5 +1,7 @@
 import type { BotApiClient } from "./api-client.js";
 import { PlaybackError, type PlaybackPool, type PlaybackService } from "./playback.js";
+import type { CommandAttachment } from "./replies.js";
+import { uploadTrack } from "./upload-commands.js";
 import { preferenceCommands } from "./preference-commands.js";
 import {
   addTrackToPlaylists,
@@ -41,6 +43,7 @@ export interface CommandDefinition {
     authorDiscordId: string;
     guildId: string | null;
     voiceChannelId: string | null;
+    attachments?: readonly CommandAttachment[];
     api: BotApiClient;
     playback?: PlaybackService;
   }): string | Promise<string>;
@@ -167,17 +170,18 @@ export const commands: readonly CommandDefinition[] = [
     },
   },
   pending("list", "list![source:<type>|playlist:<name>] [length]", "List tracks, playlists or history.", 161, pool),
-  pending(
-    "upload",
-    "upload![playlist ...] + MP3 attachment",
-    "Upload the first attachment through the API.",
-    161,
-    (tokens) => {
+  {
+    name: "upload",
+    usage: "upload![playlist ...] + MP3 attachment",
+    description: "Upload the first attachment through the API and add it to the supplied playlists.",
+    guildOnly: false,
+    execute: uploadTrack,
+    validate: (tokens) => {
       count(tokens, 0, 100);
       tokens.forEach((item) => playlist([item]));
       return { tokens };
     },
-  ),
+  },
   {
     name: "help",
     usage: "help!kb | help!kevbot | help!kev-bot",

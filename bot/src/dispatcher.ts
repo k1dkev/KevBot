@@ -71,6 +71,7 @@ export class Dispatcher {
           authorDiscordId: user,
           guildId: message.guildId,
           voiceChannelId: message.member?.voice.channelId ?? null,
+          attachments: message.attachments ? Array.from(message.attachments.values()) : [],
           api: this.api,
           playback: this.playback,
         });

@@ -35,6 +35,7 @@ test("registry contains exactly all 18 accepted names; help derives actual imple
       "p",
       "pr",
       "raid",
+      "upload",
       "help",
       "setgreeting",
       "getgreeting",
@@ -102,6 +103,7 @@ for (const [command, tokens] of Object.entries(examples)) {
       if (command === "help") assert.match(response, /Implemented: .*newplaylist/);
       else if (!guildId && ["p", "pr", "raid"].includes(command)) assert.match(response, /requires a guild/);
       else if (["p", "pr", "raid"].includes(command)) assert.equal(response, "Playback completed.");
+      else if (command === "upload") assert.match(response, /Attach an MP3 file/);
       else assert.match(response, /registered but not implemented/);
       assert.equal(event.publicReplies.length, 0);
       dispatcher.close();
@@ -109,11 +111,35 @@ for (const [command, tokens] of Object.entries(examples)) {
     }
     assert.equal(
       records.filter((entry) => entry.event === "command.completed" && command !== "help").length,
-      ["p", "pr", "raid"].includes(command) ? 1 : 0,
+      command === "upload" ? 2 : ["p", "pr", "raid"].includes(command) ? 1 : 0,
     );
     assert.equal(calls.length, ["p", "pr", "raid"].includes(command) ? 1 : 0);
   });
 }
+
+test("upload uses the first message attachment and does not fall through to later files", async () => {
+  const cfg = config();
+  const { log } = logs();
+  const replies = new PrivateReplies(cfg, log);
+  let apiCalls = 0;
+  const api = { request: async () => (apiCalls++, []) };
+  const dispatcher = new Dispatcher(cfg, api, replies, log);
+  const event = message("kbupLoad!", {
+    event: {
+      attachments: {
+        values: () => [
+          { url: "https://cdn.discordapp.com/first", name: "not-audio.wav", size: 32 },
+          { url: "https://cdn.discordapp.com/second", name: "valid.mp3", size: 32 },
+        ],
+      },
+    },
+  });
+  await dispatcher.handle(event.event);
+  assert.match(event.dms[0].content, /Attach an MP3 named/);
+  assert.equal(apiCalls, 0);
+  dispatcher.close();
+  replies.close();
+});
 
 test("typed sources cannot shadow playlist names, and allcats/all remain ordinary names", () => {
   for (const selector of helpSelectors) assert.doesNotThrow(() => commandRegistry.get("help").validate([selector]));

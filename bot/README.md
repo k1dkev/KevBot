@@ -3,9 +3,10 @@
 This service is **not release-ready**. It implements exact-track, typed random,
 and raid playback plus playlist management (`newplaylist`, `delplaylist`,
 `addtoplaylist`, `delfromplaylist`, `addplayliststo`, and `delplaylistsfrom`)
-and user greeting/farewell settings through the shared API. Uploads, automatic
-voice events, and full parity verification remain follow-up work. The first
-usable release still requires the full accepted command set.
+and MP3 uploads through the shared API. User greeting/farewell settings are
+also implemented. Automatic voice events and full parity verification remain
+follow-up work. The first usable release still requires the full accepted
+command set.
 
 ## Local checks and development
 
@@ -61,3 +62,11 @@ Voice playback uses the API's bounded audio stream and reports playback only
 after Discord's audio player reaches `Playing`. The voice adapter checks bot
 Connect/Speak permissions, allows one active playback per guild, bounds
 connection/start/finish waits, and disconnects on completion or failure.
+
+## Uploads
+
+`upload![playlist ...]` uses the first attached `.mp3`, accepts a lowercase
+letter/digit track name up to 15 characters, and enforces the API's 3 MB limit.
+Supplied playlists are checked before download/upload; the API validates and
+normalizes the audio. Membership failures are reported separately because an
+uploaded track is not rolled back when a later playlist update fails.

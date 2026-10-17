@@ -5,6 +5,11 @@ export interface ReplyPayload {
   content: string;
   allowedMentions: { parse: []; repliedUser: false };
 }
+export interface CommandAttachment {
+  url: string;
+  name: string | null;
+  size: number;
+}
 export interface CommandMessage {
   id: string;
   content: string;
@@ -12,6 +17,7 @@ export interface CommandMessage {
   webhookId?: string | null;
   author: { id: string; bot: boolean; send(payload: ReplyPayload): Promise<unknown> };
   member?: { voice: { channelId: string | null } } | null;
+  attachments?: { values(): Iterable<CommandAttachment> };
   reply(payload: ReplyPayload): Promise<unknown>;
 }
 export const publicDmNotice = "I could not send a private reply. Please enable DMs and try again.";
