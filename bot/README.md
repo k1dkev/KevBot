@@ -3,9 +3,9 @@
 This service is **not release-ready**. It implements exact-track, typed random,
 and raid playback plus playlist management (`newplaylist`, `delplaylist`,
 `addtoplaylist`, `delfromplaylist`, `addplayliststo`, and `delplaylistsfrom`)
-through the shared API. Uploads, greetings/farewells, automatic voice events,
-and full parity verification remain follow-up work. The first usable release
-still requires the full accepted command set.
+and user greeting/farewell settings through the shared API. Uploads, automatic
+voice events, and full parity verification remain follow-up work. The first
+usable release still requires the full accepted command set.
 
 ## Local checks and development
 
