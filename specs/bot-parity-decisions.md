@@ -3,7 +3,9 @@
 Status: **Accepted** on 2026-10-15 (America/Chicago), covering D1–D11, the
 permission matrix, and playback/reporting semantics. D6 was revised at the
 owner's direction on 2026-10-16: library sources are typed and name-independent,
-and playlist/track names have no reserved-word list. See the
+and playlist/track names have no reserved-word list. D1 was revised on
+2026-10-17: slash commands are required for v2 while prefixes remain supported;
+#83 tracks delivery. See the
 [owner approval record](https://github.com/k1dkev/KevBot/issues/141#issuecomment-6207636658).
 This accompanies the [18-command inventory](bot-parity.md); it neither implements
 a bot nor asserts that v2 behavior has passed acceptance testing. API changes
@@ -14,7 +16,7 @@ Future changes to this contract require an explicit reviewed decision.
 
 | ID | Accepted contract | Evidence / intentional difference |
 | --- | --- | --- |
-| D1 | Keep configured `<prefix><command>!<args>` access. Preserve all 18 registry names, case-folding, help selectors `kb`/`kevbot`/`kev-bot`, and greeting type aliases. Slash commands are additive, not a release prerequisite. | `MessageCreate.js`, `help.js`, `setgreeting.js`; approved release boundary. Trim ordinary argument whitespace; malformed input returns usage instead of an exception. |
+| D1 (revised) | Keep configured `<prefix><command>!<args>` access and add slash-command access to the v2 release. Preserve all 18 registry names, case-folding, help selectors `kb`/`kevbot`/`kev-bot`, and greeting type aliases. `/search` searches tracks and playlists. | Owner direction on 2026-10-17; tracked by #83. Trim ordinary argument whitespace; malformed input returns usage instead of an exception. |
 | D2 | Farewell duration is strictly **less than 4 seconds** across API and clients. Test 3, 3.999 and 4 seconds. | `setfarewell.js` rejects `>=4`; the README's 3-second statement is corrected, not silently treated as implemented behavior. No new master-only duration exception. |
 | D3 | New uploaded audio must be strictly **less than 15 seconds** across both clients. Keep MP3 validation, normalization, 15-character bot clip names and existing API byte limits. Test 14.999 and 15 seconds. | Legacy `upload.js` rejects `>=15`, while the API currently allows exactly 15. This requires an explicit shared API boundary change, not a bot-only exception. Audit existing boundary-length clips before cutover; do not delete them. |
 | D4 | Preserve playlist names up to the existing schema's **45 characters**, with lowercase ASCII letters/digits for new bot-created names. Align the API's current 15-character playlist cap with this compatibility limit. Never truncate/rename existing data automatically. | The playlist table has a 45-character name column. Track-name limits remain unchanged. Existing incompatible names require a cutover report and an owner-approved mapping. |
