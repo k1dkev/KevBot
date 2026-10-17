@@ -9,7 +9,7 @@ owns command parsing, voice-channel targeting, and audio playback. The API must
 not ask the bot to play audio or infer an operation from a track/playlist name.
 
 This keeps names such as `allcats`, `all`, and `mostplayed` available as normal
-track and playlist names. Categories are not API resources; use playlists and
+track and playlist names. Playlists are the only collection resource; use
 playlist IDs throughout.
 
 ## Select a random track
