@@ -124,11 +124,13 @@ test("gateway requests prefix/DM/voice-state intents and stubs dispatch help", a
   assert.ok(event.dms.length > 0);
   client.emit(Events.Error, new Error("token-canary"));
   client.emit(Events.ShardError, new Error("token-canary"));
+  assert.equal(client.listenerCount(Events.VoiceStateUpdate), 1);
   await Promise.all([runtime.stop(), runtime.stop()]);
   assert.equal(client.logins, 1);
   assert.equal(client.destroys, 1);
   assert.equal(apiClosed, 1);
   assert.equal(client.listenerCount(Events.MessageCreate), 0);
+  assert.equal(client.listenerCount(Events.VoiceStateUpdate), 0);
 });
 
 test("failed/hanging login cleans listeners/resources, and invalidated sessions stop", async () => {
@@ -156,6 +158,7 @@ test("failed/hanging login cleans listeners/resources, and invalidated sessions 
     assert.equal(client.destroys, 1);
     assert.equal(closed, 1);
     assert.equal(client.listenerCount(Events.MessageCreate), 0);
+    assert.equal(client.listenerCount(Events.VoiceStateUpdate), 0);
   }
   const client = new StubGateway();
   const { log } = logs();
