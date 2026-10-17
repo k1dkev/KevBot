@@ -77,7 +77,7 @@ async function setGreeting(context: PreferenceContext) {
   }
 
   if (trackId !== null && playlistId !== null)
-    return `Both a track and playlist named '${name}' exist. Specify 'track' or 'playlist' to choose one.`;
+    return `Both a clip and playlist named '${name}' exist. Specify 'file' or 'playlist' to choose one.`;
   if (trackId === null && playlistId === null) return `No clip or playlist named '${name}' was found.`;
 
   try {
