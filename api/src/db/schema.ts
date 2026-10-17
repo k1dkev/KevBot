@@ -154,7 +154,7 @@ export type SessionUpdate = Updateable<SessionsTable>;
 
 export interface PlaybackEventsTable {
   event_id: string;
-  user_id: number;
+  user_id: number | null;
   track_id: number;
   play_type: number;
   source_type: string;

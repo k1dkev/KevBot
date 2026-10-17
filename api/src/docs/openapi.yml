@@ -84,10 +84,11 @@ paths:
           $ref: "#/components/responses/NotFound"
   /plays/events:
     post:
-      summary: Report a successfully started bot playback idempotently.
-      description: Requires a delegated bot actor and playback_started=true. Generate event_id once per attempted playback and reuse it for retries. Use a named play_type and, for random selection, forward the source returned by the random-pool endpoint. playlist_greeting requires a playlist source. The event record, track history/counters, and optional playlist-play record commit atomically. The API trusts the authenticated bot to report only after Playing.
+      summary: Report a successfully started playback idempotently.
+      description: Accepts anonymous requests, authenticated browser users, or delegated bot actors. A supplied invalid token is rejected. Generate event_id once per attempted playback and reuse it for retries. Anonymous events remain in history but do not affect play totals, per-type counts, or most-played rankings. Use a named play_type and, for random selection, forward the source returned by the random-pool endpoint. playlist_greeting requires a playlist source. The event record, track history/counters, and optional playlist-play record commit atomically. The API trusts the caller's playback_started assertion; it cannot prove that audio was audible.
       security:
         - bearerAuth: []
+        - {}
       requestBody:
         required: true
         content:
@@ -1246,63 +1247,6 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /plays/tracks:
-    post:
-      summary: Log a track play.
-      requestBody:
-        description: Data for logging a play.
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                track_id:
-                  type: integer
-                play_type:
-                  type: integer
-              required:
-                - track_id
-                - play_type
-      responses:
-        "201":
-          description: Play logged.
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "404":
-          $ref: "#/components/responses/NotFound"
-  /plays/playlists/random:
-    post:
-      summary: Log a random playlist play.
-      requestBody:
-        description: Playlist ID to log.
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                playlist_id:
-                  type: integer
-              required:
-                - playlist_id
-      responses:
-        "201":
-          description: Play logged.
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "404":
-          $ref: "#/components/responses/NotFound"
   /search:
     get:
       summary: Unified search across tracks, playlists, and users.

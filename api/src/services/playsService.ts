@@ -1,5 +1,4 @@
 import { KevbotDb } from "../db/connection";
-import { PlaylistsService } from "./playlistsService";
 import { TracksService } from "./tracksService";
 import { Transaction } from "kysely";
 import { Database } from "../db/schema";
@@ -29,18 +28,18 @@ export type PlaybackKind = keyof typeof PLAYBACK_KIND_TO_TYPE;
 
 export const PLAY_TYPES_OF_TOTAL_PLAY_COUNT: PlayType[] = [PLAY_TYPE.PLAY, PLAY_TYPE.RAID, PLAY_TYPE.PLAY_RANDOM];
 
-export function playsServiceFactory(db: KevbotDb, tracksService: TracksService, playlistsService: PlaylistsService) {
-  interface LogOptions {
-    user_id?: number;
-  }
-
+export function playsServiceFactory(db: KevbotDb, tracksService: TracksService) {
   const recordTrackPlay = async (
     trx: Transaction<Database>,
     track_id: number,
     play_type: PlayType,
-    user_id?: number,
+    user_id: number | null,
   ) => {
     await trx.insertInto("track_plays").values({ track_id, play_type, user_id }).execute();
+
+    // Anonymous events remain visible in history but do not affect public
+    // play totals, per-type counts, or most-played rankings.
+    if (user_id === null) return;
 
     // Increment raw_total_play_count
     await trx
@@ -80,13 +79,6 @@ export function playsServiceFactory(db: KevbotDb, tracksService: TracksService, 
       .execute();
   };
 
-  const logTracksPlay = async (track_id: number, play_type: PlayType, options: LogOptions = {}) => {
-    await db.transaction().execute(async (trx) => {
-      await tracksService.getTrackById(track_id, trx);
-      await recordTrackPlay(trx, track_id, play_type, options.user_id);
-    });
-  };
-
   interface PlaybackEvent {
     event_id: string;
     track_id: number;
@@ -94,7 +86,7 @@ export function playsServiceFactory(db: KevbotDb, tracksService: TracksService, 
     source_type: string;
     playlist_id?: number;
   }
-  const reportPlayback = async (event: PlaybackEvent, userId: number) => {
+  const reportPlayback = async (event: PlaybackEvent, userId: number | null) => {
     const values = {
       event_id: event.event_id,
       track_id: event.track_id,
@@ -106,7 +98,7 @@ export function playsServiceFactory(db: KevbotDb, tracksService: TracksService, 
     const checkPrior = (
       prior:
         | {
-            user_id: number;
+            user_id: number | null;
             track_id: number;
             play_type: number;
             source_type: string;
@@ -176,17 +168,7 @@ export function playsServiceFactory(db: KevbotDb, tracksService: TracksService, 
     }
   };
 
-  const logRandomPlaylistPlay = async (playlist_id: number, options: LogOptions = {}) => {
-    await db.transaction().execute(async (trx) => {
-      await playlistsService.getPlaylistById(playlist_id); // ensures playlist exists
-      const { user_id } = options;
-      await trx.insertInto("playlist_plays").values({ playlist_id, user_id }).execute();
-    });
-  };
-
   return {
-    logTracksPlay,
-    logRandomPlaylistPlay,
     reportPlayback,
   };
 }
