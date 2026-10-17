@@ -3,9 +3,10 @@
 This service is **not release-ready**. It implements exact-track, typed random,
 and raid playback plus playlist management (`newplaylist`, `delplaylist`,
 `addtoplaylist`, `delfromplaylist`, `addplayliststo`, and `delplaylistsfrom`)
-and user greeting/farewell settings through the shared API. Uploads, automatic
-voice events, and full parity verification remain follow-up work. The first
-usable release still requires the full accepted command set.
+and user greeting/farewell settings plus typed library listing through the
+shared API. Uploads and automatic voice events are separate review slices; full
+parity verification remains. The first usable release still requires the full
+accepted command set.
 
 ## Local checks and development
 
@@ -56,6 +57,13 @@ An ordinary selector such as `pr!allcats` selects a playlist by that exact name;
 `playlist:<name>` is an explicit equivalent. No playlist or track name is
 reserved for a virtual source. Playlist references use the shared API rather
 than a separate library resource model.
+
+`list!` pages through the complete active-track, playlist, or personal-upload
+source. Ranked and history sources default to 25 entries and accept a length
+from 1 through 100. Global play history preserves repeated events and marks
+missing/deleted tracks; upload history shows timestamps and unavailable entries.
+The command refuses results larger than its page or Discord-DM budget instead
+of silently returning only the first page.
 
 Voice playback uses the API's bounded audio stream and reports playback only
 after Discord's audio player reaches `Playing`. The voice adapter checks bot

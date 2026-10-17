@@ -35,6 +35,7 @@ test("registry contains exactly all 18 accepted names; help derives actual imple
       "p",
       "pr",
       "raid",
+      "list",
       "help",
       "setgreeting",
       "getgreeting",
@@ -90,6 +91,7 @@ for (const [command, tokens] of Object.entries(examples)) {
         "delfromplaylist",
         "addplayliststo",
         "delplaylistsfrom",
+        "list",
       ].includes(command)
     )
       return;

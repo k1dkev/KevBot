@@ -1,6 +1,7 @@
 import type { BotApiClient } from "./api-client.js";
 import { PlaybackError, type PlaybackPool, type PlaybackService } from "./playback.js";
 import { preferenceCommands } from "./preference-commands.js";
+import { listLibrary } from "./list-command.js";
 import {
   addTrackToPlaylists,
   addTracksToPlaylist,
@@ -166,7 +167,14 @@ export const commands: readonly CommandDefinition[] = [
       });
     },
   },
-  pending("list", "list![source:<type>|playlist:<name>] [length]", "List tracks, playlists or history.", 161, pool),
+  {
+    name: "list",
+    usage: "list![source:<type>|playlist:<name>] [length]",
+    description: "List tracks, a playlist, or typed play/upload history.",
+    guildOnly: false,
+    validate: pool,
+    execute: listLibrary,
+  },
   pending(
     "upload",
     "upload![playlist ...] + MP3 attachment",
