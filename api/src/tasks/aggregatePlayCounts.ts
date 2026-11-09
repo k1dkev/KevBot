@@ -20,6 +20,7 @@ export const aggregatePlayCounts = async (db: KevbotDb) =>
           .selectFrom("track_plays")
           .select(["track_id", "play_type"])
           .select((eb) => eb.fn.count("id").as("count"))
+          .where("user_id", "is not", null)
           .groupBy(["track_id", "play_type"])
           .execute();
 
@@ -35,24 +36,39 @@ export const aggregatePlayCounts = async (db: KevbotDb) =>
           currentPlayCountsByTypeMap.set(key, row.play_count);
         });
 
-        // Iterate over aggregatedPlayCountsByType counts and update if different
-        for (const play of aggregatedPlayCountsByType) {
-          const { track_id, play_type, count } = play;
-          const existingTypeCount = currentPlayCountsByTypeMap.get(`${track_id}:${play_type}`) || 0;
-          if (existingTypeCount !== count) {
-            await trx
-              .insertInto("track_play_type_counts")
-              .values({
-                track_id,
-                play_type,
-                play_count: Number(count),
-              })
-              .onDuplicateKeyUpdate({
-                play_count: Number(count),
-              })
-              .execute();
+        const aggregatedPlayCountsByTypeMap = new Map<string, number>();
+        aggregatedPlayCountsByType.forEach((row) => {
+          aggregatedPlayCountsByTypeMap.set(`${row.track_id}:${row.play_type}`, Number(row.count));
+        });
+
+        // Reconcile both directions so counts left by anonymous legacy rows are removed.
+        const playTypeKeys = new Set([...currentPlayCountsByTypeMap.keys(), ...aggregatedPlayCountsByTypeMap.keys()]);
+        for (const key of playTypeKeys) {
+          const [track_id, play_type] = key.split(":").map(Number);
+          const existingTypeCount = currentPlayCountsByTypeMap.get(key);
+          const aggregatedCount = aggregatedPlayCountsByTypeMap.get(key) ?? 0;
+          if (existingTypeCount !== aggregatedCount) {
+            if (aggregatedCount === 0) {
+              await trx
+                .deleteFrom("track_play_type_counts")
+                .where("track_id", "=", track_id)
+                .where("play_type", "=", play_type)
+                .execute();
+            } else {
+              await trx
+                .insertInto("track_play_type_counts")
+                .values({
+                  track_id,
+                  play_type,
+                  play_count: aggregatedCount,
+                })
+                .onDuplicateKeyUpdate({
+                  play_count: aggregatedCount,
+                })
+                .execute();
+            }
             typeUpdates++;
-            log.debug({ trackId: track_id, playType: play_type, count }, "aggregation.type.updated");
+            log.debug({ trackId: track_id, playType: play_type, count: aggregatedCount }, "aggregation.type.updated");
           }
         }
 
@@ -90,8 +106,13 @@ export const aggregatePlayCounts = async (db: KevbotDb) =>
           });
         });
 
-        // Check and update total_plays
-        for (const [track_id, aggregatedCounts] of aggregatedTotalPlayCountsMap) {
+        // Check and update totals, clearing previously counted anonymous events.
+        const trackIds = new Set([...currentTotalPlayCountsMap.keys(), ...aggregatedTotalPlayCountsMap.keys()]);
+        for (const track_id of trackIds) {
+          const aggregatedCounts = aggregatedTotalPlayCountsMap.get(track_id) || {
+            total_play_count: 0,
+            raw_total_play_count: 0,
+          };
           const currentCounts = currentTotalPlayCountsMap.get(track_id) || {
             total_play_count: 0,
             raw_total_play_count: 0,

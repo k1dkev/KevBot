@@ -1,11 +1,12 @@
 # Bot parity contract — accepted decisions
 
-Status: **Accepted with revisions** on 2026-10-16 (America/Chicago). D1–D11,
-playback/reporting semantics, and the revised role/resource model are recorded
-here. The owner approved the original parity contract on 2026-10-15, then
-directed that v2 use playlists throughout, retire the old library-command
-vocabulary, replace the permanent master-ID exception with roles, and
-never reserve playlist or track names. See the
+Status: **Accepted** on 2026-10-15 (America/Chicago), covering D1–D11, the
+permission matrix, and playback/reporting semantics. At the owner's direction,
+D6 was revised on 2026-10-16 to make library sources typed and name-independent;
+the playlist/resource model and fixed roles replaced category vocabulary and
+the permanent master-ID exception. D1 was revised on 2026-10-17: slash commands
+are required for v2 while prefixes remain supported, and `/search` covers tracks
+and playlists. Private slash responses are tracked by #192. See the
 [owner approval record](https://github.com/k1dkev/KevBot/issues/141#issuecomment-6207636658).
 This accompanies the [18-command inventory](bot-parity.md); it neither implements
 a bot nor asserts that v2 behavior has passed acceptance testing. API changes
@@ -16,8 +17,8 @@ Future changes to this contract require an explicit reviewed decision.
 
 | ID | Accepted contract | Evidence / intentional difference |
 | --- | --- | --- |
-| D1 (revised) | Keep configured `<prefix><command>!<args>` access and all 18 operation groups. Use playlist terminology and names for the six library-management commands; obsolete v1 library-command spellings are not v2 commands. Keep case-folding and help selectors `kb`/`kevbot`/`kev-bot`. Slash commands are additive, not a release prerequisite. | V1 `MessageCreate.js`, `help.js`, `setgreeting.js`; owner direction on 2026-10-16 modernizes the command vocabulary. Trim ordinary argument whitespace; malformed input returns usage instead of an exception. |
-| D2 | Farewell duration is strictly **less than 4 seconds** across API and clients. Test 3, 3.999 and 4 seconds. | `setfarewell.js` rejects `>=4`; the README's 3-second statement is corrected, not silently treated as implemented behavior. No role-specific duration exception. |
+| D1 (revised) | Keep configured `<prefix><command>!<args>` access and add slash-command access to the v2 release. Preserve the 18 accepted V2 registry names, case-folding, help selectors `kb`/`kevbot`/`kev-bot`, and greeting type aliases. `/search` searches tracks and playlists. Slash responses are private; retained prefix commands continue to use DMs because ordinary message replies cannot be ephemeral. | Owner direction on 2026-10-17; tracked by #83 and #192. Trim ordinary argument whitespace; malformed input returns usage instead of an exception. |
+| D2 | Farewell duration is strictly **less than 4 seconds** across API and clients. Test 3, 3.999 and 4 seconds. | `setfarewell.js` rejects `>=4`; the README's 3-second statement is corrected, not silently treated as implemented behavior. No new role-specific or master-only duration exception. |
 | D3 | New uploaded audio must be strictly **less than 15 seconds** across both clients. Keep MP3 validation, normalization, 15-character bot clip names and existing API byte limits. Test 14.999 and 15 seconds. | Legacy `upload.js` rejects `>=15`, while the API currently allows exactly 15. This requires an explicit shared API boundary change, not a bot-only exception. Audit existing boundary-length clips before cutover; do not delete them. |
 | D4 | Preserve playlist names up to the existing schema's **45 characters**, with lowercase ASCII letters/digits for new bot-created names. Align the API's current 15-character playlist cap with this compatibility limit. Never truncate/rename existing data automatically. | The playlist table has a 45-character name column. Track-name limits remain unchanged. Existing incompatible names require a cutover report and an owner-approved mapping. |
 | D5 | `mostplayed` means counts of ordinary **PLAY (0)** events, not random/raid/greetings/farewells. Zero-play tracks are excluded. Sort count descending, then name and ID for stable ties. | `updateMostPlayed.js` explicitly filters `play_type=0`. API `total_play_count` combines types 0/1/3, so reusing that field would change semantics. Use the per-type data or a shared query instead. |
@@ -35,9 +36,10 @@ Future changes to this contract require an explicit reviewed decision.
   returns useful feedback without attempting playback. The remaining 15 commands
   support DM or guild invocation for the same shared library and the actual
   authenticated Discord user; they do not depend on a guild-only role.
-- Replies remain DMs, split to Discord message limits. A closed-DM failure is
-  handled without leaking private response content into a public channel; log
-  a diagnostic and, for a guild command, give a minimal "enable DMs" notice.
+- Slash interactions defer privately and return ephemeral results, split to
+  Discord message limits; major successful mutations receive confirmations.
+  Prefix commands remain supported with DM results. Never post private command
+  details publicly; see #192 for the interaction/privacy contract.
 - Exact-name resolution is case-folded, never a first fuzzy-search result.
   A clip/playlist greeting name collision requires an explicit supported type.
   Missing/deleted preferences are reported, not silently reassigned. Empty
@@ -59,7 +61,8 @@ Future changes to this contract require an explicit reviewed decision.
   event identifier to make retries idempotent. Preserve types 0 ordinary, 1 random,
   2 greeting, 3 raid, 4 farewell, 5 playlist greeting. Random real-playlist choices
   also log the typed source and playlist ID; special sources are not fake playlist IDs.
-  API event identifiers/idempotency support is a gap, not implemented today.
+  API event identifiers/idempotency are implemented by the typed event contract
+  in #175; retries reuse the same event ID.
 - API auth renewal gets one coordinated retry; a mutating operation is not
   blindly retried after an unknown outcome. Downloads/requests have bounded
   timeouts and every completion/failure/disconnect/shutdown releases resources.

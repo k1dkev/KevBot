@@ -59,9 +59,12 @@ namespace.
 
 ## Playback reporting
 
-After the player enters Playing, report once to POST /v1/plays/events. Create
-one UUID per playback attempt and reuse it for every retry. The endpoint
-requires a delegated bot actor and playback_started: true.
+After the player enters Playing, report to POST /v1/plays/events. Create one
+UUID per playback attempt and reuse it for every retry. A browser may report
+with its valid user session token; the bot reports with its delegated actor
+token. Requests without a token are recorded as anonymous. If a token is
+supplied but invalid, the request fails rather than silently becoming
+anonymous. Every report requires playback_started: true.
 
 ~~~json
 {
@@ -90,15 +93,19 @@ valid only for random and playlist_greeting; non-playlist pool sources are
 valid only for random. Direct-track plays omit source.
 
 The first accepted report writes the idempotency record, canonical track_plays
-history/counters, and (when the source is a playlist) playlist_plays in one
-transaction, returning 201. An exact retry returns 200 without incrementing
-history or counters. Reusing an event ID for a different actor, track, play
-type, or source returns 409. The playback_events table stores the idempotency
-identity; track_plays remains the canonical play-history feed.
+history, authenticated play counters, and (when the source is a playlist)
+playlist_plays in one transaction, returning 201. Anonymous events remain in
+track_plays and playback history but do not affect raw/total play counts,
+per-type counts, or most-played rankings. An exact retry returns 200 without
+incrementing history or counters. Reusing an event ID for a different actor,
+track, play type, or source returns 409. The playback_events table stores the
+idempotency identity; track_plays remains the canonical play-history feed.
 
-The older POST /v1/plays/tracks endpoint remains available for existing
-clients. New bot playback should use /v1/plays/events so retries are safe and
-the event semantics are explicit.
+This replaces POST /v1/plays/tracks and POST /v1/plays/playlists/random. A
+UUID deduplicates retries; it is not proof that audio actually played. The API
+trusts the caller's playback_started assertion and cannot prove the audio was
+audible. Anonymous reporting is necessarily callable by arbitrary HTTP clients;
+it cannot be cryptographically restricted to the official browser code.
 
 ## Removed name-based behavior
 

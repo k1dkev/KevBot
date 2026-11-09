@@ -2,22 +2,19 @@ import { Request, Response } from "express";
 import * as playsSchemas from "../schemas/playsSchemas";
 import { StatusCodes } from "http-status-codes";
 import { PlaysService } from "../services/playsService";
+import * as Boom from "@hapi/boom";
 
 export function playsControllerFactory(playsService: PlaysService) {
-  const logTracksPlay = async (req: Request, res: Response) => {
-    const { track_id, play_type } = playsSchemas.logTracksPlayBodySchema.parse(req.body);
-    await playsService.logTracksPlay(track_id, play_type, { user_id: req.auth?.userId });
-    res.status(StatusCodes.CREATED).end();
-  };
-
-  const logRandomPlaylistsPlay = async (req: Request, res: Response) => {
-    const { playlist_id } = playsSchemas.logRandomPlaylistsPlayBodySchema.parse(req.body);
-    await playsService.logRandomPlaylistPlay(playlist_id, { user_id: req.auth?.userId });
-    res.status(StatusCodes.CREATED).end();
+  const reportPlayback = async (req: Request, res: Response) => {
+    if (req.auth && req.auth.userId === undefined) {
+      throw Boom.forbidden("Playback reports require a browser user, delegated bot actor, or anonymous request");
+    }
+    const event = playsSchemas.playbackEventBodySchema.parse(req.body);
+    const result = await playsService.reportPlayback(event, req.auth?.userId ?? null);
+    res.status(result.duplicate ? StatusCodes.OK : StatusCodes.CREATED).json(result);
   };
 
   return {
-    logTracksPlay,
-    logRandomPlaylistsPlay,
+    reportPlayback,
   };
 }

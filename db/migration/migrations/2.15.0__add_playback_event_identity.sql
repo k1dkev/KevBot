@@ -1,7 +1,7 @@
 -- Playback retries share one event identity; SQL scripts remain forward-only.
 CREATE TABLE playback_events (
   event_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-  user_id INT NOT NULL,
+  user_id INT NULL,
   track_id INT NOT NULL,
   play_type INT NOT NULL,
   source_type VARCHAR(24) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,

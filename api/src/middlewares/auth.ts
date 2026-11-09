@@ -27,6 +27,21 @@ export function authMiddlewareFactory(authService: AuthService) {
     next();
   };
 
+  // Unlike optionalAuth, this rejects a supplied invalid token instead of
+  // silently treating the request as anonymous. Use for writes where an
+  // invalid browser/bot credential must not downgrade to an anonymous action.
+  const optionalAuthStrict = async (req: Request, res: Response, next: NextFunction) => {
+    const authorization = req.headers.authorization;
+    if (!authorization) {
+      next();
+      return;
+    }
+    const token = authorization.match(/^Bearer (\S+)$/i)?.[1];
+    if (!token) throw Boom.unauthorized("Authorization must use a Bearer token");
+    req.auth = await authService.verifyToken(token);
+    next();
+  };
+
   const requireBotService = async (req: Request, res: Response, next: NextFunction) => {
     const token = req.headers.authorization?.match(/^Bearer (\S+)$/i)?.[1];
     if (!token) throw Boom.unauthorized("Bot service token is missing");
@@ -41,6 +56,7 @@ export function authMiddlewareFactory(authService: AuthService) {
   return {
     requireAuth,
     optionalAuth,
+    optionalAuthStrict,
     requireBotService,
   };
 }

@@ -23,8 +23,11 @@ const listPlaylist = (playlistId: number, query = "") => list("playlist", `&play
 const random = (source: string, query = "") =>
   request(app).get(`/v1/library/pools/random?source=${source}${query}`).auth(actor, { type: "bearer" });
 const randomPlaylist = (playlistId: number, query = "") => random("playlist", `&playlist_id=${playlistId}${query}`);
-const report = (body: object, token = actor) =>
-  request(app).post("/v1/plays/events").auth(token, { type: "bearer" }).send(body);
+const report = (body: object, token: string | null = actor) => {
+  const playbackReport = request(app).post("/v1/plays/events");
+  if (token) playbackReport.auth(token, { type: "bearer" });
+  return playbackReport.send(body);
+};
 
 beforeAll(async () => {
   Object.assign(process.env, {
@@ -202,7 +205,7 @@ describe("idempotent playback reporting", () => {
     await report({ ...body, source: { type: "all_tracks" } }).expect(409);
     await report(body, otherActor).expect(409);
   });
-  it("does not log failed starts, invalid/deleted tracks, invalid playlists or non-bot clients", async () => {
+  it("rejects invalid starts and bot-service-only credentials while accepting browser sessions", async () => {
     const body = { event_id: randomUUID(), track_id: 23, play_type: "play", playback_started: true };
     const count = async () =>
       Number(
@@ -215,7 +218,6 @@ describe("idempotent playback reporting", () => {
       );
     const before = await count();
     await report({ ...body, playback_started: false }).expect(400);
-    await report(body, browser).expect(403);
     await report(body, service).expect(403);
     await report({ ...body, track_id: 999999 }).expect(404);
     await report({ ...body, track_id: 50 }).expect(404);
@@ -225,7 +227,59 @@ describe("idempotent playback reporting", () => {
     await report({ ...body, play_type: "random", source: { type: "playlist", playlist_id: 56 } }).expect(400);
     await report({ ...body, play_type: "farewell" }).expect(400);
     await report({ ...body, play_type: "random" }).expect(400);
-    expect(await count()).toBe(before);
+    await report(body, browser).expect(201);
+    expect(await count()).toBe(before + 1);
+  });
+
+  it("keeps anonymous events in history without affecting totals or rankings", async () => {
+    const body = {
+      event_id: randomUUID(),
+      track_id: eligibleId,
+      play_type: "play",
+      playback_started: true,
+    };
+    const countsBefore = await db
+      .selectFrom("track_play_counts")
+      .selectAll()
+      .where("track_id", "=", eligibleId)
+      .executeTakeFirst();
+    const typeCountBefore = await db
+      .selectFrom("track_play_type_counts")
+      .selectAll()
+      .where("track_id", "=", eligibleId)
+      .where("play_type", "=", 0)
+      .executeTakeFirst();
+
+    await report(body, null).expect(201);
+    await report(body, null).expect(200);
+    const event = await db
+      .selectFrom("playback_events")
+      .selectAll()
+      .where("event_id", "=", body.event_id)
+      .executeTakeFirstOrThrow();
+    expect(event.user_id).toBeNull();
+    expect(
+      await db
+        .selectFrom("track_plays")
+        .selectAll()
+        .where("track_id", "=", eligibleId)
+        .where("user_id", "is", null)
+        .execute(),
+    ).toHaveLength(1);
+    expect(
+      await db.selectFrom("track_play_counts").selectAll().where("track_id", "=", eligibleId).executeTakeFirst(),
+    ).toEqual(countsBefore);
+    expect(
+      await db
+        .selectFrom("track_play_type_counts")
+        .selectAll()
+        .where("track_id", "=", eligibleId)
+        .where("play_type", "=", 0)
+        .executeTakeFirst(),
+    ).toEqual(typeCountBefore);
+    expect((await list("play_history")).body.data[0]).toMatchObject({ track_id: eligibleId, actor_id: null });
+    expect((await list("most_played")).body.data.map((track: { id: number }) => track.id)).not.toContain(eligibleId);
+    await report(body, browser).expect(409);
   });
   it("logs special-pool source identity without fake playlist IDs", async () => {
     const body = {

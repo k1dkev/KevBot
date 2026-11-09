@@ -153,10 +153,10 @@ and verification evidence. The agreed command syntax and aliases work. Uploads,
 playlist changes, preferences, and plays resolve to the correct user. The bot
 has no direct database or GCS credentials.
 
-Slash commands are a separate interface decision: the old issue requesting them
-does not make them existing legacy functionality. Preserve configured prefix
-access for the first release; slash commands are additive unless the user
-explicitly approves replacing that access.
+Preserve configured prefix access and deliver slash-command access as part of
+the v2 release. Slash commands supplement rather than replace prefixes. Issue
+[#83](https://github.com/k1dkev/KevBot/issues/83) covers slash-command parity,
+including `/search` across tracks and playlists.
 
 ### M3 — Production cutover and operation
 
@@ -373,10 +373,9 @@ parity does not automatically include every unimplemented legacy enhancement.
 ## Decisions still needed
 
 - Actual hosting/deployment layout and current production versions/data state.
-- Public versus authenticated library reads, anonymous plays, and deleted-content
-  visibility. Current routes and older docs disagree.
+- Public versus authenticated library reads and deleted-content visibility.
+  Current routes and older docs disagree.
 - Formal replacement for the legacy master-user/protected-category rules.
-- Whether slash commands ship alongside the existing prefixes or replace them.
 - Minimal web playlist playback and bot behavior when commands/voice events overlap;
   advanced queue/shuffle/repeat controls need a separate scope decision.
 - Backup retention, storage cleanup, and recovery expectations.

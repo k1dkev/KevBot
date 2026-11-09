@@ -31,7 +31,7 @@ below means source exists, not that it passed an end-to-end check.
 | Identity | [auth routes](../api/src/routes/authRoutes.ts), [auth service](../api/src/services/authService.ts) | Discord code exchange, access tokens, refresh sessions, logout, and bot key/token exist; password login/register are absent |
 | Bot actors | [token verification](../api/src/services/authService.ts), [actor helper](../api/src/utils/getAuthenticatedUser.ts) | Bot token becomes user `0`; no complete delegated-user provisioning/ownership model exists |
 | Permission parity | [playlist service](../api/src/services/playlistsService.ts), [legacy category commands](../v1/src/commands) | Collaborative additions already exist; master override, reserved names, and empty-only category deletion need reconciliation |
-| Activity | [play routes](../api/src/routes/playsRoutes.ts) | `POST /v1/plays/tracks` and `POST /v1/plays/playlists/random` exist; legacy global play-history reads are missing |
+| Activity | [play routes](../api/src/routes/playsRoutes.ts), [library routes](../api/src/routes/libraryRoutes.ts) | #175 proposes typed pool/history reads and replacing split log routes with idempotent `POST /v1/plays/events`; anonymous reports remain in history but are excluded from aggregate counts and rankings |
 | Query handling | [search schema](../api/src/schemas/searchSchemas.ts) | `z.coerce.boolean()` treats nonempty query strings as truthy, including `"false"`; several docs/defaults disagree with schemas |
 | Production API | [Dockerfile](../api/Dockerfile), [scripts](../api/package.json), [Swagger setup](../api/src/app.ts) | Production stage does not compile TypeScript; runtime expects untracked `dist/server.js`. OpenAPI YAML also needs explicit packaging |
 | Database | [migrations](../db/migration), [manager](../tools/db/migration_manager/migration_manager/__main__.py) | Baseline `1.2.0`, migrations through `2.14.0`, semver/target/dry-run/history behavior exist |
@@ -112,7 +112,7 @@ still open; new tracking issues and #148/#149 change the overall issue total.
 | --- | --- |
 | [#86 transfer-manager downloads](https://github.com/k1dkev/KevBot/issues/86) | Reassess against API streaming/caching design; whole-bucket legacy startup optimization may be superseded |
 | [#84 website](https://github.com/k1dkev/KevBot/issues/84) | Reframe as web completion epic; implementation already exists, management flows remain |
-| [#83 slash commands](https://github.com/k1dkev/KevBot/issues/83) | Keep as interface decision/enhancement; preserve accepted legacy command access |
+| [#83 slash commands](https://github.com/k1dkev/KevBot/issues/83) | Required for v2 alongside prefixes; includes `/search` across tracks and playlists |
 | [#82 audio filters](https://github.com/k1dkev/KevBot/issues/82) | Later enhancement |
 | [#81 REST API](https://github.com/k1dkev/KevBot/issues/81) | Candidate close with implementation evidence; track concrete API gaps separately |
 | [#80 refactor](https://github.com/k1dkev/KevBot/issues/80) | Replace vague legacy checklist with scoped work only where current code needs it |

@@ -72,9 +72,12 @@ need compensation. The controller attempts temporary-file cleanup in `finally`.
 Do not interpret that sequence as guaranteed atomic database/object cleanup.
 
 Streaming reads the ID-addressed normalized object and supports HTTP ranges.
-Activity reporting uses separate API writes; streaming alone is not evidence
-that the frontend or planned bot reports a successful play. Accepted bot start
-reporting, idempotency, pools and overlap behavior remain implementation work.
+Started playback is reported through one idempotent `/v1/plays/events` write;
+it records track history and any playlist selection atomically. A browser may
+use its session token, the bot uses a delegated actor, and anonymous events are
+kept in history but excluded from aggregates. Streaming alone is not evidence
+that playback started; the API trusts the caller's report and cannot prove
+audio was audible.
 
 Current numeric/file/name limits live in [API config](api/src/config/config.ts),
 schemas and controllers. The [PRD](PRD.md#current-foundation-and-remaining-work)
