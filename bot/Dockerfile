@@ -16,7 +16,7 @@ WORKDIR /bot
 RUN apk add --no-cache ffmpeg
 COPY --from=build --chown=node:node /bot/node_modules ./node_modules
 COPY --from=build --chown=node:node /bot/dist ./dist
-COPY --chown=node:node package.json ./
+COPY --from=build --chown=node:node /bot/package.json ./
 COPY --from=build --chown=node:node /packages/api-client /packages/api-client
 USER node
 CMD ["node", "dist/main.js"]
