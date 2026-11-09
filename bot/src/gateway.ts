@@ -1,4 +1,4 @@
-import { Client, Events, GatewayIntentBits, Partials, type Message } from "discord.js";
+import { Client, Events, GatewayIntentBits, Partials, type Interaction, type Message } from "discord.js";
 import type { BotConfig } from "./config.js";
 import { BotApiClient } from "./api-client.js";
 import { Dispatcher } from "./dispatcher.js";
@@ -6,6 +6,7 @@ import { PlaybackService } from "./playback.js";
 import type { BotLogger } from "./logging.js";
 import { bounded, PrivateReplies } from "./replies.js";
 import { DiscordVoicePlatform } from "./voice.js";
+import { handleSlashInteraction } from "./slash-interactions.js";
 
 export function createDiscordClient(config: BotConfig): Client {
   return new Client({
@@ -48,6 +49,12 @@ export async function startGateway(
       .handle(event)
       .catch(() => log.error({ component: "gateway", reason: "dispatch_failed" }, "gateway.dispatch.failed"));
   };
+  const interaction = (event: Interaction) => {
+    if (event.isChatInputCommand())
+      void handleSlashInteraction(event, dispatcher, config, log).catch(() =>
+        log.error({ component: "gateway", reason: "interaction_dispatch_failed" }, "gateway.interaction.failed"),
+      );
+  };
   const ready = () => log.info({ component: "gateway" }, "gateway.ready");
   const error = () => log.warn({ component: "gateway", reason: "discord_failure" }, "gateway.error");
   const invalidated = () => {
@@ -64,6 +71,7 @@ export async function startGateway(
     playback?.close();
     api.close();
     client.off(Events.MessageCreate, message);
+    client.off(Events.InteractionCreate, interaction);
     client.off(Events.ClientReady, ready);
     client.off(Events.Error, error);
     client.off(Events.ShardError, error);
@@ -78,6 +86,7 @@ export async function startGateway(
     return stopping;
   };
   client.on(Events.MessageCreate, message);
+  client.on(Events.InteractionCreate, interaction);
   client.on(Events.ClientReady, ready);
   client.on(Events.Error, error);
   client.on(Events.ShardError, error);

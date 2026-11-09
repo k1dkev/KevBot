@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { EventEmitter } from "node:events";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { Events, GatewayIntentBits, Partials } from "discord.js";
+import { Events, GatewayIntentBits, MessageFlags, Partials } from "discord.js";
 import { readConfig, ConfigError } from "../dist/config.js";
 import { createDiscordClient, startGateway } from "../dist/gateway.js";
 import { createLogger } from "../dist/logging.js";
@@ -122,6 +122,35 @@ test("gateway requests prefix/DM/voice-state intents and stubs dispatch help", a
   client.emit(Events.MessageCreate, event.event);
   await new Promise((resolve) => setImmediate(resolve));
   assert.ok(event.dms.length > 0);
+
+  const interactionReplies = [];
+  client.emit(Events.InteractionCreate, {
+    isChatInputCommand: () => true,
+    id: "5554567890123456789",
+    commandName: "help",
+    user: { id: "1234567890123456789" },
+    guildId: null,
+    guild: null,
+    options: {
+      getString: () => null,
+      getInteger: () => null,
+      getAttachment: () => null,
+    },
+    async deferReply(payload) {
+      interactionReplies.push({ method: "defer", ...payload });
+    },
+    async editReply(payload) {
+      interactionReplies.push({ method: "edit", ...payload });
+    },
+    async followUp(payload) {
+      interactionReplies.push({ method: "followUp", ...payload });
+    },
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(interactionReplies[0].method, "defer");
+  assert.equal(interactionReplies[0].flags, MessageFlags.Ephemeral);
+  assert.equal(interactionReplies[1].method, "edit");
+  assert.match(interactionReplies[1].content, /Implemented:/);
   client.emit(Events.Error, new Error("token-canary"));
   client.emit(Events.ShardError, new Error("token-canary"));
   await Promise.all([runtime.stop(), runtime.stop()]);
@@ -129,6 +158,7 @@ test("gateway requests prefix/DM/voice-state intents and stubs dispatch help", a
   assert.equal(client.destroys, 1);
   assert.equal(apiClosed, 1);
   assert.equal(client.listenerCount(Events.MessageCreate), 0);
+  assert.equal(client.listenerCount(Events.InteractionCreate), 0);
 });
 
 test("failed/hanging login cleans listeners/resources, and invalidated sessions stop", async () => {

@@ -11,6 +11,7 @@ const examples = {
   pr: [],
   raid: ["clip", "3"],
   list: [],
+  search: ["some", "words"],
   upload: [],
   help: ["kb"],
   setgreeting: ["clip", "file"],
@@ -26,9 +27,9 @@ const examples = {
   addplayliststo: ["track", "playlist1"],
   delplaylistsfrom: ["track", "playlist1"],
 };
-test("registry contains exactly all 18 accepted names; help derives actual implementation status", () => {
+test("registry contains the 18 accepted names plus search; help derives actual implementation status", () => {
   assert.deepEqual(commands.map((item) => item.name).sort(), Object.keys(examples).sort());
-  assert.equal(commandRegistry.size, 18);
+  assert.equal(commandRegistry.size, 19);
   assert.deepEqual(
     commands.filter((item) => item.execute).map((item) => item.name),
     [
@@ -36,6 +37,7 @@ test("registry contains exactly all 18 accepted names; help derives actual imple
       "pr",
       "raid",
       "list",
+      "search",
       "help",
       "setgreeting",
       "getgreeting",
@@ -92,6 +94,7 @@ for (const [command, tokens] of Object.entries(examples)) {
         "addplayliststo",
         "delplaylistsfrom",
         "list",
+        "search",
       ].includes(command)
     )
       return;
