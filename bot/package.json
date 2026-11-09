@@ -10,6 +10,7 @@
     "build": "tsc",
     "dev": "tsx watch src/main.ts",
     "start": "node dist/main.js",
+    "register:commands": "npm run build && node dist/register-commands.js",
     "test": "npm run build && node --test tests/*.test.mjs",
     "check:config": "node dist/main.js --check-config"
   },

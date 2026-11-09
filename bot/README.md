@@ -48,6 +48,30 @@ GCS. Do not enable this profile with a production Discord token as a local test.
 CI builds the production image and runs help/configuration checks with networking
 disabled and synthetic values. It performs no Discord gateway login or deployment.
 
+## Slash commands
+
+The bot registers slash commands separately from startup. Set
+`DISCORD_BOT_TOKEN` and `DISCORD_APPLICATION_ID`, then run:
+
+```sh
+npm run register:commands
+```
+
+For faster development-only updates, also set `DISCORD_GUILD_ID`; registration
+then targets that guild. Omit it for global commands. Registration requires the
+Discord application's `applications.commands` scope. The runtime continues to
+support the configured prefix. Slash results, errors, and mutation confirmations
+are ephemeral replies visible only to the invoking user. Prefix-message commands
+remain DM-based because Discord does not provide ephemeral replies for them.
+
+Slash inputs expose typed source and playlist fields rather than overloading
+track or playlist names. `/search` queries tracks and playlists (or either type)
+through the API. Implemented playlist, greeting, and playback operations reuse
+the same validators and API-backed handlers as the prefix dispatcher. `/upload`
+is registered with attachment and playlist inputs but remains pending until the
+upload implementation lands; the slash dispatcher already forwards attachments
+for that follow-up.
+
 ## Playback command selectors
 
 `pr!` defaults to all active tracks. Virtual sources use an explicit

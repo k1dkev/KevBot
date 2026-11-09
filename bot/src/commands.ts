@@ -1,7 +1,9 @@
 import type { BotApiClient } from "./api-client.js";
+import type { CommandAttachment } from "./replies.js";
 import { PlaybackError, type PlaybackPool, type PlaybackService } from "./playback.js";
 import { preferenceCommands } from "./preference-commands.js";
 import { listLibrary } from "./list-command.js";
+import { searchLibrary } from "./search-command.js";
 import {
   addTrackToPlaylists,
   addTracksToPlaylist,
@@ -27,6 +29,8 @@ export interface ParsedArgs {
   greetingType?: "track" | "playlist";
   trackName?: string;
   channelNumber?: number;
+  searchQuery?: string;
+  searchType?: "both" | "tracks" | "playlists";
 }
 export class UsageError extends Error {}
 export interface CommandDefinition {
@@ -42,6 +46,7 @@ export interface CommandDefinition {
     authorDiscordId: string;
     guildId: string | null;
     voiceChannelId: string | null;
+    attachments?: readonly CommandAttachment[];
     api: BotApiClient;
     playback?: PlaybackService;
   }): string | Promise<string>;
@@ -86,6 +91,14 @@ function pool(tokens: string[]): ParsedArgs {
   if (tokens[1] !== undefined && (!bounded || !/^[1-9]\d*$/.test(tokens[1]) || Number(tokens[1]) > 100))
     throw new UsageError("Only ranked/history sources accept a length from 1 through 100.");
   return { tokens, pool: selected, ...(bounded ? { limit: Number(tokens[1] ?? 25) } : {}) };
+}
+function search(tokens: string[]): ParsedArgs {
+  count(tokens, 1, 21);
+  const typeToken = tokens.at(-1)?.match(/^type:(both|tracks|playlists)$/)?.[1] as
+    "both" | "tracks" | "playlists" | undefined;
+  const query = (typeToken ? tokens.slice(0, -1) : tokens).join(" ").trim();
+  if (!query || query.length > 100) throw new UsageError("Search text must contain 1–100 characters.");
+  return { tokens, searchQuery: query, searchType: typeToken ?? "both" };
 }
 const membership = (playlistFirst: boolean) => (tokens: string[]) => {
   count(tokens, 2, 100);
@@ -174,6 +187,14 @@ export const commands: readonly CommandDefinition[] = [
     guildOnly: false,
     validate: pool,
     execute: listLibrary,
+  },
+  {
+    name: "search",
+    usage: "search!query [type:both|type:tracks|type:playlists]",
+    description: "Search tracks and playlists.",
+    guildOnly: false,
+    validate: search,
+    execute: searchLibrary,
   },
   pending(
     "upload",

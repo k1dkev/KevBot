@@ -4,7 +4,17 @@ import { commandRegistry, parseCommand, UsageError, type CommandDefinition } fro
 import { PlaybackError, playbackUserMessage, type PlaybackService } from "./playback.js";
 import type { BotConfig } from "./config.js";
 import type { BotLogger } from "./logging.js";
-import { PrivateReplies, type CommandMessage } from "./replies.js";
+import { PrivateReplies, type CommandAttachment, type CommandMessage } from "./replies.js";
+
+export interface SlashInvocation {
+  id: string;
+  commandName: string;
+  tokens: string[];
+  authorDiscordId: string;
+  guildId: string | null;
+  voiceChannelId: string | null;
+  attachments?: readonly CommandAttachment[];
+}
 
 export class Dispatcher {
   private readonly last = new Map<string, number>();
@@ -71,6 +81,7 @@ export class Dispatcher {
           authorDiscordId: user,
           guildId: message.guildId,
           voiceChannelId: message.member?.voice.channelId ?? null,
+          attachments: message.attachments ? Array.from(message.attachments.values()) : [],
           api: this.api,
           playback: this.playback,
         });
@@ -106,5 +117,79 @@ export class Dispatcher {
       this.active--;
       this.users.delete(user);
     }
+  }
+
+  async handleSlash(invocation: SlashInvocation): Promise<string> {
+    const user = invocation.authorDiscordId;
+    if (this.stopped || !discordIdSchema.safeParse(user).success) return "This command could not be processed.";
+    for (const [id, expires] of this.messages) if (expires <= this.now()) this.messages.delete(id);
+    if (
+      this.messages.has(invocation.id) ||
+      this.users.has(user) ||
+      this.active >= this.config.MAX_CONCURRENT_COMMANDS ||
+      (this.last.get(user) ?? -Infinity) + this.config.COMMAND_COOLDOWN_MS > this.now()
+    )
+      return "The bot is busy with another command. Please try again shortly.";
+    if (this.messages.size >= 1000) this.messages.delete(this.messages.keys().next().value!);
+    this.messages.set(invocation.id, this.now() + 300000);
+    if (this.last.size >= this.config.ACTOR_CACHE_MAX) this.last.delete(this.last.keys().next().value!);
+    this.last.set(user, this.now());
+    this.users.add(user);
+    this.active++;
+
+    const log = this.log.child({ component: "commands", requestId: randomUUID() });
+    let definition: CommandDefinition | undefined;
+    let response: string;
+    try {
+      definition = this.registry.get(invocation.commandName);
+      if (!definition) throw new UsageError("Unknown slash command.");
+      const args = definition.validate(invocation.tokens);
+      if (definition.guildOnly && !invocation.guildId) throw new UsageError("This command requires a guild context.");
+      if (!definition.execute) {
+        response = `${definition.name} is registered but not implemented yet (#${definition.followup}). No library or voice operation was performed.`;
+        log.debug({ command: definition.name, reason: "not_implemented" }, "command.pending");
+      } else {
+        response = await definition.execute({
+          prefix: this.config.COMMAND_PREFIX,
+          args,
+          authorDiscordId: user,
+          guildId: invocation.guildId,
+          voiceChannelId: invocation.voiceChannelId,
+          attachments: invocation.attachments,
+          api: this.api,
+          playback: this.playback,
+        });
+        log.info({ command: definition.name }, "command.completed");
+      }
+    } catch (error) {
+      if (error instanceof UsageError) {
+        const usage = definition
+          ? ` Usage: /${definition.name}${definition.usage.slice(definition.name.length + 1) ? ` ${definition.usage.slice(definition.name.length + 1)}` : ""}.`
+          : "";
+        response = `${error.message}${usage}`;
+      } else {
+        response =
+          error instanceof ApiClientError
+            ? apiUserMessage(error)
+            : error instanceof PlaybackError
+              ? playbackUserMessage(error)
+              : "The command could not be completed. Please try again later.";
+        log.warn(
+          {
+            reason:
+              error instanceof ApiClientError
+                ? error.kind
+                : error instanceof PlaybackError
+                  ? error.reason
+                  : "unexpected_failure",
+          },
+          "command.failed",
+        );
+      }
+    } finally {
+      this.active--;
+      this.users.delete(user);
+    }
+    return response;
   }
 }

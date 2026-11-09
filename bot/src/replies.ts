@@ -5,11 +5,18 @@ export interface ReplyPayload {
   content: string;
   allowedMentions: { parse: []; repliedUser: false };
 }
+export interface CommandAttachment {
+  name: string;
+  url: string;
+  size: number;
+  contentType: string | null;
+}
 export interface CommandMessage {
   id: string;
   content: string;
   guildId: string | null;
   webhookId?: string | null;
+  attachments?: { values(): IterableIterator<CommandAttachment> };
   author: { id: string; bot: boolean; send(payload: ReplyPayload): Promise<unknown> };
   member?: { voice: { channelId: string | null } } | null;
   reply(payload: ReplyPayload): Promise<unknown>;
