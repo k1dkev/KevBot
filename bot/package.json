@@ -15,6 +15,7 @@
     "check:config": "node dist/main.js --check-config"
   },
   "dependencies": {
+    "@kevbot/api-client": "file:../packages/api-client",
     "@discordjs/voice": "0.19.2",
     "discord.js": "14.27.0",
     "pino": "10.4.0",

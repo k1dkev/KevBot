@@ -30,6 +30,10 @@ Required runtime settings are `DISCORD_BOT_TOKEN`, `BOT_AUTH_API_KEY`, and
 listed in `.env.example`. The bot has no MySQL, Kysely, or GCS dependency and
 must not receive database or storage credentials.
 
+The bot and frontend install the private local `@kevbot/api-client` package from
+`../packages/api-client`. Build the bot image with the repository root as Docker
+context so that the package is available; Compose and CI already do this.
+
 ## Compose
 
 The bot is behind the opt-in `bot` Compose profile. From the repository root,

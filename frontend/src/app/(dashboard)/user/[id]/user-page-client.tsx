@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Loader2, Pause, Play } from "lucide-react";
 import { api } from "@/lib/api-browser-client";
 import { logger } from "@/lib/logging/browser";
-import { ApiPlaylist, ApiTrack, ApiUser } from "@/lib/types";
+import { ApiPlaylist, ApiTrack, ApiUser, FarewellResponse, GreetingResponse } from "@/lib/types";
 import { UserPlaylistsTable } from "@/components/user-playlists-table";
 import { UserTracksTable } from "@/components/user-tracks-table";
 import { useMusicPlayer } from "@/lib/contexts/music-player-context";
@@ -16,16 +16,6 @@ const TRACK_FETCH_LIMIT = 100;
 
 interface UserPageClientProps {
   user: ApiUser;
-}
-
-interface GreetingResp {
-  greeting_track_id: number | null;
-  greeting_playlist_id: number | null;
-}
-
-interface FarewellResp {
-  farewell_track_id: number | null;
-  farewell_playlist_id: number | null;
 }
 
 interface ResolvedRef {
@@ -52,11 +42,8 @@ function formatJoined(iso: string): string {
 async function resolveRef(trackId: number | null, playlistId: number | null): Promise<ResolvedRef | null> {
   if (trackId) {
     try {
-      const res = await api.fetch(`/v1/tracks/${trackId}`);
-      if (res.ok) {
-        const track = (await res.json()) as ApiTrack;
-        return { kind: "track", id: trackId, name: track.name ?? null, playableTrack: track };
-      }
+      const track = await api.tracks.get(trackId);
+      return { kind: "track", id: trackId, name: track.name ?? null, playableTrack: track };
     } catch {
       /* fall through */
     }
@@ -66,14 +53,11 @@ async function resolveRef(trackId: number | null, playlistId: number | null): Pr
     let name: string | null = null;
     let firstTrack: ApiTrack | null = null;
     try {
-      const [plRes, tracksRes] = await Promise.all([
-        api.fetch(`/v1/playlists/${playlistId}`),
+      const [playlist, tracksRes] = await Promise.all([
+        api.playlists.get(playlistId),
         api.tracks.fetch({ playlist_id: playlistId, limit: 1 }),
       ]);
-      if (plRes.ok) {
-        const pl = await plRes.json();
-        name = pl.name ?? null;
-      }
+      name = playlist.name ?? null;
       firstTrack = tracksRes.data[0] ?? null;
     } catch {
       /* fall through */
@@ -101,14 +85,8 @@ export default function UserPageClient({ user }: UserPageClientProps) {
         const [tracksRes, allPlaylists, greetingRes, farewellRes] = await Promise.all([
           api.tracks.fetch({ user_id: user.id, limit: TRACK_FETCH_LIMIT }),
           api.playlists.fetch(),
-          api
-            .fetch(`/v1/users/${user.id}/greeting`)
-            .then((r) => (r.ok ? (r.json() as Promise<GreetingResp>) : null))
-            .catch(() => null),
-          api
-            .fetch(`/v1/users/${user.id}/farewell`)
-            .then((r) => (r.ok ? (r.json() as Promise<FarewellResp>) : null))
-            .catch(() => null),
+          api.users.greeting(user.id).catch((): Promise<GreetingResponse | null> => Promise.resolve(null)),
+          api.users.farewell(user.id).catch((): Promise<FarewellResponse | null> => Promise.resolve(null)),
         ]);
         if (cancelled) return;
         setTracks(tracksRes.data);

@@ -2,8 +2,8 @@ services:
   bot:
     profiles: [bot]
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: bot/Dockerfile
       target: development
     init: true
     environment:
@@ -15,5 +15,6 @@ services:
       LOG_LEVEL: ${BOT_LOG_LEVEL:-info}
     volumes:
       - .:/bot
+      - ../packages/api-client:/packages/api-client
       - /bot/node_modules
     stop_grace_period: 15s

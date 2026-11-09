@@ -1,0 +1,11 @@
+**
+!bot/
+!bot/**
+bot/node_modules
+bot/dist
+bot/coverage
+bot/.env*
+!bot/.env.example
+!packages/
+!packages/api-client/
+!packages/api-client/**
