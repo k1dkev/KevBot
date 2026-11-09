@@ -1,42 +1,29 @@
-import {
+import { ApiClientError as SharedApiError, createApiClient as createSharedApiClient } from "@kevbot/api-client";
+import type {
   ApiPlaylist,
   ApiTrack,
   ApiUser,
+  AuthGrantResponse,
+  AuthMeResponse,
+  FarewellResponse,
+  GreetingResponse,
   PaginatedResponse,
+  TrackFetchParams,
   UnifiedSearchRequest,
   UnifiedSearchResponse,
-} from "./types";
+} from "@kevbot/api-client";
+import type { ApiMethod } from "@kevbot/api-client";
 
-export type FetchLike = (input: RequestInfo, init?: RequestInit) => Promise<Response>;
+export type {
+  AuthGrantResponse,
+  AuthMeResponse,
+  FarewellResponse,
+  GreetingResponse,
+  TrackFetchParams,
+} from "@kevbot/api-client";
 
-// ---------- Auth Types ----------
-export interface AuthGrantResponse {
-  access_token: string;
-  token_type: "Bearer";
-  expires_in: number;
-  user?: { id: number };
-}
+export type FetchLike = typeof fetch;
 
-export interface AuthMeResponse {
-  user: {
-    id: number;
-    discord_id: string;
-    discord_username: string;
-    discord_avatar_hash: string;
-  };
-  role: string;
-  session_id: string | null;
-}
-
-export type TrackFetchParams = {
-  offset?: number;
-  limit?: number;
-  include_deleted?: boolean;
-  user_id?: number;
-  playlist_id?: number;
-};
-
-// ---------- Auth Store ----------
 export interface AuthStore {
   getToken(): string | null;
   setToken(token: string | null): void;
@@ -44,9 +31,7 @@ export interface AuthStore {
 }
 
 export type UnauthenticatedReason = "logout" | "refresh_failed" | "unauthorized";
-
 export type AuthEvent = { type: "authenticated" } | { type: "unauthenticated"; reason?: UnauthenticatedReason };
-
 export interface AuthEvents {
   subscribe(listener: (event: AuthEvent) => void): () => void;
 }
@@ -78,75 +63,69 @@ export function createMemoryAuthStore(): AuthStore {
   let token: string | null = null;
   return {
     getToken: () => token,
-    setToken: (t) => {
-      token = t;
+    setToken: (value) => {
+      token = value;
     },
-    isTokenExpired: () => {
-      if (!token) return true;
-      return isTokenExpired(token);
-    },
+    isTokenExpired: () => (token ? isTokenExpired(token) : true),
   };
 }
 
-// ---------- Client Options ----------
+export { SharedApiError as ApiError };
 
-export class ApiError extends Error {
-  status?: number;
+export class UnauthenticatedError extends SharedApiError {
+  readonly reason?: UnauthenticatedReason;
 
-  constructor(message: string) {
-    super(message);
-    this.name = "ApiError";
+  constructor(message = "Unauthenticated", reason?: UnauthenticatedReason) {
+    super("auth", 401);
+    this.name = "UnauthenticatedError";
+    this.message = message;
+    this.reason = reason;
   }
 }
 
 export type ApiClient = ReturnType<typeof createApiClient>;
 
-export class UnauthenticatedError extends ApiError {
-  readonly reason?: UnauthenticatedReason;
-
-  constructor(message = "Unauthenticated", reason?: UnauthenticatedReason) {
-    super(message);
-    this.name = "UnauthenticatedError";
-    this.status = 401;
-    this.reason = reason;
-  }
+function parseGrant(value: unknown): AuthGrantResponse {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    !("access_token" in value) ||
+    typeof value.access_token !== "string" ||
+    value.access_token.length === 0 ||
+    !("token_type" in value) ||
+    value.token_type !== "Bearer" ||
+    !("expires_in" in value) ||
+    typeof value.expires_in !== "number"
+  )
+    throw new Error("Invalid authentication response");
+  return value as AuthGrantResponse;
 }
 
-// ---------- Core Client ----------
-// TODO: Improve error handling. Utilize error codes from the api.
-export function createApiClient(opts: { baseUrl: string }) {
-  const baseUrl = opts.baseUrl;
+export function createApiClient(opts: { baseUrl: string; fetch?: FetchLike; timeoutMs?: number }) {
+  const transport = createSharedApiClient({
+    baseUrl: opts.baseUrl,
+    fetch: opts.fetch,
+    timeoutMs: opts.timeoutMs,
+    maxResponseBytes: 8 * 1024 * 1024,
+    maxConcurrentRequests: 32,
+  });
+  const baseUrl = transport.baseUrl;
   const auth = createMemoryAuthStore();
   const authEventsEmitter = createAuthEventEmitter();
   const authEvents: AuthEvents = {
     subscribe: (listener) => authEventsEmitter.subscribe(listener),
   };
 
-  const url = (path: string) => {
-    if (!path.startsWith("/")) throw new Error("API path must start with '/'");
-    return `${baseUrl}${path}`;
-  };
-
   async function refreshAccessToken(): Promise<boolean> {
     try {
-      const res = await fetch(url("/v1/auth/refresh"), {
+      const data = await transport.request<AuthGrantResponse>("/v1/auth/refresh", {
         method: "POST",
         credentials: "include",
+        parse: parseGrant,
       });
-      if (!res.ok) {
-        auth.setToken(null);
-        return false;
-      }
-      const data = (await res.json()) as AuthGrantResponse;
-      const token = data.access_token ?? null;
       const hadPreviousToken = auth.getToken() !== null;
-      auth.setToken(token);
-      if (!token) {
-        return false;
-      }
-      if (hadPreviousToken) {
-        authEventsEmitter.emit({ type: "authenticated" });
-      }
+      auth.setToken(data.access_token);
+      if (hadPreviousToken) authEventsEmitter.emit({ type: "authenticated" });
       return true;
     } catch {
       auth.setToken(null);
@@ -154,12 +133,15 @@ export function createApiClient(opts: { baseUrl: string }) {
     }
   }
 
-  // this function might attempt the fetch multiple times, if token is not expired, but a 401 is received.
-  async function doFetch(path: string, init?: RequestInit): Promise<Response> {
-    const NUMBER_OF_ATTEMPTS = 2;
+  async function doFetch<T>(
+    path: string,
+    init?: RequestInit,
+    query?: Record<string, string | number | boolean | undefined>,
+  ): Promise<T> {
+    const method = (init?.method ?? "GET").toUpperCase() as ApiMethod;
     let unauthReason: UnauthenticatedReason | undefined;
 
-    for (let i = 0; i < NUMBER_OF_ATTEMPTS; i++) {
+    for (let attempt = 0; attempt < 2; attempt++) {
       if (auth.isTokenExpired()) {
         const refreshed = await refreshAccessToken();
         if (!refreshed) {
@@ -170,18 +152,21 @@ export function createApiClient(opts: { baseUrl: string }) {
 
       const headers = new Headers(init?.headers ?? {});
       headers.set("Authorization", `Bearer ${auth.getToken()}`);
-      const res = await fetch(url(path), {
-        ...init,
-        headers,
-      });
-
-      if (res.status === 401) {
+      try {
+        return await transport.request<T>(path, {
+          method,
+          query,
+          headers,
+          body: init?.body,
+          credentials: init?.credentials ?? "same-origin",
+          cache: init?.cache,
+          signal: init?.signal ?? undefined,
+        });
+      } catch (error) {
+        if (!(error instanceof SharedApiError) || error.status !== 401) throw error;
         auth.setToken(null);
         unauthReason = "unauthorized";
-        continue;
       }
-
-      return res;
     }
 
     const reason = unauthReason ?? "unauthorized";
@@ -190,23 +175,13 @@ export function createApiClient(opts: { baseUrl: string }) {
     throw new UnauthenticatedError("Unauthenticated", reason);
   }
 
-  // ---------- Auth API ----------
   async function exchangeDiscordCode(code: string): Promise<AuthGrantResponse> {
-    const res = await fetch(url("/v1/auth/discord-exchange"), {
+    const data = await transport.request<AuthGrantResponse>("/v1/auth/discord-exchange", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
       credentials: "include",
-      body: JSON.stringify({ code }),
+      json: { code },
+      parse: parseGrant,
     });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      const err = new Error(body.error ?? "Failed to exchange Discord code") as Error & { status?: number };
-      err.status = res.status;
-      throw err;
-    }
-    const data = (await res.json()) as AuthGrantResponse;
     if (data.access_token) {
       auth.setToken(data.access_token);
       authEventsEmitter.emit({ type: "authenticated" });
@@ -215,77 +190,67 @@ export function createApiClient(opts: { baseUrl: string }) {
   }
 
   async function logout(): Promise<void> {
-    const res = await doFetch("/v1/auth/logout", { method: "POST", credentials: "include" });
-    if (!res.ok && res.status !== 401) throw new Error("Failed to logout");
+    await doFetch<void>("/v1/auth/logout", { method: "POST", credentials: "include" });
     auth.setToken(null);
     authEventsEmitter.emit({ type: "unauthenticated", reason: "logout" });
   }
 
   async function fetchMe(): Promise<AuthMeResponse> {
-    const res = await doFetch("/v1/auth/me");
-    if (!res.ok) throw new Error("Not authenticated");
-    return res.json();
+    return doFetch<AuthMeResponse>("/v1/auth/me");
   }
 
-  // ---------- Tracks API ----------
-  async function fetchTracks(params: TrackFetchParams = {}): Promise<PaginatedResponse<ApiTrack>> {
-    const sp = new URLSearchParams();
-    Object.entries(params).forEach(([k, v]) => {
-      if (v !== undefined && v !== null) sp.set(k, String(v));
-    });
-    const res = await doFetch(`/v1/tracks${sp.toString() ? `?${sp}` : ""}`);
-    if (!res.ok) throw new Error("Failed to fetch tracks");
-    return res.json();
-  }
-
-  const getStreamUrl = (trackId: number | string) => `${baseUrl}/v1/tracks/${encodeURIComponent(trackId)}/stream`;
-
-  async function fetchUser(id: number | string): Promise<ApiUser> {
-    const res = await doFetch(`/v1/users/${encodeURIComponent(String(id))}`);
-    if (!res.ok) throw new Error(`Failed to fetch user ${id}`);
-    return res.json();
-  }
+  const trackQuery = async (params: TrackFetchParams = {}) => {
+    const query: Record<string, string | number | boolean | undefined> = {
+      offset: params.offset,
+      limit: params.limit,
+      include_deleted: params.include_deleted,
+      user_id: params.user_id,
+      playlist_id: params.playlist_id,
+    };
+    return doFetch<PaginatedResponse<ApiTrack>>("/v1/tracks", undefined, query);
+  };
 
   async function fetchPlaylists(params: { include_deleted?: boolean } = {}): Promise<ApiPlaylist[]> {
-    const sp = new URLSearchParams();
-    if (params.include_deleted !== undefined) {
-      sp.set("include_deleted", String(params.include_deleted));
-    }
-    const res = await doFetch(`/v1/playlists${sp.toString() ? `?${sp}` : ""}`);
-    if (!res.ok) throw new Error("Failed to fetch playlists");
-    return res.json();
+    return doFetch<ApiPlaylist[]>("/v1/playlists", undefined, params);
   }
 
   async function unifiedSearch(params: UnifiedSearchRequest): Promise<UnifiedSearchResponse> {
-    const sp = new URLSearchParams();
-    if (params.q) {
-      const trimmed = params.q.trim();
-      if (trimmed) {
-        sp.set("q", trimmed);
-      }
-    }
-    if (params.type) sp.set("type", params.type);
-    if (params.sort) sp.set("sort", params.sort);
-    if (params.order) sp.set("order", params.order);
-    if (params.include_deleted !== undefined) sp.set("include_deleted", String(params.include_deleted));
-    if (params.limit !== undefined) sp.set("limit", String(params.limit));
-    if (params.offset !== undefined) sp.set("offset", String(params.offset));
-    if (params.playlistId) sp.set("playlist_id", String(params.playlistId));
-    if (params.userId) sp.set("user_id", String(params.userId));
-
-    const res = await doFetch(`/v1/search${sp.toString() ? `?${sp}` : ""}`);
-    if (!res.ok) throw new Error("Failed to perform search");
-    return res.json();
+    const query: Record<string, string | number | boolean | undefined> = {
+      q: params.q?.trim() || undefined,
+      type: params.type,
+      sort: params.sort,
+      order: params.order,
+      include_deleted: params.include_deleted,
+      limit: params.limit,
+      offset: params.offset,
+      playlist_id: params.playlistId ?? undefined,
+      user_id: params.userId ?? undefined,
+    };
+    return doFetch<UnifiedSearchResponse>("/v1/search", undefined, query);
   }
 
   return {
     baseUrl,
     authEvents,
     auth: { exchangeDiscordCode, logout, fetchMe },
-    tracks: { fetch: fetchTracks, streamUrl: getStreamUrl },
-    playlists: { fetch: fetchPlaylists },
-    users: { fetch: fetchUser },
+    tracks: {
+      fetch: trackQuery,
+      get: (id: number | string) => doFetch<ApiTrack>(`/v1/tracks/${encodeURIComponent(String(id))}`),
+      streamUrl: (id: number | string) => `${baseUrl}/v1/tracks/${encodeURIComponent(String(id))}/stream`,
+    },
+    playlists: {
+      fetch: fetchPlaylists,
+      get: (id: number | string) => doFetch<ApiPlaylist>(`/v1/playlists/${encodeURIComponent(String(id))}`),
+    },
+    users: {
+      fetch: (id: number | string) => doFetch<ApiUser>(`/v1/users/${encodeURIComponent(String(id))}`),
+      greeting: (id: number | string) =>
+        doFetch<GreetingResponse>(`/v1/users/${encodeURIComponent(String(id))}/greeting`),
+      farewell: (id: number | string) =>
+        doFetch<FarewellResponse>(`/v1/users/${encodeURIComponent(String(id))}/farewell`),
+    },
     search: { unified: unifiedSearch },
     fetch: doFetch,
+    close: () => transport.close(),
   };
 }

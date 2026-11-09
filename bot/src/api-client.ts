@@ -1,7 +1,10 @@
-import { randomUUID } from "node:crypto";
+import { createApiClient, ApiClientError } from "@kevbot/api-client";
+import type { ApiMethod } from "@kevbot/api-client";
 import { z } from "zod";
 import type { BotConfig } from "./config.js";
 import type { BotLogger } from "./logging.js";
+
+export { ApiClientError };
 
 export const discordIdSchema = z.string().regex(/^[1-9]\d{16,19}$/);
 const tokenSchema = z.object({
@@ -14,177 +17,73 @@ const actorSchema = tokenSchema.extend({
   user: z.object({ id: z.number().int().positive(), discord_id: discordIdSchema }).passthrough(),
 });
 type Token = { value: string; expiresAt: number };
-type Method = "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE";
 export type ApiFailure =
   "auth" | "denied" | "not_found" | "invalid" | "unavailable" | "timeout" | "protocol" | "busy" | "closed";
-export class ApiClientError extends Error {
-  constructor(
-    readonly kind: ApiFailure,
-    readonly status?: number,
-    readonly outcomeUnknown = false,
-  ) {
-    super(`Bot API request failed: ${kind}`);
-  }
-}
 export interface ApiRequest<T> {
-  method?: Method;
+  method?: ApiMethod;
   json?: unknown;
   query?: Record<string, string | number | boolean | undefined>;
   schema: z.ZodType<T>;
   signal?: AbortSignal;
 }
 
-// Only API service/actor JWTs are cached, never a catalog, database connection or audio objects.
+function parseSchema<T>(schema: z.ZodType<T>): (value: unknown) => T {
+  return (value) => {
+    const result = schema.safeParse(value);
+    if (!result.success) throw new Error("Invalid API response");
+    return result.data;
+  };
+}
+
+function authFailure(error: unknown): never {
+  if (error instanceof ApiClientError) {
+    if (error.kind === "protocol" || (error.status !== undefined && error.status >= 400))
+      throw new ApiClientError("auth", error.status);
+  }
+  throw error;
+}
+
 export class BotApiClient {
   private serviceToken?: Token;
   private serviceFlight?: Promise<Token>;
   private readonly actors = new Map<string, Token>();
   private readonly actorFlights = new Map<string, Promise<Token>>();
-  private readonly shutdown = new AbortController();
-  private active = 0;
+  private readonly transport;
 
   constructor(
     private readonly config: BotConfig,
-    private readonly log: BotLogger,
-    private readonly fetcher: typeof fetch = fetch,
+    log: BotLogger,
+    fetcher: typeof fetch = fetch,
     private readonly now: () => number = Date.now,
-  ) {}
+  ) {
+    this.transport = createApiClient({
+      baseUrl: config.API_BASE_URL,
+      fetch: fetcher,
+      timeoutMs: config.API_REQUEST_TIMEOUT_MS,
+      maxResponseBytes: config.API_MAX_RESPONSE_BYTES,
+      maxConcurrentRequests: config.API_MAX_CONCURRENT_REQUESTS,
+      requestIdHeader: true,
+      onRequest: ({ requestId, status, durationMs, kind }) => {
+        if (kind) log.warn({ component: "api", requestId, reason: kind, status }, "api.request.failed");
+        else log.debug({ component: "api", requestId, status, durationMs }, "api.request.completed");
+      },
+    });
+  }
 
   close() {
-    this.shutdown.abort();
+    this.transport.close();
     this.serviceToken = undefined;
     this.actors.clear();
     this.actorFlights.clear();
   }
+
   private fresh(token?: Token) {
     return token && token.expiresAt > this.now() ? token : undefined;
   }
+
   private token(data: z.infer<typeof tokenSchema>): Token {
-    // Short-lived test/dev grants still receive a proportional safety margin.
     const ttl = data.expires_in * 1000;
     return { value: data.access_token, expiresAt: this.now() + ttl - Math.min(5000, ttl / 10) };
-  }
-
-  private async raw(
-    path: string,
-    method: Method,
-    headers: Record<string, string>,
-    json?: unknown,
-    signal?: AbortSignal,
-    responseType: "json" | "audio" = "json",
-  ): Promise<{ status: number; body: unknown }> {
-    if (this.shutdown.signal.aborted || signal?.aborted) throw new ApiClientError("closed");
-    if (this.active >= this.config.API_MAX_CONCURRENT_REQUESTS) throw new ApiClientError("busy");
-    this.active++;
-    const controller = new AbortController();
-    const combined = AbortSignal.any([controller.signal, this.shutdown.signal, ...(signal ? [signal] : [])]);
-    const requestId = randomUUID();
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const started = this.now();
-    const mutating = method !== "GET" && method !== "HEAD";
-    let responseStatus: number | undefined;
-    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
-    try {
-      const operation = async () => {
-        const response = await this.fetcher(`${this.config.API_BASE_URL.replace(/\/$/, "")}${path}`, {
-          method,
-          headers: {
-            ...headers,
-            Accept: responseType === "audio" ? "audio/mpeg" : "application/json",
-            "X-Request-ID": requestId,
-            ...(json === undefined ? {} : { "Content-Type": "application/json" }),
-          },
-          ...(json === undefined ? {} : { body: JSON.stringify(json) }),
-          redirect: "error",
-          signal: combined,
-        });
-        responseStatus = response.status;
-        // Error bodies may contain private data; never read or relay them.
-        if (!response.ok) {
-          await response.body?.cancel();
-          return { status: response.status, body: undefined };
-        }
-        const declaredSize = Number(response.headers.get("content-length") ?? 0);
-        if (declaredSize > this.config.API_MAX_RESPONSE_BYTES) {
-          await response.body?.cancel();
-          throw new ApiClientError("protocol", response.status, mutating);
-        }
-        if (response.status === 204 || method === "HEAD") {
-          await response.body?.cancel();
-          return { status: response.status, body: undefined };
-        }
-        if (responseType === "audio" && !/^audio\/mpeg(?:\s*;|$)/i.test(response.headers.get("content-type") ?? "")) {
-          await response.body?.cancel();
-          throw new ApiClientError("protocol", response.status);
-        }
-        reader = response.body?.getReader();
-        if (!reader) throw new ApiClientError("protocol", response.status, mutating);
-        const chunks: Uint8Array[] = [];
-        let size = 0;
-        for (;;) {
-          const next = await reader.read();
-          if (next.done) break;
-          size += next.value.byteLength;
-          if (size > this.config.API_MAX_RESPONSE_BYTES)
-            throw new ApiClientError("protocol", response.status, mutating);
-          chunks.push(next.value);
-        }
-        const bytes = Buffer.concat(chunks);
-        if (responseType === "audio") return { status: response.status, body: bytes };
-        const text = bytes.toString("utf8");
-        try {
-          return { status: response.status, body: JSON.parse(text) as unknown };
-        } catch {
-          throw new ApiClientError("protocol", response.status, mutating);
-        }
-      };
-      const deadline = new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => {
-          controller.abort();
-          reject(new ApiClientError("timeout", responseStatus, mutating));
-        }, this.config.API_REQUEST_TIMEOUT_MS);
-      });
-      const aborted = new Promise<never>((_resolve, reject) => {
-        combined.addEventListener(
-          "abort",
-          () =>
-            reject(
-              new ApiClientError(
-                this.shutdown.signal.aborted || signal?.aborted ? "closed" : "timeout",
-                responseStatus,
-                mutating,
-              ),
-            ),
-          { once: true },
-        );
-      });
-      const result = await Promise.race([operation(), deadline, aborted]);
-      this.log.debug(
-        { component: "api", requestId, status: result.status, durationMs: this.now() - started },
-        "api.request.completed",
-      );
-      return result;
-    } catch (error) {
-      const failure =
-        error instanceof ApiClientError ? error : new ApiClientError("unavailable", responseStatus, mutating);
-      this.log.warn(
-        { component: "api", requestId, reason: failure.kind, status: failure.status },
-        "api.request.failed",
-      );
-      throw failure;
-    } finally {
-      if (timer) clearTimeout(timer);
-      controller.abort();
-      if (reader) {
-        void reader.cancel().catch(() => {});
-        try {
-          reader.releaseLock();
-        } catch {
-          /* A canceled read may still be settling. */
-        }
-      }
-      this.active--;
-    }
   }
 
   private async service(rejected?: Token): Promise<Token> {
@@ -193,12 +92,18 @@ export class BotApiClient {
     if (cached) return cached;
     if (this.serviceFlight) return this.serviceFlight;
     this.serviceFlight = (async () => {
-      const result = await this.raw("/v1/bot/auth", "POST", { "x-bot-key": this.config.BOT_AUTH_API_KEY });
-      const grant = tokenSchema.safeParse(result.body);
-      if (result.status !== 200 || !grant.success) throw new ApiClientError("auth", result.status);
-      // A service-only token is never used on an ordinary actor endpoint.
-      const token = this.token(grant.data);
-      if (!this.shutdown.signal.aborted) this.serviceToken = token;
+      let grant: z.infer<typeof tokenSchema>;
+      try {
+        grant = await this.transport.request("/v1/bot/auth", {
+          method: "POST",
+          headers: { "x-bot-key": this.config.BOT_AUTH_API_KEY },
+          parse: parseSchema(tokenSchema),
+        });
+      } catch (error) {
+        authFailure(error);
+      }
+      const token = this.token(grant);
+      this.serviceToken = token;
       return token;
     })();
     try {
@@ -206,6 +111,15 @@ export class BotApiClient {
     } finally {
       this.serviceFlight = undefined;
     }
+  }
+
+  private async resolveActor(discordId: string, serviceToken: Token): Promise<z.infer<typeof actorSchema>> {
+    return this.transport.request("/v1/bot/actors/resolve", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${serviceToken.value}` },
+      json: { discord_id: discordId },
+      parse: parseSchema(actorSchema),
+    });
   }
 
   private async actor(discordId: string, rejected?: Token): Promise<Token> {
@@ -219,32 +133,26 @@ export class BotApiClient {
     const pending = this.actorFlights.get(discordId);
     if (pending) return pending;
     if (this.actorFlights.size >= this.config.ACTOR_CACHE_MAX) throw new ApiClientError("busy");
+
     const flight = (async () => {
       let service = await this.service();
-      let result = await this.raw(
-        "/v1/bot/actors/resolve",
-        "POST",
-        { Authorization: `Bearer ${service.value}` },
-        { discord_id: discordId },
-      );
-      if (result.status === 401) {
+      let grant: z.infer<typeof actorSchema>;
+      try {
+        grant = await this.resolveActor(discordId, service);
+      } catch (error) {
+        if (!(error instanceof ApiClientError) || error.status !== 401) authFailure(error);
         service = await this.service(service);
-        result = await this.raw(
-          "/v1/bot/actors/resolve",
-          "POST",
-          { Authorization: `Bearer ${service.value}` },
-          { discord_id: discordId },
-        );
+        try {
+          grant = await this.resolveActor(discordId, service);
+        } catch (retryError) {
+          authFailure(retryError);
+        }
       }
-      const grant = actorSchema.safeParse(result.body);
-      if (result.status !== 200 || !grant.success || grant.data.user.discord_id !== discordId)
-        throw new ApiClientError("auth", result.status);
-      const token = this.token(grant.data);
-      if (!this.shutdown.signal.aborted) {
-        this.actors.delete(discordId);
-        while (this.actors.size >= this.config.ACTOR_CACHE_MAX) this.actors.delete(this.actors.keys().next().value!);
-        this.actors.set(discordId, token);
-      }
+      if (grant.user.discord_id !== discordId) throw new ApiClientError("auth");
+      const token = this.token(grant);
+      this.actors.delete(discordId);
+      while (this.actors.size >= this.config.ACTOR_CACHE_MAX) this.actors.delete(this.actors.keys().next().value!);
+      this.actors.set(discordId, token);
       return token;
     })();
     this.actorFlights.set(discordId, flight);
@@ -263,46 +171,23 @@ export class BotApiClient {
       path.includes("://")
     )
       throw new ApiClientError("invalid");
-    if (this.shutdown.signal.aborted || options.signal?.aborted) throw new ApiClientError("closed");
-    const query = new URLSearchParams();
-    const entries = Object.entries(options.query ?? {});
-    if (entries.length > 32) throw new ApiClientError("invalid");
-    for (const [key, value] of entries) {
-      if (!/^[a-z_]{1,40}$/.test(key) || (value !== undefined && String(value).length > 500))
-        throw new ApiClientError("invalid");
-      if (value !== undefined) query.set(key, String(value));
-    }
-    const route = path + (query.size ? `?${query}` : "");
-    const method = options.method ?? "GET";
+    const execute = (token: Token) =>
+      this.transport.request(path, {
+        method: options.method,
+        query: options.query,
+        json: options.json,
+        signal: options.signal,
+        headers: { Authorization: `Bearer ${token.value}` },
+        parse: parseSchema(options.schema),
+      });
     let token = await this.actor(authorDiscordId);
-    let result = await this.raw(
-      route,
-      method,
-      { Authorization: `Bearer ${token.value}` },
-      options.json,
-      options.signal,
-    );
-    if (result.status === 401) {
+    try {
+      return await execute(token);
+    } catch (error) {
+      if (!(error instanceof ApiClientError) || error.status !== 401) throw error;
       token = await this.actor(authorDiscordId, token);
-      // Only an explicit authentication rejection allows this one replay, including mutations.
-      result = await this.raw(route, method, { Authorization: `Bearer ${token.value}` }, options.json, options.signal);
+      return execute(token);
     }
-    if (result.status >= 400) {
-      const kind =
-        result.status === 401
-          ? "auth"
-          : result.status === 403
-            ? "denied"
-            : result.status === 404
-              ? "not_found"
-              : result.status < 500 && result.status !== 429
-                ? "invalid"
-                : "unavailable";
-      throw new ApiClientError(kind, result.status, method !== "GET" && method !== "HEAD" && result.status >= 500);
-    }
-    const data = options.schema.safeParse(result.body);
-    if (!data.success) throw new ApiClientError("protocol", result.status, method !== "GET" && method !== "HEAD");
-    return data.data;
   }
 
   async requestAudio(authorDiscordId: string, path: string): Promise<Buffer> {
@@ -313,28 +198,20 @@ export class BotApiClient {
       path.includes("://")
     )
       throw new ApiClientError("invalid");
-    if (this.shutdown.signal.aborted) throw new ApiClientError("closed");
     let token = await this.actor(authorDiscordId);
-    let result = await this.raw(path, "GET", { Authorization: `Bearer ${token.value}` }, undefined, undefined, "audio");
-    if (result.status === 401) {
+    const execute = (access: Token) =>
+      this.transport.requestBytes(path, {
+        headers: { Authorization: `Bearer ${access.value}` },
+        accept: "audio/mpeg",
+        expectedContentType: /^audio\/mpeg(?:\s*;|$)/i,
+      });
+    try {
+      return Buffer.from(await execute(token));
+    } catch (error) {
+      if (!(error instanceof ApiClientError) || error.status !== 401) throw error;
       token = await this.actor(authorDiscordId, token);
-      result = await this.raw(path, "GET", { Authorization: `Bearer ${token.value}` }, undefined, undefined, "audio");
+      return Buffer.from(await execute(token));
     }
-    if (result.status >= 400) {
-      const kind =
-        result.status === 401
-          ? "auth"
-          : result.status === 403
-            ? "denied"
-            : result.status === 404
-              ? "not_found"
-              : result.status < 500 && result.status !== 429
-                ? "invalid"
-                : "unavailable";
-      throw new ApiClientError(kind, result.status);
-    }
-    if (!Buffer.isBuffer(result.body) || result.body.length === 0) throw new ApiClientError("protocol", result.status);
-    return result.body;
   }
 }
 

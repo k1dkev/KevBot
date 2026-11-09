@@ -24,7 +24,7 @@ jobs:
           cache-dependency-path: bot/package-lock.json
       - run: npm ci
       - run: npm test
-      - run: docker build --target production -t kevbot-bot:check .
+      - run: docker build --file "$GITHUB_WORKSPACE/bot/Dockerfile" --target production -t kevbot-bot:check "$GITHUB_WORKSPACE"
       - run: docker run --rm --network none kevbot-bot:check node dist/main.js --help
       - name: Validate configuration without a gateway login
         run: |
@@ -60,6 +60,15 @@ jobs:
           docker run --rm -w /tools/db/rename_to_id kevbot_tools:check /opt/rename_to_id/.venv/bin/python rename_to_id --help
           docker run --rm kevbot_tools:check mysql --version
 
+  api_client_checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node --test packages/api-client/test/*.test.mjs
+
   frontend_checks:
     runs-on: ubuntu-latest
     defaults:
@@ -81,7 +90,7 @@ jobs:
       - run: npm run lint
       - run: npm run test:unit
       - run: npm run build
-      - run: CHECK_LOGGING_BUNDLE=1 npm run test:unit
+      - run: CHECK_LOGGING_BUNDLE=1 CHECK_API_CLIENT_BUNDLE=1 npm run test:unit
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v4

@@ -5,6 +5,10 @@ and a Next.js website. The website currently supports login, browse/search,
 profiles, playlist detail and single-track playback. Web management flows and the
 replacement Discord bot remain work; the legacy bot lives in `v1/`.
 
+The frontend and replacement bot share a private local HTTP client and API types
+from [`packages/api-client`](packages/api-client/README.md). Browser session
+refresh and delegated bot actor credentials remain consumer-owned.
+
 Start with the [documentation index](docs/README.md),
 [product requirements](PRD.md), [architecture](ARCHITECTURE.md) and
 [roadmap](ROADMAP.md). GitHub issues track delivery, rather than copied checklists.
@@ -75,6 +79,7 @@ the root:
 ```sh
 npm ci
 npm run format:check
+npm run test:api-client
 npm --prefix frontend run lint
 npm --prefix frontend run test:unit
 ```

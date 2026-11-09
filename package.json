@@ -8,7 +8,8 @@
     "format:check": "npm run format:check:js && npm run format:check:python",
     "format:check:js": "prettier --check \"**/*.{js,cjs,mjs,ts,tsx}\"",
     "format:check:python": "ruff format --check .",
-    "format:verify": "node tools/check-formatting.mjs"
+    "format:verify": "node tools/check-formatting.mjs",
+    "test:api-client": "node --test packages/api-client/test/*.test.mjs"
   },
   "devDependencies": {
     "prettier": "3.9.10"

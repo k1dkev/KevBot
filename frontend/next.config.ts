@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   // Repository-level formatter dependencies must not expand this app's tracing root.
   outputFileTracingRoot: __dirname,
   serverExternalPackages: ["pino", "pino-pretty"],
+  transpilePackages: ["@kevbot/api-client"],
   reactStrictMode: false,
 };
 

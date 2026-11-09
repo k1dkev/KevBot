@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getConfig } from "@/lib/config";
 import { ApiPlaylist } from "@/lib/types";
+import { ApiClientError, createApiClient } from "@kevbot/api-client";
 import PlaylistPageClient from "./playlist-page-client";
 
 interface PlaylistPageProps {
@@ -9,18 +10,15 @@ interface PlaylistPageProps {
 
 async function fetchPlaylist(id: string): Promise<ApiPlaylist> {
   const config = getConfig();
-  const res = await fetch(`${config.apiUrl}/v1/playlists/${encodeURIComponent(id)}`, {
-    cache: "no-store",
-  });
-
-  if (res.status === 404) {
-    notFound();
-  }
-  if (!res.ok) {
+  const api = createApiClient({ baseUrl: config.apiUrl });
+  try {
+    return await api.request<ApiPlaylist>(`/v1/playlists/${encodeURIComponent(id)}`, { cache: "no-store" });
+  } catch (error) {
+    if (error instanceof ApiClientError && error.status === 404) notFound();
     throw new Error(`Failed to load playlist ${id}`);
+  } finally {
+    api.close();
   }
-
-  return res.json();
 }
 
 export default async function PlaylistPage({ params }: PlaylistPageProps) {

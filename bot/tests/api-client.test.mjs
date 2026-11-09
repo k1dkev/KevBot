@@ -24,11 +24,11 @@ test("service key is used only for authentication; actor ID is a string-only str
     calls.map((call) => call.path),
     ["/v1/bot/auth", "/v1/bot/actors/resolve", "/v1/users/me"],
   );
-  assert.equal(calls[0].headers["x-bot-key"], "synthetic-api-key");
-  assert.equal(calls[1].headers.Authorization, "Bearer service-token");
+  assert.equal(calls[0].headers.get("x-bot-key"), "synthetic-api-key");
+  assert.equal(calls[1].headers.get("authorization"), "Bearer service-token");
   assert.deepEqual(JSON.parse(calls[1].body), { discord_id: actorId });
-  assert.equal(calls[2].headers.Authorization, "Bearer actor-token");
-  assert.equal(calls[2].headers["x-bot-key"], undefined);
+  assert.equal(calls[2].headers.get("authorization"), "Bearer actor-token");
+  assert.equal(calls[2].headers.get("x-bot-key"), null);
   assert.ok(calls.every((call) => call.redirect === "error" && call.signal));
   for (const id of ["0", "123", 1234567890123456789])
     await assert.rejects(client.request(id, "/v1/users/me", { schema }), { kind: "invalid" });
@@ -58,7 +58,7 @@ test("concurrent service 401s coordinate one renewal and retry resolution once",
     if (path(url).endsWith("/auth")) return json(serviceGrant(`service-${++service}`));
     if (path(url).endsWith("/resolve")) {
       resolutions++;
-      if (init.headers.Authorization === "Bearer service-1") {
+      if (init.headers.get("authorization") === "Bearer service-1") {
         await new Promise((resolve) => setTimeout(resolve, 5));
         return json({}, 401);
       }
@@ -80,7 +80,7 @@ test("concurrent rejected actor JWTs coordinate one renewal; mutations replay on
     if (path(url).endsWith("/auth")) return json(serviceGrant());
     if (path(url).endsWith("/resolve")) return json(grant(`actor-${++actors}`));
     attempts++;
-    if (init.headers.Authorization === "Bearer actor-1") {
+    if (init.headers.get("authorization") === "Bearer actor-1") {
       await new Promise((resolve) => setTimeout(resolve, 5));
       return json({}, 401);
     }
@@ -213,8 +213,8 @@ test("audio downloads preserve bytes, use actor authorization, and reject wrong 
   const received = await valid.client.requestAudio(actorId, "/v1/tracks/9/stream");
   assert.deepEqual(received, Buffer.from(bytes));
   const streamCall = valid.calls.find((call) => call.path === "/v1/tracks/9/stream");
-  assert.equal(streamCall.headers.Authorization, "Bearer actor-token");
-  assert.equal(streamCall.headers.Accept, "audio/mpeg");
+  assert.equal(streamCall.headers.get("authorization"), "Bearer actor-token");
+  assert.equal(streamCall.headers.get("accept"), "audio/mpeg");
   assert.equal(streamCall.method, "GET");
   valid.client.close();
 
