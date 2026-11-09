@@ -1,4 +1,5 @@
 import { ColumnType, Generated, Insertable, Selectable, Updateable } from "kysely";
+import type { AuthorizationRole } from "../authorization/roles";
 
 export interface Database {
   schema_version: SchemaVersionTable;
@@ -14,6 +15,7 @@ export interface Database {
   users: UsersTable;
   sessions: SessionsTable;
   playback_events: PlaybackEventsTable;
+  authorization_state: AuthorizationStateTable;
 }
 
 export interface SchemaVersionTable {
@@ -127,15 +129,16 @@ export interface UsersTable {
   discord_id: string;
   discord_username: string | null;
   discord_avatar_hash: string | null;
+  authorization_role: ColumnType<AuthorizationRole, AuthorizationRole | undefined, AuthorizationRole>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
 export type User = Selectable<UsersTable>;
 // NOTE: if sensitive data is added to the user record, we should use Omit<User, "<sensitive_data>"> instead
-export type PublicUser = User;
+export type PublicUser = Omit<User, "authorization_role">;
 export type NewUser = Insertable<UsersTable>;
 export type UserUpdate = Updateable<UsersTable>;
-export type PostUserOptions = Omit<NewUser, "id" | "created_at" | "updated_at">;
+export type PostUserOptions = Omit<NewUser, "id" | "created_at" | "updated_at" | "authorization_role">;
 export type PatchUserOptions = Omit<PostUserOptions, "discord_id">;
 
 export interface SessionsTable {
@@ -160,4 +163,10 @@ export interface PlaybackEventsTable {
   source_type: string;
   playlist_id: number | null;
   created_at: Generated<Date>;
+}
+
+export interface AuthorizationStateTable {
+  id: 1;
+  bootstrap_completed: ColumnType<0 | 1, 0 | 1 | undefined, 0 | 1>;
+  updated_at: Generated<Date>;
 }

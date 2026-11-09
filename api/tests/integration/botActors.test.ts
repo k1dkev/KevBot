@@ -16,7 +16,7 @@ let config: Config;
 let secrets: Secrets;
 let service: string;
 let owner: string;
-let master: string;
+let moderator: string;
 let unrelated: string;
 const freshDiscordId = "1234567890123456789";
 
@@ -35,7 +35,6 @@ beforeAll(async () => {
     DISCORD_OAUTH2_REDIRECT_URI: "http://dummy.com",
     DISCORD_OAUTH2_CLIENT_ID: "dummy",
     DISCORD_OAUTH2_CLIENT_SECRET: "dummy",
-    MASTER_DISCORD_ID: "135319472041781248",
   });
   ({ config, secrets } = configFactory());
   db = dbFactory(secrets.DB_CONNECTION_STRING);
@@ -43,15 +42,15 @@ beforeAll(async () => {
   await seedUsers(db);
   await seedTracks(db);
   await seedPlaylists(db);
+  await db.updateTable("users").set({ authorization_role: "moderator" }).where("id", "=", 1337).execute();
   service = (await request(app).post("/v1/bot/auth").set("x-bot-key", secrets.BOT_AUTH_API_KEY).expect(200)).body
     .access_token;
   owner = await getLoginTokenAndTestResult({ user_id: 1 }, app);
-  master = (await resolve(service, { discord_id: config.masterDiscordId }).expect(200)).body.access_token;
+  moderator = (await resolve(service, { discord_id: "135319472041781248" }).expect(200)).body.access_token;
   unrelated = (await resolve(service, { discord_id: freshDiscordId }).expect(200)).body.access_token;
 });
 afterAll(async () => {
   await db.destroy();
-  delete process.env.MASTER_DISCORD_ID;
 });
 
 describe("bot actor boundary", () => {
@@ -78,7 +77,7 @@ describe("bot actor boundary", () => {
   });
   it("rejects browser/delegated clients, numeric snowflakes, supplied IDs and privilege claims", async () => {
     await resolve(owner, { discord_id: freshDiscordId }).expect(403);
-    await resolve(unrelated, { discord_id: config.masterDiscordId }).expect(403);
+    await resolve(unrelated, { discord_id: "135319472041781248" }).expect(403);
     for (const body of [
       { discord_id: 1234567890123456789 },
       { discord_id: "0" },
@@ -105,7 +104,7 @@ describe("bot actor boundary", () => {
 });
 
 describe("shared playlist policy", () => {
-  it("allows shared additions, creator/master removals, and only empty deletion", async () => {
+  it("allows shared additions, creator/moderator removals, and only empty deletion", async () => {
     const playlist = (
       await request(app)
         .post("/v1/playlists")
@@ -123,15 +122,15 @@ describe("shared playlist policy", () => {
       .auth(unrelated, { type: "bearer" })
       .send({ track_ids: [40] })
       .expect(403);
-    for (const actor of [owner, master])
+    for (const actor of [owner, moderator])
       await request(app).delete(`/v1/playlists/${playlist.id}`).auth(actor, { type: "bearer" }).expect(409);
     await request(app)
       .delete(`/v1/playlists/${playlist.id}/tracks`)
-      .auth(master, { type: "bearer" })
+      .auth(moderator, { type: "bearer" })
       .send({ track_ids: [40] })
       .expect(200);
     await request(app).delete(`/v1/playlists/${playlist.id}`).auth(unrelated, { type: "bearer" }).expect(403);
-    await request(app).delete(`/v1/playlists/${playlist.id}`).auth(master, { type: "bearer" }).expect(200);
+    await request(app).delete(`/v1/playlists/${playlist.id}`).auth(moderator, { type: "bearer" }).expect(200);
     await request(app)
       .post(`/v1/playlists/${playlist.id}/tracks`)
       .auth(owner, { type: "bearer" })
@@ -139,7 +138,7 @@ describe("shared playlist policy", () => {
       .expect(404);
     await request(app)
       .patch(`/v1/playlists/${playlist.id}/restore`)
-      .auth(master, { type: "bearer" })
+      .auth(moderator, { type: "bearer" })
       .send({})
       .expect(403);
     await request(app)
@@ -149,26 +148,30 @@ describe("shared playlist policy", () => {
       .expect(200);
     await request(app)
       .patch(`/v1/playlists/${playlist.id}`)
-      .auth(master, { type: "bearer" })
-      .send({ name: "notmasterowned" })
+      .auth(moderator, { type: "bearer" })
+      .send({ name: "notmoderatorowned" })
       .expect(403);
   });
-  it("does not give master blanket profile/track/preference privileges", async () => {
+  it("does not give moderators blanket profile or preference privileges", async () => {
     await request(app)
       .patch("/v1/users/1")
-      .auth(master, { type: "bearer" })
+      .auth(moderator, { type: "bearer" })
       .send({ discord_username: "hijacked" })
       .expect(403);
-    await request(app).delete("/v1/tracks/40").auth(master, { type: "bearer" }).expect(403);
+    await request(app).delete("/v1/tracks/40").auth(unrelated, { type: "bearer" }).expect(403);
+    const { insertId } = await db
+      .insertInto("tracks")
+      .values({ name: "moderatorcrossowner", duration: 1, user_id: 1 })
+      .executeTakeFirstOrThrow();
+    await request(app).delete(`/v1/tracks/${insertId}`).auth(moderator, { type: "bearer" }).expect(200);
     await request(app)
       .put("/v1/users/1/greeting")
-      .auth(master, { type: "bearer" })
+      .auth(moderator, { type: "bearer" })
       .send({ greeting_track_id: 40, greeting_playlist_id: null })
       .expect(403);
-    const noMaster = appFactory({ ...config, masterDiscordId: undefined }, secrets, db, {} as Bucket);
-    await request(noMaster)
+    await request(app)
       .delete("/v1/playlists/55/tracks")
-      .auth(master, { type: "bearer" })
+      .auth(unrelated, { type: "bearer" })
       .send({ track_ids: [23] })
       .expect(403);
   });
@@ -204,12 +207,12 @@ describe("preference validation", () => {
     [3, 200],
     [3.999, 200],
     [4, 400],
-  ])("enforces strict farewell duration %s for owner and master", async (duration, status) => {
+  ])("enforces strict farewell duration %s for owner and moderator", async (duration, status) => {
     const { insertId } = await db
       .insertInto("tracks")
       .values({ name: `farewell${String(duration).replace(".", "")}`, duration, user_id: 1 })
       .executeTakeFirstOrThrow();
-    for (const token of [owner, master])
+    for (const token of [owner, moderator])
       await request(app)
         .put("/v1/users/@me/farewell")
         .auth(token, { type: "bearer" })

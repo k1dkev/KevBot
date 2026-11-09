@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc && node scripts/copy-openapi.cjs",
     "test:production": "node scripts/production-smoke.cjs",
+    "bootstrap:admin": "node dist/tasks/bootstrapInitialAdmin.js",
     "start": "node dist/server.js",
     "test": "jest",
     "test:logging": "npm run build && jest --config jest.logging.config.cjs",

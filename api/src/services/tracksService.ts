@@ -5,7 +5,7 @@ import { Database } from "../db/schema";
 import * as Boom from "@hapi/boom";
 import { Bucket } from "@google-cloud/storage";
 import { GetTracksQuerySchema } from "../schemas/tracksSchemas";
-import { Config } from "../config/config";
+import { Ability, AuthorizationService } from "../authorization/roles";
 
 export const getTrackBaseQuery = (dbTrx: Kysely<Database> | Transaction<Database>) => {
   return dbTrx
@@ -24,7 +24,7 @@ export const getTrackBaseQuery = (dbTrx: Kysely<Database> | Transaction<Database
     ]);
 };
 
-export function tracksServiceFactory(db: KevbotDb, tracksBucket: Bucket, config: Config) {
+export function tracksServiceFactory(db: KevbotDb, tracksBucket: Bucket, authorizationService: AuthorizationService) {
   const validateTrackNameIsUnique = async (name: string, excludeId?: number) => {
     let query = db.selectFrom("tracks").selectAll().where("name", "=", name).where("deleted_at", "is", null);
     if (excludeId) {
@@ -36,9 +36,14 @@ export function tracksServiceFactory(db: KevbotDb, tracksBucket: Bucket, config:
     }
   };
 
-  const trackPermissionCheck = (track: Track, req_user_id: number) => {
+  const trackPermissionCheck = async (track: Track, req_user_id: number, ability: Ability) => {
     if (track.user_id !== req_user_id) {
-      throw Boom.forbidden("You do not have permission to modify this track.");
+      await authorizationService.requireAbility(
+        req_user_id,
+        ability,
+        undefined,
+        "You do not have permission to modify this track.",
+      );
     }
   };
 
@@ -110,7 +115,7 @@ export function tracksServiceFactory(db: KevbotDb, tracksBucket: Bucket, config:
 
   const patchTrack = async (id: number, name: string, req_user_id: number) => {
     const track = await getTrackById(id);
-    trackPermissionCheck(track, req_user_id);
+    await trackPermissionCheck(track, req_user_id, "tracks.rename.any");
     await validateTrackNameIsUnique(name, id);
     if (track.name === name) {
       return track;
@@ -121,7 +126,7 @@ export function tracksServiceFactory(db: KevbotDb, tracksBucket: Bucket, config:
 
   const deleteTrack = async (id: number, req_user_id: number) => {
     const track = await getTrackById(id);
-    trackPermissionCheck(track, req_user_id);
+    await trackPermissionCheck(track, req_user_id, "tracks.delete.any");
     await db
       .updateTable("tracks")
       .set({ deleted_at: new Date() })
@@ -133,7 +138,7 @@ export function tracksServiceFactory(db: KevbotDb, tracksBucket: Bucket, config:
 
   const restoreTrack = async (id: number, req_user_id: number, name?: string) => {
     const track = await getTrackById(id);
-    trackPermissionCheck(track, req_user_id);
+    if (track.user_id !== req_user_id) throw Boom.forbidden("You do not have permission to modify this track.");
     await patchTrack(id, name ?? track.name, req_user_id);
     await db.updateTable("tracks").set({ deleted_at: null }).where("id", "=", id).execute();
     return await getTrackById(id);

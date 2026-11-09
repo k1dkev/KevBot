@@ -1,10 +1,11 @@
 import { getTrackBaseQuery } from "./tracksService";
 import * as Boom from "@hapi/boom";
-import { Playlist } from "../db/schema";
+import { Database, Playlist } from "../db/schema";
 import { KevbotDb } from "../db/connection";
-import { Config } from "../config/config";
+import { AuthorizationService } from "../authorization/roles";
+import { Transaction } from "kysely";
 
-export function playlistsServiceFactory(db: KevbotDb, config: Config) {
+export function playlistsServiceFactory(db: KevbotDb, authorizationService: AuthorizationService) {
   interface PlaylistOptions {
     name?: string;
     include_deleted?: boolean;
@@ -27,14 +28,19 @@ export function playlistsServiceFactory(db: KevbotDb, config: Config) {
     }
   };
 
-  const removalPermissionCheck = async (playlist: Playlist, req_user_id: number) => {
+  const removalPermissionCheck = async (
+    playlist: Playlist,
+    req_user_id: number,
+    ability: "playlists.remove_tracks.any" | "playlists.delete_empty.any",
+    queryable: KevbotDb | Transaction<Database> = db,
+  ) => {
     if (playlist.user_id === req_user_id) return;
-    const actor = await db.selectFrom("users").select("discord_id").where("id", "=", req_user_id).executeTakeFirst();
-    if (!config.masterDiscordId || actor?.discord_id !== config.masterDiscordId) {
-      throw Boom.forbidden(
-        "You do not have permission to modify this playlist; only its creator or configured master may remove tracks or delete it",
-      );
-    }
+    await authorizationService.requireAbility(
+      req_user_id,
+      ability,
+      queryable,
+      "You do not have permission to modify this playlist.",
+    );
   };
 
   const getPlaylists = async (options: PlaylistOptions = {}) => {
@@ -77,7 +83,7 @@ export function playlistsServiceFactory(db: KevbotDb, config: Config) {
         .forUpdate()
         .executeTakeFirst();
       if (!playlist) throw Boom.notFound("Playlist not found");
-      await removalPermissionCheck(playlist, req_user_id);
+      await removalPermissionCheck(playlist, req_user_id, "playlists.delete_empty.any", trx);
       const member = await trx
         .selectFrom("playlist_tracks")
         .select("track_id")
@@ -195,7 +201,7 @@ export function playlistsServiceFactory(db: KevbotDb, config: Config) {
         .forUpdate()
         .executeTakeFirst();
       if (!playlist || playlist.deleted_at) throw Boom.notFound("Playlist not found");
-      await removalPermissionCheck(playlist, req_user_id);
+      await removalPermissionCheck(playlist, req_user_id, "playlists.remove_tracks.any", trx);
       const trackIdSet = new Set(track_ids);
       const inPlaylistTrackIdSet = new Set(
         (

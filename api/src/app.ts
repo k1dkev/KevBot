@@ -20,6 +20,7 @@ import { libraryRoutesFactory } from "./routes/libraryRoutes";
 import { libraryServiceFactory } from "./services/libraryService";
 import { requestLoggingFactory } from "./middlewares/requestLogging";
 import { audioRoutesFactory } from "./routes/audioRoutes";
+import { adminRoutesFactory } from "./routes/adminRoutes";
 
 export function appFactory(config: Config, secrets: Secrets, db: Kysely<Database>, tracksBucket: Bucket) {
   const app = express();
@@ -52,6 +53,7 @@ export function appFactory(config: Config, secrets: Secrets, db: Kysely<Database
   app.use("/v1/auth", authRoutesFactory(config, services.authService, services.usersService, auth));
   app.use("/v1/bot", botRoutesFactory(config, services.authService, services.usersService, auth));
   app.use("/v1/users", usersRoutesFactory(auth, services.usersService));
+  app.use("/v1/admin", adminRoutesFactory(auth, services.usersService));
   app.use("/v1/tracks", tracksRoutesFactory(config, auth, services.tracksService));
   app.use("/v1/audio", audioRoutesFactory(config, auth));
   app.use("/v1/playlists", playlistsRoutesFactory(config, auth, services.playlistsService));
